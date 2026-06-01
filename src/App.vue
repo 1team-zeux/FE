@@ -1,1 +1,3 @@
-<template><div>ZeuX</div></template>
+<template>
+  <RouterView />
+</template>
