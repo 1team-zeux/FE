@@ -1,15 +1,5 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="T extends { id: string; idx: number; sev: 'critical' | 'warning' }">
 import { computed } from 'vue';
-
-interface Alarm {
-  id: string;
-  idx: number;
-  sev: 'critical' | 'warning';
-  title?: string;
-  desc?: string;
-  t?: string;
-  sla?: string;
-}
 
 const props = defineProps<{
   series: number[];
@@ -18,13 +8,13 @@ const props = defineProps<{
   targetLabel?: string;
   color: string;
   height?: number;
-  alarms?: Alarm[];
+  alarms?: T[];
   breachFrom?: number;
   activeIdx?: number;
 }>();
 
 const emit = defineEmits<{
-  (e: 'alarmClick', alarm: Alarm): void;
+  (e: 'alarmClick', alarm: T): void;
 }>();
 
 const W = 760;

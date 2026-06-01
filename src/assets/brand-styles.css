@@ -1,0 +1,14 @@
+:root {
+  --color-brand: #2980B9;
+  --color-brand-light: #6DD5FA;
+  --color-brand-subtle: #EFF6FF;
+  --color-bg-page: #F8F9FA;
+  --color-bg-card: #FFFFFF;
+  --color-border: #E5E7EB;
+  --color-text-primary: #111111;
+  --color-status-critical: #ED213A;
+  --color-status-warning: #F37335;
+  --color-status-ok: #56ab2f;
+  --rail-w: 232px;
+  --topbar-h: 52px;
+}
