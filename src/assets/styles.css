@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-brand:        #2980B9;
+  --color-brand-light:  #6DD5FA;
+  --color-brand-subtle: #EFF6FF;
+
+  --color-bg-page:  #F8F9FA;
+  --color-bg-card:  #FFFFFF;
+  --color-bg-muted: #F3F4F6;
+  --color-border:   #E5E7EB;
+
+  --color-text-primary:   #111111;
+  --color-text-secondary: #6B7280;
+  --color-text-muted:     #9CA3AF;
+
+  --color-status-critical: #ED213A;
+  --color-status-warning:  #F37335;
+  --color-status-ok:       #56ab2f;
+  --color-status-pending:  #F59E0B;
+}
+
+.btn-brand {
+  background: linear-gradient(135deg, var(--color-brand-light) 0%, var(--color-brand) 100%);
+  @apply text-white font-semibold px-6 py-2.5 rounded-lg transition-opacity;
+}
+.btn-brand:hover { opacity: 0.9; }
+.btn-brand:disabled { opacity: 0.4; cursor: not-allowed; }
