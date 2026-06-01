@@ -5,6 +5,10 @@ interface Alarm {
   id: string;
   idx: number;
   sev: 'critical' | 'warning';
+  title?: string;
+  desc?: string;
+  t?: string;
+  sla?: string;
 }
 
 const props = defineProps<{

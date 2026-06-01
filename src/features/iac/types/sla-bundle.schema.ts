@@ -19,6 +19,7 @@ export const SLAItemSchema = z.object({
 export type SLAItem = z.infer<typeof SLAItemSchema>
 
 export const BundleStatusSchema = z.enum(['draft', 'confirmed', 'saved'])
+export type BundleStatus = z.infer<typeof BundleStatusSchema>
 
 export const SLABundleSchema = z.object({
   bundleId: z.string(),

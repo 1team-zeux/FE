@@ -42,3 +42,4 @@ export const ApproveTopologyResponseSchema = z.object({
   topologyId: z.string(),
   approved: z.literal(true),
 })
+export type ApproveTopologyResponse = z.infer<typeof ApproveTopologyResponseSchema>
