@@ -6,7 +6,7 @@ const mockSlaBundleDraft: SLABundle = {
   bundleId: 'bundle-mock-001',
   uploadSessionId: 'sess-mock-001',
   confirmedCount: 0,
-  totalRequiredCount: 47,
+  totalRequiredCount: 10,
   status: 'draft',
   items: [
     { fieldId: 'availability_target', label: '가용성 목표', value: '99.9%', confidence: '확실', sectionId: 'availability', required: true },
