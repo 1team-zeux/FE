@@ -60,7 +60,7 @@ const route = useRoute()
     <!-- 바디 -->
     <div class="flex-1 flex gap-4 p-4 overflow-hidden">
       <AppSidebarNav />
-      <main class="flex-1 overflow-hidden">
+      <main class="flex-1 overflow-hidden bg-white rounded-xl shadow-sm border border-border">
         <RouterView />
       </main>
     </div>
