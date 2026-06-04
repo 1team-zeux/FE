@@ -2,11 +2,9 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import {
-  useIacStore,
-  useTopologyCandidates, useApproveTopology,
-  TopologyDiagram, TopologyInfoPanel,
-} from '@/features/iac'
+import { useIacStore, useTopologyCandidates, useApproveTopology } from '@/features/iac'
+import TopologyEditor from '@/features/iac/components/TopologyEditor.vue'
+import TopologyInfoPanel from '@/features/iac/components/TopologyInfoPanel.vue'
 
 const store = useIacStore()
 const router = useRouter()
@@ -35,36 +33,36 @@ function handleApprove() {
 
     <template v-else-if="topologies?.length">
       <!-- 탭 -->
-      <div class="px-6 pt-4 border-b border-border flex gap-4 bg-bg-card">
-        <button
-          v-for="(topo, i) in topologies"
-          :key="topo.topologyId"
-          @click="activeIndex = i"
-          class="pb-3 text-sm font-medium border-b-2 transition-colors"
-          :class="i === activeIndex
-            ? 'border-brand text-brand'
-            : 'border-transparent text-text-secondary hover:text-text-primary'"
-        >
-          <span>{{ topo.label }}</span>
-          <span class="ml-2 text-xs text-text-muted">₩{{ (topo.estimatedMonthlyCost / 10000).toFixed(0) }}만/월</span>
-        </button>
+      <div class="px-6 pt-4 border-b border-border flex items-center justify-between bg-bg-card shrink-0">
+        <div class="flex gap-4">
+          <button
+            v-for="(topo, i) in topologies"
+            :key="topo.topologyId"
+            @click="activeIndex = i"
+            class="pb-3 text-sm font-medium border-b-2 transition-colors"
+            :class="i === activeIndex ? 'border-brand text-brand' : 'border-transparent text-text-secondary hover:text-text-primary'"
+          >
+            {{ topo.label }}
+            <span class="ml-1.5 text-xs text-text-muted">₩{{ (topo.estimatedMonthlyCost / 10000).toFixed(0) }}만/월</span>
+          </button>
+        </div>
+
+        <!-- 정보 패널 (SLA 만족도 요약) -->
+        <div v-if="activeTopology" class="flex gap-3 pb-2">
+          <span
+            v-for="(val, key) in activeTopology.slaSatisfaction"
+            :key="key"
+            class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-brand/10 text-brand"
+          >{{ key }}: {{ val }}</span>
+        </div>
       </div>
 
-      <!-- 다이어그램 + 정보 패널 -->
-      <div v-if="activeTopology" class="flex flex-1 overflow-hidden">
-        <div class="flex-1 p-6">
-          <TopologyDiagram
-            :nodes="activeTopology.nodes"
-            :edges="activeTopology.edges"
-          />
-        </div>
-        <div class="w-72 p-4 border-l border-border overflow-y-auto">
-          <TopologyInfoPanel :topology="activeTopology" />
-        </div>
-      </div>
+      <!-- 편집기 (팔레트 + 캔버스 + 코드) -->
+      <TopologyEditor v-if="activeTopology" :topology="activeTopology" class="flex-1 min-h-0" />
 
       <!-- 푸터 -->
-      <div class="px-6 py-4 border-t border-border bg-bg-card flex justify-end shrink-0">
+      <div class="px-6 py-4 border-t border-border bg-bg-card flex items-center justify-between shrink-0">
+        <p class="text-xs text-text-muted">캔버스에서 수정한 내용은 Terraform 코드에 실시간 반영됩니다.</p>
         <button @click="handleApprove" :disabled="isApproving" class="btn-brand">
           {{ isApproving ? '처리 중...' : '이 토폴로지로 진행' }}
         </button>

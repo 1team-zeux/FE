@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import type { TopologyNode, TopologyEdge } from '../types/topology.schema'
-
+import type { TopologyNode, TopologyEdge, TopologyGroup } from '../types/topology.schema'
 import ec2Url from '@/assets/aws-icons/ec2.svg?url'
 import rdsUrl from '@/assets/aws-icons/rds.svg?url'
 import elbUrl from '@/assets/aws-icons/elb.svg?url'
@@ -14,126 +13,95 @@ import route53Url from '@/assets/aws-icons/route53.svg?url'
 import s3Url from '@/assets/aws-icons/s3.svg?url'
 import vpcUrl from '@/assets/aws-icons/vpc.svg?url'
 
-const NODE_ICONS: Record<string, string> = {
+const ICONS: Record<string, string> = {
   ec2: ec2Url, rds: rdsUrl, elb: elbUrl, lambda: lambdaUrl,
   eks: eksUrl, ecs: ecsUrl, apigw: apigwUrl, cloudwatch: cloudwatchUrl,
-  route53: route53Url, s3: s3Url, vpc: vpcUrl,
-  nat: elbUrl, igw: route53Url,
+  route53: route53Url, s3: s3Url, vpc: vpcUrl, nat: elbUrl, igw: route53Url,
+}
+const GROUP_STYLES: Record<string, { stroke: string; fill: string }> = {
+  'vpc':            { stroke: '#F59E0B', fill: 'rgba(245,158,11,0.04)' },
+  'public-subnet':  { stroke: '#3B82F6', fill: 'rgba(59,130,246,0.04)' },
+  'private-subnet': { stroke: '#8B5CF6', fill: 'rgba(139,92,246,0.04)' },
+  'db-subnet':      { stroke: '#10B981', fill: 'rgba(16,185,129,0.04)' },
+  'asg':            { stroke: '#F97316', fill: 'rgba(249,115,22,0.04)' },
 }
 
-// AWS 서비스별 테마 색상
-const NODE_COLORS: Record<string, string> = {
-  ec2: '#FF9900', rds: '#527FFF', elb: '#8C4FFF', lambda: '#FF9900',
-  eks: '#FF9900', ecs: '#FF9900', apigw: '#FF4F8B', cloudwatch: '#FF9900',
-  route53: '#8C4FFF', s3: '#3F8624', vpc: '#E7157B', nat: '#8C4FFF', igw: '#8C4FFF',
-}
+const NW = 72, NH = 72
 
 defineProps<{
   nodes: TopologyNode[]
   edges: TopologyEdge[]
+  groups?: TopologyGroup[]
 }>()
 
-const emit = defineEmits<{
-  'node-click': [nodeId: string]
-}>()
+const emit = defineEmits<{ 'node-click': [nodeId: string] }>()
+const hovered = ref<string | null>(null)
 
-const hoveredNode = ref<string | null>(null)
+function getNode(nodes: TopologyNode[], id: string) {
+  return nodes.find(n => n.nodeId === id)
+}
 
-function getNode(id: string, nodes: TopologyNode[]) {
-  return nodes.find((n) => n.nodeId === id)
+function edgePath(from: TopologyNode, to: TopologyNode) {
+  const dx = Math.abs(to.x - from.x) * 0.5
+  return `M${from.x},${from.y} C${from.x + dx},${from.y} ${to.x - dx},${to.y} ${to.x},${to.y}`
 }
 </script>
 
 <template>
   <div class="relative w-full h-full">
-    <svg
-      class="w-full h-full"
-      viewBox="0 0 600 500"
-      xmlns="http://www.w3.org/2000/svg"
-    >
+    <svg class="w-full h-full" viewBox="0 0 1060 700" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+        <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
           <path d="M0,0 L0,6 L8,3 z" fill="#9CA3AF" />
         </marker>
-        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000018" />
-        </filter>
       </defs>
+
+      <!-- 그룹 -->
+      <g v-for="g in (groups ?? [])" :key="g.groupId">
+        <rect :x="g.x" :y="g.y" :width="g.width" :height="g.height" rx="10"
+          :fill="GROUP_STYLES[g.type]?.fill ?? 'transparent'"
+          :stroke="GROUP_STYLES[g.type]?.stroke ?? '#9CA3AF'"
+          stroke-width="1.5" stroke-dasharray="6 3" />
+        <text :x="g.x + 10" :y="g.y + 18" font-size="11" font-weight="700"
+          :fill="GROUP_STYLES[g.type]?.stroke ?? '#9CA3AF'" font-family="monospace">
+          {{ g.label }}
+        </text>
+      </g>
 
       <!-- 엣지 -->
       <g v-for="edge in edges" :key="edge.edgeId">
-        <line
-          :x1="getNode(edge.from, nodes)?.x ?? 0"
-          :y1="(getNode(edge.from, nodes)?.y ?? 0) + 44"
-          :x2="getNode(edge.to, nodes)?.x ?? 0"
-          :y2="getNode(edge.to, nodes)?.y ?? 0"
+        <path
+          v-if="getNode(nodes, edge.from) && getNode(nodes, edge.to)"
+          :d="edgePath(getNode(nodes, edge.from)!, getNode(nodes, edge.to)!)"
+          fill="none" stroke="#D1D5DB" stroke-width="1.5"
           :stroke-dasharray="edge.dashed ? '6 4' : 'none'"
-          stroke="#D1D5DB"
-          stroke-width="1.5"
           marker-end="url(#arrow)"
         />
         <text
-          v-if="edge.label"
-          :x="((getNode(edge.from, nodes)?.x ?? 0) + (getNode(edge.to, nodes)?.x ?? 0)) / 2 + 6"
-          :y="((getNode(edge.from, nodes)?.y ?? 0) + (getNode(edge.to, nodes)?.y ?? 0)) / 2 + 44"
-          font-size="9"
-          fill="#9CA3AF"
-          text-anchor="middle"
-        >{{ edge.label }}</text>
+          v-if="edge.label && getNode(nodes, edge.from) && getNode(nodes, edge.to)"
+          :x="(getNode(nodes, edge.from)!.x + getNode(nodes, edge.to)!.x) / 2"
+          :y="(getNode(nodes, edge.from)!.y + getNode(nodes, edge.to)!.y) / 2 - 6"
+          font-size="9" fill="#9CA3AF" text-anchor="middle">{{ edge.label }}</text>
       </g>
 
       <!-- 노드 -->
       <g
-        v-for="node in nodes"
-        :key="node.nodeId"
-        :transform="`translate(${node.x - 36}, ${node.y})`"
+        v-for="node in nodes" :key="node.nodeId"
+        :transform="`translate(${node.x - NW / 2}, ${node.y - NH / 2})`"
         class="cursor-pointer"
         @click="emit('node-click', node.nodeId)"
-        @mouseenter="hoveredNode = node.nodeId"
-        @mouseleave="hoveredNode = null"
+        @mouseenter="hovered = node.nodeId"
+        @mouseleave="hovered = null"
       >
-        <!-- 배경 카드 -->
-        <rect
-          x="0" y="0" width="72" height="72" rx="12"
-          :fill="hoveredNode === node.nodeId ? '#F8FAFF' : '#FFFFFF'"
-          :stroke="hoveredNode === node.nodeId ? (NODE_COLORS[node.type] ?? '#E5E7EB') : '#E5E7EB'"
-          stroke-width="1.5"
-          filter="url(#shadow)"
-        />
-        <!-- 상단 컬러 바 -->
-        <rect
-          x="0" y="0" width="72" height="4" rx="12"
-          :fill="NODE_COLORS[node.type] ?? '#9CA3AF'"
-        />
-        <rect x="0" y="4" width="72" height="8" :fill="NODE_COLORS[node.type] ?? '#9CA3AF'" />
+        <rect x="0" y="0" :width="NW" :height="NH" rx="10"
+          :fill="hovered === node.nodeId ? '#EFF6FF' : '#FFFFFF'"
+          :stroke="hovered === node.nodeId ? '#2980B9' : '#E5E7EB'"
+          stroke-width="1.5" />
+        <image v-if="ICONS[node.type]" :href="ICONS[node.type]" x="16" y="10" width="40" height="40" />
+        <text v-else x="36" y="36" text-anchor="middle" font-size="10" fill="#6B7280">{{ node.type }}</text>
+        <text x="36" y="64" text-anchor="middle" font-size="9" fill="#6B7280" font-family="monospace">{{ node.label }}</text>
 
-        <!-- AWS 아이콘 -->
-        <image
-          v-if="NODE_ICONS[node.type]"
-          :href="NODE_ICONS[node.type]"
-          x="16" y="12" width="40" height="40"
-        />
-        <!-- 폴백: 타입 약어 -->
-        <text
-          v-else
-          x="36" y="40"
-          text-anchor="middle"
-          font-size="11"
-          font-weight="600"
-          fill="#6B7280"
-        >{{ node.type.toUpperCase() }}</text>
-
-        <!-- 라벨 -->
-        <text
-          x="36" y="66"
-          text-anchor="middle"
-          font-size="9"
-          fill="#6B7280"
-          font-family="monospace"
-        >{{ node.label }}</text>
-
-        <!-- 호버 툴팁 -->
-        <g v-if="hoveredNode === node.nodeId && node.catalogRule" transform="translate(76, -8)">
+        <g v-if="hovered === node.nodeId && node.catalogRule" transform="translate(76, -8)">
           <rect x="0" y="0" width="168" height="52" rx="6" fill="#1F2937" opacity="0.95" />
           <text x="10" y="18" font-size="10" fill="#F9FAFB" font-weight="600">{{ node.catalogRule }}</text>
           <text x="10" y="36" font-size="9" fill="#9CA3AF">{{ node.applyCondition }}</text>

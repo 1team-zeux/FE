@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export const NodeTypeSchema = z.enum([
   'vpc', 'subnet', 'ec2', 'rds', 'elb', 'nat', 'igw',
-  'lambda', 'ecs', 'eks', 'cloudwatch', 'route53',
+  'lambda', 'ecs', 'eks', 'cloudwatch', 'route53', 'apigw', 's3',
 ])
 export type NodeType = z.infer<typeof NodeTypeSchema>
 
@@ -12,6 +12,7 @@ export const TopologyNodeSchema = z.object({
   label: z.string(),
   x: z.number(),
   y: z.number(),
+  parentGroupId: z.string().optional(),
   catalogRule: z.string().optional(),
   applyCondition: z.string().optional(),
 })
@@ -26,6 +27,20 @@ export const TopologyEdgeSchema = z.object({
 })
 export type TopologyEdge = z.infer<typeof TopologyEdgeSchema>
 
+export const GroupTypeSchema = z.enum(['vpc', 'public-subnet', 'private-subnet', 'db-subnet', 'asg'])
+export type GroupType = z.infer<typeof GroupTypeSchema>
+
+export const TopologyGroupSchema = z.object({
+  groupId: z.string(),
+  label: z.string(),
+  type: GroupTypeSchema,
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+})
+export type TopologyGroup = z.infer<typeof TopologyGroupSchema>
+
 export const TopologyDraftSchema = z.object({
   topologyId: z.string(),
   label: z.string(),
@@ -35,6 +50,7 @@ export const TopologyDraftSchema = z.object({
   rationale: z.array(z.string()),
   nodes: z.array(TopologyNodeSchema),
   edges: z.array(TopologyEdgeSchema),
+  groups: z.array(TopologyGroupSchema).optional(),
 })
 export type TopologyDraft = z.infer<typeof TopologyDraftSchema>
 
