@@ -29,3 +29,10 @@
 .btn-brand:hover { opacity: 0.9; }
 .btn-brand:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-brand:focus-visible { outline: 2px solid var(--color-brand-light); outline-offset: 2px; }
+
+.text-brand-gradient {
+  background: linear-gradient(135deg, #4FA8DE 0%, var(--color-brand) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
