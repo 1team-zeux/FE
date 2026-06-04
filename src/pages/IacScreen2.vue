@@ -116,9 +116,11 @@ function handleSave() {
 
       <div class="flex-1 p-6 overflow-y-auto space-y-3">
         <FormField
-          v-for="item in activeItems"
+          v-for="(item, index) in activeItems"
           :key="item.fieldId"
           v-bind="item"
+          class="field-stagger"
+          :style="{ animationDelay: `${index * 60}ms` }"
           @confirm="handleConfirm"
         />
       </div>
