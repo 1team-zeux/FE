@@ -9,12 +9,15 @@ import {
 } from '@/features/iac'
 
 const SECTION_LABELS: Record<string, string> = {
+  sla_basic: 'SLA 기본 정보',
   availability: '가용성',
+  latency: '지연 시간',
   recovery: '복구 목표 (RTO / RPO)',
-  performance: '성능',
+  performance: '성능 / 트래픽',
+  infra: '인프라 / 리전',
   cost: '비용',
-  infra: '인프라',
-  backup: '백업',
+  compliance: '보안 / 컴플라이언스',
+  db: 'DB / 데이터',
 }
 
 const store = useIacStore()
