@@ -191,7 +191,6 @@ function handleApply() {
     </div>
   </div>
   </div>
-  </div>
   <div class="px-6 py-4 border-t border-border bg-bg-card flex justify-end shrink-0">
     <button
       :disabled="deployStatus !== 'done'"
