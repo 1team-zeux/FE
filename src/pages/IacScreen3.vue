@@ -2,10 +2,11 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { useIacStore } from '@/features/iac/stores/iac.store'
-import { useTopologyCandidates, useApproveTopology } from '@/features/iac/api/useTopology'
-import TopologyDiagram from '@/features/iac/components/TopologyDiagram.vue'
-import TopologyInfoPanel from '@/features/iac/components/TopologyInfoPanel.vue'
+import {
+  useIacStore,
+  useTopologyCandidates, useApproveTopology,
+  TopologyDiagram, TopologyInfoPanel,
+} from '@/features/iac'
 
 const store = useIacStore()
 const router = useRouter()

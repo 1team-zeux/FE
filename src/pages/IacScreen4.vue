@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { storeToRefs } from 'pinia'
-import { useIacStore } from '@/features/iac/stores/iac.store'
 import {
-  useGenerateTerraform,
-  useTerraformPlan,
-  useTerraformApply,
-  useTerraformVerify,
-  type PlanResult,
-} from '@/features/iac/api/useTerraform'
-import DeployProgress from '@/features/iac/components/DeployProgress.vue'
+  useIacStore,
+  useGenerateTerraform, useTerraformPlan, useTerraformApply, useTerraformVerify,
+  DeployProgress,
+} from '@/features/iac'
+import type { PlanResult } from '@/features/iac'
 
 const store = useIacStore()
 const { deployStatus, selectedTopologyId } = storeToRefs(store)

@@ -2,11 +2,12 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { useIacStore } from '@/features/iac/stores/iac.store'
-import { useSlaBundleDraft, useConfirmField, useSaveSlaBundle } from '@/features/iac/api/useSlaBundle'
-import SectionNav from '@/features/iac/components/SectionNav.vue'
-import FormField from '@/features/iac/components/FormField.vue'
-import type { SLASection } from '@/features/iac/types/sla-bundle.schema'
+import {
+  useIacStore,
+  useSlaBundleDraft, useConfirmField, useSaveSlaBundle,
+  SectionNav, FormField,
+} from '@/features/iac'
+import type { SLASection } from '@/features/iac'
 
 const store = useIacStore()
 const router = useRouter()

@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import UploadZone from '@/features/iac/components/UploadZone.vue'
+import { UploadZone, useUploadSession } from '@/features/iac'
 import ChatPanel from '@/components/ChatPanel.vue'
-import { useUploadSession } from '@/features/iac/api/useUploadSession'
 
 const slaFile = ref<File | null>(null)
 const infraFile = ref<File | null>(null)
