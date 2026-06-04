@@ -14,11 +14,11 @@ function setFile(which: 'sla' | 'infra', file: File) {
   if (which === 'sla') {
     if (slaUrl.value) URL.revokeObjectURL(slaUrl.value)
     slaFile.value = file
-    slaUrl.value = URL.createObjectURL(file)
+    slaUrl.value = URL.createObjectURL(file) + '#toolbar=0&navpanes=0&scrollbar=0'
   } else {
     if (infraUrl.value) URL.revokeObjectURL(infraUrl.value)
     infraFile.value = file
-    infraUrl.value = URL.createObjectURL(file)
+    infraUrl.value = URL.createObjectURL(file) + '#toolbar=0&navpanes=0&scrollbar=0'
   }
 }
 
