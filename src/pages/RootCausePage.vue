@@ -11,7 +11,7 @@ const toastCardName = ref('');
 const handleHandoff = (name: string) => { toastCardName.value = name; showToast.value = true; setTimeout(() => showToast.value = false, 3000); };
 </script>
 <template>
-  <div class="p-8 max-w-[1200px] mx-auto">
+  <div class="py-8 px-8">
     <div v-if="isLoading" class="p-12 text-center">Identifying root causes...</div>
     <div v-else-if="isError" class="p-12 text-center text-status-critical">Error loading trace data</div>
     <template v-else-if="rootCause">

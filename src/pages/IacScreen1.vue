@@ -17,7 +17,7 @@ function handleStart() {
 <template>
   <div class="flex flex-col h-full">
     <div class="flex-1 overflow-y-auto">
-      <div class="max-w-3xl mx-auto px-6 py-10 space-y-8">
+      <div class="py-10 px-8 space-y-8">
         <div>
           <h1 class="text-2xl font-bold text-text-primary">문서 업로드</h1>
           <p class="mt-1 text-text-secondary">SLA 계약서와 인프라 정보 문서를 업로드하면 AI가 자동으로 분석합니다.</p>

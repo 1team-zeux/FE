@@ -6,7 +6,7 @@ const router = useRouter();
 const handleDrilldown = (buId: string, drillable: boolean) => { if (drillable) router.push(`/dashboard/bu/${buId}`); };
 </script>
 <template>
-  <div class="p-8 max-w-[1200px] mx-auto">
+  <div class="py-8 px-8">
     <div class="mb-10">
       <div class="text-[11px] font-bold text-brand uppercase tracking-widest mb-1">Level 1 · Portfolio</div>
       <h1 class="text-3xl font-bold text-text-primary tracking-tight">Enterprise Portfolio Status</h1>

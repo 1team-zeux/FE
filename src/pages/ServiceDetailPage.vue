@@ -13,7 +13,7 @@ const handleAlarmClick = (alarm: Alarm) => activeAlarm.value = alarm;
 const handleTrace = () => { if (activeAlarm.value) router.push(`/dashboard/trace/${activeAlarm.value.id}`); };
 </script>
 <template>
-  <div class="p-8 max-w-[1400px] mx-auto">
+  <div class="py-8 px-8">
     <div v-if="isLoading" class="p-12 text-center">Loading service metrics...</div>
     <div v-else-if="isError" class="p-12 text-center text-status-critical">Error loading metrics</div>
     <template v-else-if="detail">

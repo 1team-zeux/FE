@@ -58,7 +58,7 @@ function handleApply() {
 <template>
   <div class="flex flex-col h-full">
   <div class="flex-1 overflow-y-auto">
-  <div class="max-w-4xl mx-auto px-6 py-8 space-y-6">
+  <div class="py-8 px-8 space-y-6">
     <div>
       <h1 class="text-2xl font-bold text-text-primary">Terraform 배포</h1>
       <p class="text-text-secondary mt-1">인프라 코드를 생성하고 실제 리소스를 프로비저닝합니다.</p>

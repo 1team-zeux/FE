@@ -8,7 +8,7 @@ const { data: services, isLoading, isError } = useSlaStatusQuery(buId);
 const handleDrilldown = (svcId: string) => router.push(`/dashboard/service/${svcId}`);
 </script>
 <template>
-  <div class="p-8 max-w-[1200px] mx-auto">
+  <div class="py-8 px-8">
     <div class="mb-8 flex items-center justify-between">
       <div>
         <div class="text-[11px] font-bold text-brand uppercase tracking-widest mb-1">Level 2 · SLA Status</div>
