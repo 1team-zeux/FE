@@ -16,6 +16,7 @@ function handleStart() {
 </script>
 
 <template>
+  <div class="h-full overflow-y-auto">
   <div class="max-w-3xl mx-auto px-6 py-10 space-y-8">
     <div>
       <h1 class="text-2xl font-bold text-text-primary">문서 업로드</h1>
@@ -47,5 +48,6 @@ function handleStart() {
         <span v-else>AI 분석 시작</span>
       </button>
     </div>
+  </div>
   </div>
 </template>

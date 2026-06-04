@@ -59,6 +59,7 @@ function handleApply() {
 </script>
 
 <template>
+  <div class="h-full overflow-y-auto">
   <div class="max-w-4xl mx-auto px-6 py-8 space-y-6">
     <div>
       <h1 class="text-2xl font-bold text-text-primary">Terraform 배포</h1>
@@ -193,5 +194,6 @@ function handleApply() {
         <p class="text-text-secondary">안정성 검증 중...</p>
       </div>
     </div>
+  </div>
   </div>
 </template>
