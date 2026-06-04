@@ -1,13 +1,21 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import {
   useIacStore,
   useSlaBundleDraft, useConfirmField, useSaveSlaBundle,
-  SectionNav, FormField,
+  FormField,
 } from '@/features/iac'
-import type { SLASection } from '@/features/iac'
+
+const SECTION_LABELS: Record<string, string> = {
+  availability: '가용성',
+  recovery: '복구 목표 (RTO / RPO)',
+  performance: '성능',
+  cost: '비용',
+  infra: '인프라',
+  backup: '백업',
+}
 
 const store = useIacStore()
 const router = useRouter()
@@ -31,31 +39,27 @@ watch(bundleData, (data) => {
 const { mutate: confirmField } = useConfirmField()
 const { mutate: saveBundle, isPending: isSaving } = useSaveSlaBundle()
 
-const activeSection = ref('availability')
-
-const sections = computed<SLASection[]>(() => {
+const groupedSections = computed(() => {
   if (!bundleDraft.value) return []
-  const sectionMap = new Map<string, SLASection>()
+  const map = new Map<string, typeof bundleDraft.value.items>()
   for (const item of bundleDraft.value.items) {
-    const existing = sectionMap.get(item.sectionId)
-    if (!existing) {
-      sectionMap.set(item.sectionId, {
-        sectionId: item.sectionId,
-        label: item.sectionId,
-        ambiguousCount: item.confidence === '모호' ? 1 : 0,
-        estimatedCount: item.confidence === '추정' ? 1 : 0,
-      })
-    } else {
-      if (item.confidence === '모호') existing.ambiguousCount++
-      if (item.confidence === '추정') existing.estimatedCount++
-    }
+    if (!map.has(item.sectionId)) map.set(item.sectionId, [])
+    map.get(item.sectionId)!.push(item)
   }
-  return Array.from(sectionMap.values())
+  return Array.from(map.entries()).map(([sectionId, items]) => ({ sectionId, items }))
 })
 
-const activeItems = computed(() =>
-  bundleDraft.value?.items.filter((i) => i.sectionId === activeSection.value) ?? []
-)
+// global index for stagger across all sections
+const staggerIndex = computed(() => {
+  const idx = new Map<string, number>()
+  let i = 0
+  for (const { items } of groupedSections.value) {
+    for (const item of items) {
+      idx.set(item.fieldId, i++)
+    }
+  }
+  return idx
+})
 
 const progressPct = computed(() => {
   if (!bundleDraft.value) return 0
@@ -83,11 +87,11 @@ function handleSave() {
 <template>
   <div class="flex flex-col h-full">
     <!-- 진행도 바 -->
-    <div class="px-6 pt-4 pb-2 bg-bg-card border-b border-border">
+    <div class="px-6 pt-4 pb-2 bg-bg-card border-b border-border shrink-0">
       <div class="flex items-center justify-between text-sm mb-1">
         <span class="text-text-secondary">필드 확정 진행률</span>
         <span class="font-medium text-text-primary">
-          {{ bundleDraft?.confirmedCount ?? 0 }} / {{ bundleDraft?.totalRequiredCount ?? 47 }} 확정
+          {{ bundleDraft?.confirmedCount ?? 0 }} / {{ bundleDraft?.totalRequiredCount ?? 0 }} 확정
         </span>
       </div>
       <div class="h-2 bg-bg-muted rounded-full overflow-hidden">
@@ -105,28 +109,25 @@ function handleSave() {
       </div>
     </div>
 
-    <div v-else class="flex flex-1 overflow-hidden">
-      <div class="p-4 border-r border-border overflow-y-auto">
-        <SectionNav
-          :sections="sections"
-          :active-section="activeSection"
-          @select="activeSection = $event"
-        />
-      </div>
-
-      <div class="flex-1 p-6 overflow-y-auto space-y-3">
-        <FormField
-          v-for="(item, index) in activeItems"
-          :key="item.fieldId"
-          v-bind="item"
-          class="field-stagger"
-          :style="{ animationDelay: `${index * 60}ms` }"
-          @confirm="handleConfirm"
-        />
-      </div>
+    <div v-else class="flex-1 overflow-y-auto px-8 py-6 space-y-8">
+      <section v-for="{ sectionId, items } in groupedSections" :key="sectionId">
+        <h2 class="text-xs font-bold text-text-muted uppercase tracking-widest mb-3">
+          {{ SECTION_LABELS[sectionId] ?? sectionId }}
+        </h2>
+        <div class="grid grid-cols-2 gap-3">
+          <FormField
+            v-for="item in items"
+            :key="item.fieldId"
+            v-bind="item"
+            class="field-stagger"
+            :style="{ animationDelay: `${(staggerIndex.get(item.fieldId) ?? 0) * 60}ms` }"
+            @confirm="handleConfirm"
+          />
+        </div>
+      </section>
     </div>
 
-    <div class="px-6 py-4 border-t border-border bg-bg-card flex justify-end">
+    <div class="px-6 py-4 border-t border-border bg-bg-card flex justify-end shrink-0">
       <button
         :disabled="!canSave || isSaving"
         @click="handleSave"
