@@ -64,8 +64,7 @@ function handleApprove() {
       </div>
 
       <!-- 푸터 -->
-      <div class="px-6 py-4 border-t border-border bg-bg-card flex items-center justify-between">
-        <p class="text-sm text-text-secondary">선택한 토폴로지로 Terraform 코드를 생성합니다.</p>
+      <div class="px-6 py-4 border-t border-border bg-bg-card flex justify-end shrink-0">
         <button @click="handleApprove" :disabled="isApproving" class="btn-brand">
           {{ isApproving ? '처리 중...' : '이 토폴로지로 진행' }}
         </button>

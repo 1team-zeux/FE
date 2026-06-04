@@ -56,7 +56,8 @@ function handleApply() {
 </script>
 
 <template>
-  <div class="h-full overflow-y-auto">
+  <div class="flex flex-col h-full">
+  <div class="flex-1 overflow-y-auto">
   <div class="max-w-4xl mx-auto px-6 py-8 space-y-6">
     <div>
       <h1 class="text-2xl font-bold text-text-primary">Terraform 배포</h1>
@@ -182,15 +183,21 @@ function handleApply() {
           </div>
         </div>
 
-        <div class="flex justify-end mt-6">
-          <button class="btn-brand">모니터링 대시보드로 이동</button>
-        </div>
       </div>
       <div v-else class="flex items-center gap-3">
         <div class="w-6 h-6 border-4 border-brand border-t-transparent rounded-full animate-spin" />
         <p class="text-text-secondary">안정성 검증 중...</p>
       </div>
     </div>
+  </div>
+  </div>
+  </div>
+  <div class="px-6 py-4 border-t border-border bg-bg-card flex justify-end shrink-0">
+    <button
+      :disabled="deployStatus !== 'done'"
+      @click="() => {}"
+      class="btn-brand min-w-[200px]"
+    >모니터링 대시보드로 이동</button>
   </div>
   </div>
 </template>
