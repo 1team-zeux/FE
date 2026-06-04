@@ -3,7 +3,27 @@ import { createRouter, createWebHistory } from 'vue-router'
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
-    { path: '/', redirect: '/iac/1' },
+    { path: '/', redirect: '/dashboard' },
+    {
+      path: '/dashboard',
+      name: 'portfolio',
+      component: () => import('@/pages/PortfolioPage.vue'),
+    },
+    {
+      path: '/dashboard/bu/:buId',
+      name: 'sla-status',
+      component: () => import('@/pages/SlaStatusPage.vue'),
+    },
+    {
+      path: '/dashboard/service/:svcId',
+      name: 'service-detail',
+      component: () => import('@/pages/ServiceDetailPage.vue'),
+    },
+    {
+      path: '/dashboard/trace/:alarmId',
+      name: 'root-cause',
+      component: () => import('@/pages/RootCausePage.vue'),
+    },
     {
       path: '/iac',
       component: () => import('@/components/AppLayout.vue'),
