@@ -2,6 +2,49 @@ import type { TopologyNode, TopologyEdge, TopologyGroup } from '../types/topolog
 
 const id = (nodeId: string) => nodeId.replace(/-/g, '_')
 
+const HCL_TO_TYPE: Record<string, TopologyNode['type']> = {
+  aws_lb:                   'elb',
+  aws_instance:             'ec2',
+  aws_db_instance:          'rds',
+  aws_lambda_function:      'lambda',
+  aws_api_gateway_rest_api: 'apigw',
+  aws_eks_cluster:          'eks',
+  aws_ecs_cluster:          'ecs',
+  aws_cloudwatch_dashboard: 'cloudwatch',
+  aws_route53_zone:         'route53',
+  aws_nat_gateway:          'nat',
+  aws_s3_bucket:            's3',
+  aws_internet_gateway:     'igw',
+}
+
+export function parseHclToNodes(
+  hcl: string,
+  existingNodes: TopologyNode[],
+): TopologyNode[] {
+  const result: TopologyNode[] = []
+  const re = /resource\s+"(\w+)"\s+"([\w-]+)"\s*\{/g
+  let m: RegExpExecArray | null
+  let idx = 0
+  while ((m = re.exec(hcl)) !== null) {
+    const [, resourceType, hclId] = m
+    const nodeType = HCL_TO_TYPE[resourceType]
+    if (!nodeType) continue
+    // id() 함수가 - → _ 로 변환하기 때문에 양쪽 모두 매칭 시도
+    const existing = existingNodes.find(
+      n => n.nodeId === hclId || n.nodeId.replace(/-/g, '_') === hclId,
+    )
+    result.push({
+      nodeId: existing?.nodeId ?? hclId, // 원본 nodeId 유지 → edge 참조 보존
+      type: nodeType,
+      label: existing?.label ?? hclId.toUpperCase(),
+      x: existing?.x ?? 200 + (idx % 5) * 160,
+      y: existing?.y ?? 200 + Math.floor(idx / 5) * 160,
+    })
+    idx++
+  }
+  return result
+}
+
 const TEMPLATES: Record<string, (node: TopologyNode) => string[]> = {
   elb: (n) => [
     `resource "aws_lb" "${id(n.nodeId)}" {`,

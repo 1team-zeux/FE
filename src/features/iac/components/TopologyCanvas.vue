@@ -27,22 +27,50 @@ const GROUP_STYLES: Record<string, { stroke: string; fill: string }> = {
 }
 
 const NW = 72, NH = 72
+// 콘텐츠를 배치하는 논리 캔버스 크기
+const VB_W = 3000, VB_H = 2000
 
 const props = defineProps<{
   nodes: TopologyNode[]
   edges: TopologyEdge[]
   groups: TopologyGroup[]
+  zoom?: number
 }>()
 
 const emit = defineEmits<{
   'update:nodes': [TopologyNode[]]
   'update:edges': [TopologyEdge[]]
+  'nodeSelect':   [string | null]
+  'nodeHover':    [string | null]
 }>()
 
 const localNodes = ref<TopologyNode[]>([...props.nodes])
 const localEdges = ref<TopologyEdge[]>([...props.edges])
 watch(() => props.nodes, (v) => { localNodes.value = [...v] })
 watch(() => props.edges, (v) => { localEdges.value = [...v] })
+
+// 노드·그룹 bounding box를 계산해서 콘텐츠를 SVG 중앙으로 이동하는 offset
+const offsetX = ref(0)
+const offsetY = ref(0)
+
+function recomputeOffset() {
+  const allX: number[] = []
+  const allY: number[] = []
+  localNodes.value.forEach(n => { allX.push(n.x); allY.push(n.y) })
+  props.groups.forEach(g => { allX.push(g.x, g.x + g.width); allY.push(g.y, g.y + g.height) })
+  if (!allX.length) return
+  const cx = (Math.min(...allX) + Math.max(...allX)) / 2
+  const cy = (Math.min(...allY) + Math.max(...allY)) / 2
+  offsetX.value = VB_W / 2 - cx
+  offsetY.value = VB_H / 2 - cy
+}
+
+// 노드 ID 집합이 변할 때만 재계산 (드래그로 이동할 때는 재계산 안 함)
+watch(
+  () => localNodes.value.map(n => n.nodeId).join(',') + props.groups.map(g => g.groupId).join(','),
+  recomputeOffset,
+  { immediate: true },
+)
 
 const svgEl = ref<SVGSVGElement | null>(null)
 const hovered = ref<string | null>(null)
@@ -54,13 +82,14 @@ const hasMoved = ref(false)
 const connecting = ref<{ fromId: string } | null>(null)
 const connectCursor = ref({ x: 0, y: 0 })
 
+// offset을 감안해서 SVG 내부 좌표 → 콘텐츠 좌표로 변환
 function svgPt(e: PointerEvent | DragEvent) {
   const svg = svgEl.value!
   const r = svg.getBoundingClientRect()
   const vb = svg.viewBox.baseVal
   return {
-    x: ((e.clientX - r.left) / r.width)  * vb.width,
-    y: ((e.clientY - r.top)  / r.height) * vb.height,
+    x: ((e.clientX - r.left) / r.width)  * vb.width  - offsetX.value,
+    y: ((e.clientY - r.top)  / r.height) * vb.height - offsetY.value,
   }
 }
 
@@ -71,7 +100,6 @@ function onNodeDown(nodeId: string, e: PointerEvent) {
   const n = localNodes.value.find(n => n.nodeId === nodeId)!
   drag.value = { nodeId, ox: pt.x - n.x, oy: pt.y - n.y }
   hasMoved.value = false
-  ;(e.currentTarget as SVGElement).setPointerCapture(e.pointerId)
 }
 
 function onPortDown(fromId: string, e: PointerEvent) {
@@ -94,7 +122,11 @@ function onSvgMove(e: PointerEvent) {
 
 function onSvgUp(e: PointerEvent) {
   if (drag.value) {
-    if (!hasMoved.value) selected.value = drag.value.nodeId === selected.value ? null : drag.value.nodeId
+    if (!hasMoved.value) {
+      const next = drag.value.nodeId === selected.value ? null : drag.value.nodeId
+      selected.value = next
+      emit('nodeSelect', next)
+    }
     emit('update:nodes', localNodes.value)
     drag.value = null
   }
@@ -113,13 +145,12 @@ function onSvgUp(e: PointerEvent) {
   }
 }
 
-function onSvgClick() { selected.value = null }
+function onSvgClick() { selected.value = null; emit('nodeSelect', null) }
 
-function deleteSelected() {
-  if (!selected.value) return
-  localNodes.value = localNodes.value.filter(n => n.nodeId !== selected.value)
-  localEdges.value = localEdges.value.filter(e => e.from !== selected.value && e.to !== selected.value)
-  selected.value = null
+function deleteNode(nodeId: string) {
+  localNodes.value = localNodes.value.filter(n => n.nodeId !== nodeId)
+  localEdges.value = localEdges.value.filter(e => e.from !== nodeId && e.to !== nodeId)
+  if (selected.value === nodeId) selected.value = null
   emit('update:nodes', localNodes.value)
   emit('update:edges', localEdges.value)
 }
@@ -134,23 +165,18 @@ function onDrop(e: DragEvent) {
   emit('update:nodes', localNodes.value)
 }
 
-function nodeCenter(n: TopologyNode) {
-  return { x: n.x, y: n.y }
-}
-
 function edgePath(from: TopologyNode, to: TopologyNode) {
-  const { x: x1, y: y1 } = nodeCenter(from)
-  const { x: x2, y: y2 } = nodeCenter(to)
-  const dx = Math.abs(x2 - x1) * 0.5
-  return `M${x1},${y1} C${x1 + dx},${y1} ${x2 - dx},${y2} ${x2},${y2}`
+  const dx = Math.abs(to.x - from.x) * 0.5
+  return `M${from.x},${from.y} C${from.x + dx},${from.y} ${to.x - dx},${to.y} ${to.x},${to.y}`
 }
 </script>
 
 <template>
   <svg
     ref="svgEl"
-    class="w-full h-full select-none"
-    viewBox="0 0 1060 700"
+    :style="`width: ${VB_W * (props.zoom ?? 1)}px; height: ${VB_H * (props.zoom ?? 1)}px; display: block;`"
+    class="select-none"
+    :viewBox="`0 0 ${VB_W} ${VB_H}`"
     @pointermove="onSvgMove"
     @pointerup="onSvgUp"
     @click="onSvgClick"
@@ -163,72 +189,73 @@ function edgePath(from: TopologyNode, to: TopologyNode) {
       </marker>
     </defs>
 
-    <!-- 그룹 (VPC / 서브넷) -->
-    <g v-for="g in groups" :key="g.groupId">
-      <rect :x="g.x" :y="g.y" :width="g.width" :height="g.height" rx="10"
-        :fill="GROUP_STYLES[g.type]?.fill ?? 'transparent'"
-        :stroke="GROUP_STYLES[g.type]?.stroke ?? '#9CA3AF'"
-        stroke-width="1.5" stroke-dasharray="6 3" />
-      <text :x="g.x + 10" :y="g.y + 18" font-size="11" font-weight="700"
-        :fill="GROUP_STYLES[g.type]?.stroke ?? '#9CA3AF'" font-family="monospace">
-        {{ g.label }}
-      </text>
-    </g>
+    <!-- 콘텐츠 전체를 중앙으로 이동 -->
+    <g :transform="`translate(${offsetX}, ${offsetY})`">
+      <!-- 그룹 (VPC / 서브넷) -->
+      <g v-for="g in groups" :key="g.groupId">
+        <rect :x="g.x" :y="g.y" :width="g.width" :height="g.height" rx="10"
+          :fill="GROUP_STYLES[g.type]?.fill ?? 'transparent'"
+          :stroke="GROUP_STYLES[g.type]?.stroke ?? '#9CA3AF'"
+          stroke-width="1.5" stroke-dasharray="6 3" />
+        <text :x="g.x + 10" :y="g.y + 18" font-size="11" font-weight="700"
+          :fill="GROUP_STYLES[g.type]?.stroke ?? '#9CA3AF'" font-family="monospace">
+          {{ g.label }}
+        </text>
+      </g>
 
-    <!-- 엣지 -->
-    <g v-for="edge in localEdges" :key="edge.edgeId">
-      <path
-        v-if="localNodes.find(n => n.nodeId === edge.from) && localNodes.find(n => n.nodeId === edge.to)"
-        :d="edgePath(localNodes.find(n => n.nodeId === edge.from)!, localNodes.find(n => n.nodeId === edge.to)!)"
-        fill="none" stroke="#9CA3AF" stroke-width="1.5"
-        :stroke-dasharray="edge.dashed ? '6 4' : 'none'"
-        marker-end="url(#arr)"
-      />
-      <text v-if="edge.label && localNodes.find(n => n.nodeId === edge.from) && localNodes.find(n => n.nodeId === edge.to)"
-        :x="(localNodes.find(n => n.nodeId === edge.from)!.x + localNodes.find(n => n.nodeId === edge.to)!.x) / 2"
-        :y="(localNodes.find(n => n.nodeId === edge.from)!.y + localNodes.find(n => n.nodeId === edge.to)!.y) / 2 - 6"
-        font-size="9" fill="#9CA3AF" text-anchor="middle">{{ edge.label }}</text>
-    </g>
+      <!-- 엣지 -->
+      <g v-for="edge in localEdges" :key="edge.edgeId">
+        <path
+          v-if="localNodes.find(n => n.nodeId === edge.from) && localNodes.find(n => n.nodeId === edge.to)"
+          :d="edgePath(localNodes.find(n => n.nodeId === edge.from)!, localNodes.find(n => n.nodeId === edge.to)!)"
+          fill="none" stroke="#9CA3AF" stroke-width="1.5"
+          :stroke-dasharray="edge.dashed ? '6 4' : 'none'"
+          marker-end="url(#arr)"
+        />
+        <text v-if="edge.label && localNodes.find(n => n.nodeId === edge.from) && localNodes.find(n => n.nodeId === edge.to)"
+          :x="(localNodes.find(n => n.nodeId === edge.from)!.x + localNodes.find(n => n.nodeId === edge.to)!.x) / 2"
+          :y="(localNodes.find(n => n.nodeId === edge.from)!.y + localNodes.find(n => n.nodeId === edge.to)!.y) / 2 - 6"
+          font-size="9" fill="#9CA3AF" text-anchor="middle">{{ edge.label }}</text>
+      </g>
 
-    <!-- 연결 드래그 임시선 -->
-    <line v-if="connecting"
-      :x1="localNodes.find(n => n.nodeId === connecting!.fromId)?.x ?? 0"
-      :y1="localNodes.find(n => n.nodeId === connecting!.fromId)?.y ?? 0"
-      :x2="connectCursor.x" :y2="connectCursor.y"
-      stroke="#2980B9" stroke-width="1.5" stroke-dasharray="5 3" />
+      <!-- 연결 드래그 임시선 -->
+      <line v-if="connecting"
+        :x1="localNodes.find(n => n.nodeId === connecting!.fromId)?.x ?? 0"
+        :y1="localNodes.find(n => n.nodeId === connecting!.fromId)?.y ?? 0"
+        :x2="connectCursor.x" :y2="connectCursor.y"
+        stroke="#2980B9" stroke-width="1.5" stroke-dasharray="5 3" />
 
-    <!-- 노드 -->
-    <g
-      v-for="node in localNodes" :key="node.nodeId"
-      :transform="`translate(${node.x - NW / 2}, ${node.y - NH / 2})`"
-      class="cursor-move"
-      @pointerdown="onNodeDown(node.nodeId, $event)"
-      @mouseenter="hovered = node.nodeId"
-      @mouseleave="hovered = null"
-    >
-      <!-- 카드 -->
-      <rect x="0" y="0" :width="NW" :height="NH" rx="10"
-        fill="white"
-        :stroke="selected === node.nodeId ? '#2980B9' : hovered === node.nodeId ? '#93C5FD' : '#E5E7EB'"
-        :stroke-width="selected === node.nodeId ? 2 : 1.5" />
+      <!-- 노드 -->
+      <g
+        v-for="node in localNodes" :key="node.nodeId"
+        :transform="`translate(${node.x - NW / 2}, ${node.y - NH / 2})`"
+        class="cursor-move"
+        @pointerdown="onNodeDown(node.nodeId, $event)"
+        @mouseenter="hovered = node.nodeId; emit('nodeHover', node.nodeId)"
+        @mouseleave="hovered = null; emit('nodeHover', null)"
+      >
+        <rect x="0" y="0" :width="NW" :height="NH" rx="10"
+          fill="white"
+          :stroke="selected === node.nodeId ? '#2980B9' : hovered === node.nodeId ? '#93C5FD' : '#E5E7EB'"
+          :stroke-width="selected === node.nodeId ? 2 : 1.5" />
+        <image v-if="ICONS[node.type]" :href="ICONS[node.type]" x="16" y="10" width="40" height="40" />
+        <text v-else x="36" y="36" text-anchor="middle" font-size="10" fill="#6B7280">{{ node.type }}</text>
+        <text x="36" y="64" text-anchor="middle" font-size="9" fill="#6B7280" font-family="monospace">{{ node.label }}</text>
 
-      <!-- 아이콘 -->
-      <image v-if="ICONS[node.type]" :href="ICONS[node.type]" x="16" y="10" width="40" height="40" />
-      <text v-else x="36" y="36" text-anchor="middle" font-size="10" fill="#6B7280">{{ node.type }}</text>
+        <!-- 포트 (hover 시) -->
+        <circle v-if="hovered === node.nodeId && !drag"
+          :cx="NW" :cy="NH / 2" r="5"
+          fill="#2980B9" class="cursor-crosshair"
+          @pointerdown.stop="onPortDown(node.nodeId, $event)" />
 
-      <!-- 라벨 -->
-      <text x="36" y="64" text-anchor="middle" font-size="9" fill="#6B7280" font-family="monospace">{{ node.label }}</text>
-
-      <!-- 포트 (hover 시) -->
-      <circle v-if="hovered === node.nodeId && !drag"
-        :cx="NW" :cy="NH / 2" r="5"
-        fill="#2980B9" class="cursor-crosshair"
-        @pointerdown.stop="onPortDown(node.nodeId, $event)" />
-
-      <!-- 삭제 버튼 (선택 시) -->
-      <g v-if="selected === node.nodeId" class="cursor-pointer" @click.stop="deleteSelected">
-        <circle :cx="NW" cy="0" r="8" fill="#EF4444" />
-        <text :x="NW" y="4" text-anchor="middle" font-size="10" fill="white" font-weight="bold">×</text>
+        <!-- 삭제 버튼 (hover·선택 시) -->
+        <g v-if="hovered === node.nodeId || selected === node.nodeId"
+           class="cursor-pointer"
+           @pointerdown.stop
+           @click.stop="deleteNode(node.nodeId)">
+          <circle :cx="NW" cy="0" r="9" fill="#EF4444" />
+          <text :x="NW" y="4" text-anchor="middle" font-size="11" fill="white" font-weight="bold">×</text>
+        </g>
       </g>
     </g>
   </svg>

@@ -51,12 +51,18 @@ export function useTerraformApply() {
   const store = useIacStore()
   const resources = ref<ResourceStatus[]>([])
   const isStreaming = ref(false)
+  const isApplyDone = ref(false)
   let eventSource: EventSource | null = null
 
-  async function startApply(planId: string) {
+  async function startApply(planId: string, initialResources: string[] = []) {
     store.setDeployStatus('applying')
     isStreaming.value = true
-    resources.value = []
+    isApplyDone.value = false
+    resources.value = initialResources.map(resource => ({
+      resource,
+      status: 'pending' as const,
+      detail: '대기 중',
+    }))
 
     eventSource = new EventSource(`/api/terraform/apply/stream?planId=${planId}`)
 
@@ -74,7 +80,8 @@ export function useTerraformApply() {
       eventSource?.close()
       eventSource = null
       isStreaming.value = false
-      store.setDeployStatus('verifying')
+      isApplyDone.value = true
+      // 자동 검증 전환 없음 — 운영자가 "검증 시작" 버튼으로 직접 진행
     })
 
     eventSource.onerror = () => {
@@ -92,7 +99,13 @@ export function useTerraformApply() {
     store.setDeployStatus('idle')
   }
 
-  return { resources, isStreaming, startApply, stopApply }
+  return { resources, isStreaming, isApplyDone, startApply, stopApply }
+}
+
+export interface VerifyResult {
+  verifyId: string
+  overall: 'pass' | 'fail'
+  categories: { category: string; status: 'pass' | 'fail'; detail: string }[]
 }
 
 export function useTerraformVerify(planId: Ref<string | null>) {
@@ -100,11 +113,7 @@ export function useTerraformVerify(planId: Ref<string | null>) {
     queryKey: ['terraform-verify', planId],
     queryFn: async () => {
       const res = await api.get(`/terraform/verify/${planId.value}`)
-      return res.data as {
-        verifyId: string
-        overall: 'pass' | 'fail'
-        categories: { category: string; status: 'pass' | 'fail'; detail: string }[]
-      }
+      return res.data as VerifyResult
     },
     enabled: () => !!planId.value,
   })

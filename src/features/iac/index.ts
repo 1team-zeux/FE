@@ -16,3 +16,7 @@ export { default as TopologyInfoPanel } from './components/TopologyInfoPanel.vue
 export { generateTerraform } from './utils/terraform-generator'
 export { default as DeployProgress } from './components/DeployProgress.vue'
 export { default as ConfidenceBadge } from './components/ConfidenceBadge.vue'
+export { default as IacHclPanel } from './components/IacHclPanel.vue'
+export { default as IacPlanPanel } from './components/IacPlanPanel.vue'
+export { default as IacApplyPanel } from './components/IacApplyPanel.vue'
+export { default as IacVerifyPanel } from './components/IacVerifyPanel.vue'
