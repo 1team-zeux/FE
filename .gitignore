@@ -12,6 +12,20 @@ dist
 dist-ssr
 *.local
 
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Test / coverage
+coverage/
+playwright-report/
+test-results/
+
+# Build cache
+.cache/
+vite.config.*.timestamp-*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

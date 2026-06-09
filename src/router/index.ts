@@ -13,6 +13,7 @@ const router = createRouter({
         { path: 'dashboard/bu/:buId',           name: 'sla-status',      component: () => import('@/pages/SlaStatusPage.vue') },
         { path: 'dashboard/service/:svcId',     name: 'service-detail',  component: () => import('@/pages/ServiceDetailPage.vue') },
         { path: 'dashboard/trace/:alarmId',     name: 'root-cause',      component: () => import('@/pages/RootCausePage.vue') },
+        { path: 'dashboard/events',             name: 'event-center',    component: () => import('@/pages/EventCenterPage.vue') },
       ],
     },
     {
