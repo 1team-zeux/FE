@@ -5,74 +5,90 @@ import type { TopologyDraft } from '@/features/iac/types/topology.schema'
 const mockSlaBundleDraft: SLABundle = {
   bundleId: 'bundle-mock-001',
   uploadSessionId: 'sess-mock-001',
-  confirmedCount: 47,
+  confirmedCount: 44,
   totalRequiredCount: 47,
   status: 'draft',
-  items: [
+
+  // ── 서비스 목록 ────────────────────────────────────────────────────────────
+  services: [
+    { serviceId: 'svc-portal',       serviceName: 'Customer Portal Web', serviceType: 'web',   workloadType: 'stateless', serviceTier: 'tier1', userTarget: 'external',  description: 'SK T-Care 고객 포털' },
+    { serviceId: 'svc-subscription', serviceName: 'Subscription API',    serviceType: 'api',   workloadType: 'stateful',  serviceTier: 'tier1', userTarget: 'internal',  description: '구독/결제 처리 API' },
+    { serviceId: 'svc-batch',        serviceName: 'Billing Batch',       serviceType: 'batch', workloadType: 'batch',     serviceTier: 'tier2', userTarget: 'internal',  description: '월간 청구 배치 처리' },
+  ],
+
+  // ── SLA 항목 (서비스별 availability / latency / rto / rpo) ─────────────────
+  slaItems: [
+    // Customer Portal Web
+    { slaItemId: 'portal_availability',    serviceId: 'svc-portal',       category: 'availability', slaLevel: 'L2_service',   label: 'Customer Portal Web — 가용성',    targetValue: '99.90', unit: '%',  confidence: '확실', source: 'doc1_contract', required: true,  measurementWindow: '월간',         description: 'ALB log + synthetic probe' },
+    { slaItemId: 'portal_latency_p95',     serviceId: 'svc-portal',       category: 'latency',      slaLevel: 'L2_service',   label: 'Customer Portal Web — Latency p95', targetValue: 800,   unit: 'ms', confidence: '확실', source: 'doc1_contract', required: true,  measurementWindow: '5분 rolling window' },
+    { slaItemId: 'portal_rto',             serviceId: 'svc-portal',       category: 'rto',                                    label: 'Customer Portal Web — RTO',       targetValue: 30,      unit: '분', confidence: '확실', source: 'doc1_contract', required: true,  description: '장애 탐지 ~ 복구 완료' },
+
+    // Subscription API
+    { slaItemId: 'subscription_availability',          serviceId: 'svc-subscription', category: 'availability', slaLevel: 'L2_service',   label: 'Subscription API — 가용성',           targetValue: '99.95', unit: '%',  confidence: '확실', source: 'doc1_contract', required: true,  measurementWindow: '월간', description: 'ALB log + Ingress metric' },
+    { slaItemId: 'subscription_endpoint_availability', serviceId: 'svc-subscription', category: 'availability', slaLevel: 'L3_endpoint',  label: 'POST /subscriptions — 가용성',        targetValue: '99.99', unit: '%',  confidence: '확실', source: 'doc1_contract', required: true,  measurementFilter: 'POST /subscriptions', measurementWindow: '월간', description: '결제 endpoint 별도 SLA' },
+    { slaItemId: 'subscription_latency_p95',           serviceId: 'svc-subscription', category: 'latency',      slaLevel: 'L2_service',   label: 'Subscription API — Latency p95',      targetValue: 500,     unit: 'ms', confidence: '확실', source: 'doc1_contract', required: true,  measurementWindow: '5분 rolling', description: 'OpenTelemetry trace' },
+    { slaItemId: 'subscription_rpo',                   serviceId: 'svc-subscription', category: 'rpo',                                    label: 'Subscription API — RPO',              targetValue: 5,       unit: '분', confidence: '확실', source: 'doc1_contract', required: true,  description: 'RDS backup·replication 기준' },
+
+    // Billing Batch
+    { slaItemId: 'batch_rto', serviceId: 'svc-batch', category: 'rto', label: 'Billing Batch — RTO', targetValue: 120, unit: '분', confidence: '확실', source: 'doc1_contract', required: true, description: '실패 배치 재실행 성공까지' },
+    { slaItemId: 'batch_rpo', serviceId: 'svc-batch', category: 'rpo', label: 'Billing Batch — RPO', targetValue: 15,  unit: '분', confidence: '확실', source: 'doc1_contract', required: true, description: 'S3 checkpoint + RDS replication' },
+  ],
+
+  // ── 공통 번들 필드 (비SLA) ─────────────────────────────────────────────────
+  bundleFields: [
     // ── SLA 기본 정보 ──
-    { fieldId: 'customer_name', label: '고객사', value: 'SK Telecom', confidence: '확실', sectionId: 'sla_basic', required: true, description: 'SLA 계약 당사자 (doc1)' },
-    { fieldId: 'contract_start', label: '계약 시작일', value: '2026-07-01', confidence: '확실', sectionId: 'sla_basic', required: true },
-    { fieldId: 'contract_end', label: '계약 종료일', value: '2027-06-30', confidence: '확실', sectionId: 'sla_basic', required: true },
-    { fieldId: 'environment', label: '운영 환경', value: 'prod', confidence: '확실', sectionId: 'sla_basic', required: true },
-    { fieldId: 'primary_contact', label: 'SLA Owner 이메일', value: 'sanghoon.kim@sktelecom.com', confidence: '확실', sectionId: 'sla_basic', required: true },
-    { fieldId: 'csp', label: '사용 CSP', value: 'aws', confidence: '확실', sectionId: 'sla_basic', required: true },
-
-    // ── 가용성 ──
-    { fieldId: 'portal_availability', label: 'Customer Portal Web — 가용성', value: '99.90', confidence: '확실', sectionId: 'availability', required: true, unit: '%', description: '월간, ALB log + synthetic probe' },
-    { fieldId: 'subscription_availability', label: 'Subscription API — 가용성', value: '99.95', confidence: '확실', sectionId: 'availability', required: true, unit: '%', description: '월간, ALB log + Ingress metric' },
-    { fieldId: 'subscription_endpoint_availability', label: 'POST /subscriptions — 가용성', value: '99.99', confidence: '확실', sectionId: 'availability', required: true, unit: '%', description: '결제 endpoint 별도 SLA, 월간' },
-
-    // ── 지연 시간 ──
-    { fieldId: 'portal_latency_p95', label: 'Customer Portal Web — Latency p95', value: 800, confidence: '확실', sectionId: 'latency', required: true, unit: 'ms', description: '5분 rolling window' },
-    { fieldId: 'subscription_latency_p95', label: 'Subscription API — Latency p95', value: 500, confidence: '확실', sectionId: 'latency', required: true, unit: 'ms', description: '5분 rolling, OpenTelemetry trace' },
-
-    // ── 복구 목표 ──
-    { fieldId: 'portal_rto', label: 'Customer Portal Web — RTO', value: 30, confidence: '확실', sectionId: 'recovery', required: true, unit: '분', description: '장애 탐지 ~ 복구 완료' },
-    { fieldId: 'subscription_rpo', label: 'Subscription API — RPO', value: 5, confidence: '확실', sectionId: 'recovery', required: true, unit: '분', description: 'RDS backup·replication 기준' },
-    { fieldId: 'batch_rto', label: 'Billing Batch — RTO', value: 120, confidence: '확실', sectionId: 'recovery', required: true, unit: '분', description: '실패 배치 재실행 성공까지' },
-    { fieldId: 'batch_rpo', label: 'Billing Batch — RPO', value: 15, confidence: '확실', sectionId: 'recovery', required: true, unit: '분', description: 'S3 checkpoint + RDS replication' },
+    { fieldId: 'customer_name',   label: '고객사',          value: 'SK Telecom',                 confidence: '확실', sectionId: 'sla_basic', required: true,  source: 'doc1_contract',  description: 'SLA 계약 당사자 (doc1)' },
+    { fieldId: 'contract_start',  label: '계약 시작일',      value: '2026-07-01',                 confidence: '확실', sectionId: 'sla_basic', required: true,  source: 'doc1_contract' },
+    { fieldId: 'contract_end',    label: '계약 종료일',      value: '2027-06-30',                 confidence: '확실', sectionId: 'sla_basic', required: true,  source: 'doc1_contract' },
+    { fieldId: 'environment',     label: '운영 환경',        value: 'prod',                       confidence: '확실', sectionId: 'sla_basic', required: true,  source: 'system_default' },
+    { fieldId: 'primary_contact', label: 'SLA Owner 이메일', value: 'sanghoon.kim@sktelecom.com', confidence: '확실', sectionId: 'sla_basic', required: true,  source: 'doc1_contract' },
+    { fieldId: 'csp',             label: '사용 CSP',         value: 'aws',                        confidence: '확실', sectionId: 'sla_basic', required: true,  source: 'doc2_infra' },
 
     // ── 성능 / 트래픽 ──
-    { fieldId: 'portal_avg_rps', label: 'Customer Portal Web — 평균 RPS', value: 200, confidence: '확실', sectionId: 'performance', required: true },
-    { fieldId: 'portal_peak_rps', label: 'Customer Portal Web — 피크 RPS', value: 1500, confidence: '확실', sectionId: 'performance', required: true, description: '월말 청구 기간 기준' },
-    { fieldId: 'portal_max_concurrent', label: 'Customer Portal Web — 최대 동시 사용자', value: 30000, confidence: '확실', sectionId: 'performance', required: true, unit: '명' },
-    { fieldId: 'subscription_avg_tps', label: 'Subscription API — 평균 TPS', value: 100, confidence: '확실', sectionId: 'performance', required: true },
-    { fieldId: 'subscription_peak_tps', label: 'Subscription API — 피크 TPS', value: 800, confidence: '확실', sectionId: 'performance', required: true, description: '프로모션 기간 기준' },
-    { fieldId: 'subscription_peak_write', label: 'Subscription API — 피크 쓰기 TPS', value: 200, confidence: '확실', sectionId: 'performance', required: true },
-    { fieldId: 'batch_max_concurrent_jobs', label: 'Billing Batch — 최대 동시 Job', value: 5, confidence: '확실', sectionId: 'performance', required: true },
+    { fieldId: 'portal_avg_rps',           label: 'Customer Portal Web — 평균 RPS',        value: 200,   confidence: '확실', sectionId: 'performance', required: true,                source: 'doc2_infra' },
+    { fieldId: 'portal_peak_rps',          label: 'Customer Portal Web — 피크 RPS',        value: 1500,  confidence: '확실', sectionId: 'performance', required: true,                source: 'doc2_infra',     description: '월말 청구 기간 기준' },
+    { fieldId: 'portal_max_concurrent',    label: 'Customer Portal Web — 최대 동시 사용자', value: 30000, confidence: '확실', sectionId: 'performance', required: true,  unit: '명',  source: 'doc2_infra' },
+    { fieldId: 'subscription_avg_tps',     label: 'Subscription API — 평균 TPS',           value: 100,   confidence: '확실', sectionId: 'performance', required: true,                source: 'doc2_infra' },
+    { fieldId: 'subscription_peak_tps',    label: 'Subscription API — 피크 TPS',           value: 800,   confidence: '확실', sectionId: 'performance', required: true,                source: 'doc2_infra',     description: '프로모션 기간 기준' },
+    { fieldId: 'subscription_peak_write',  label: 'Subscription API — 피크 쓰기 TPS',      value: 200,   confidence: '확실', sectionId: 'performance', required: true,                source: 'doc2_infra' },
+    { fieldId: 'batch_max_concurrent_jobs',label: 'Billing Batch — 최대 동시 Job',          value: 5,     confidence: '확실', sectionId: 'performance', required: true,                source: 'doc2_infra' },
 
     // ── 인프라 / 리전 ──
-    { fieldId: 'primary_region', label: '기본 리전', value: 'ap-northeast-2', confidence: '확실', sectionId: 'infra', required: true },
-    { fieldId: 'multi_az', label: 'Multi-AZ 필요', value: 'true', confidence: '확실', sectionId: 'infra', required: true, description: 'Tier 1 서비스 기준 자동 도출' },
-    { fieldId: 'multi_region', label: 'Multi-Region 필요', value: 'false', confidence: '추정', sectionId: 'infra', required: true, description: 'MVP 기본값 — Phase 2에서 재검토 예정' },
-    { fieldId: 'failover_required', label: 'Failover 필요', value: 'true', confidence: '확실', sectionId: 'infra', required: true, description: 'SLA RTO 역추론으로 자동 도출' },
-    { fieldId: 'data_residency', label: '데이터 저장 지역', value: 'KR', confidence: '확실', sectionId: 'infra', required: true, description: '개인정보보호법 — 국내 리전 저장 필수' },
-    { fieldId: 'vpn_required', label: 'VPN 필요', value: 'true', confidence: '확실', sectionId: 'infra', required: true, description: 'SKT 사내망 연동' },
-    { fieldId: 'new_vpc_required', label: '신규 VPC 생성', value: 'true', confidence: '모호', sectionId: 'infra', required: true, description: '기존 네트워크 연동 방식 확인 필요' },
+    { fieldId: 'primary_region',   label: '기본 리전',        value: 'ap-northeast-2', confidence: '확실', sectionId: 'infra', required: true,  source: 'doc2_infra' },
+    { fieldId: 'multi_az',         label: 'Multi-AZ 필요',    value: 'true',           confidence: '확실', sectionId: 'infra', required: true,  source: 'system_rule',        description: 'Tier 1 서비스 기준 자동 도출' },
+    { fieldId: 'multi_region',     label: 'Multi-Region 필요', value: 'false',          confidence: '추정', sectionId: 'infra', required: true,  source: 'llm_recommendation', description: 'MVP 기본값 — Phase 2에서 재검토 예정' },
+    { fieldId: 'failover_required',label: 'Failover 필요',    value: 'true',           confidence: '확실', sectionId: 'infra', required: true,  source: 'system_rule',        description: 'SLA RTO 역추론으로 자동 도출' },
+    { fieldId: 'data_residency',   label: '데이터 저장 지역',  value: 'KR',             confidence: '확실', sectionId: 'infra', required: true,  source: 'system_rule',        description: '개인정보보호법 — 국내 리전 저장 필수' },
+    { fieldId: 'vpn_required',     label: 'VPN 필요',          value: 'true',           confidence: '확실', sectionId: 'infra', required: true,  source: 'doc2_infra',         description: 'SKT 사내망 연동' },
+    { fieldId: 'new_vpc_required', label: '신규 VPC 생성',     value: 'true',           confidence: '모호', sectionId: 'infra', required: true,  source: 'llm_recommendation', description: '기존 네트워크 연동 방식 확인 필요' },
+    { fieldId: 'cdn_required',     label: 'CDN 사용',          value: null,             confidence: '추정', sectionId: 'infra', required: false, source: 'llm_recommendation', activationStatus: 'inactive', description: '외부 노출 없는 내부 서비스 — 해당 없음' },
 
     // ── 비용 ──
-    { fieldId: 'monthly_budget', label: '월간 인프라 예산', value: 35000000, confidence: '확실', sectionId: 'cost', required: true, unit: 'KRW' },
-    { fieldId: 'cost_priority', label: '비용 우선순위', value: 'balanced', confidence: '확실', sectionId: 'cost', required: true, description: '안정성과 비용의 균형' },
-    { fieldId: 'spot_instance_scope', label: 'Spot Instance 허용 범위', value: 'Billing Batch worker', confidence: '확실', sectionId: 'cost', required: true },
-    { fieldId: 'budget_alert_threshold', label: '예산 초과 경고 기준', value: '80% / 100%', confidence: '확실', sectionId: 'cost', required: true },
-    { fieldId: 'sla_violation_loss_limit', label: 'SLA 위반 손실 한도', value: 150000000, confidence: '추정', sectionId: 'cost', required: true, unit: 'KRW', description: 'Phase 2 본격 적용 예정 — 현재 참고값' },
+    { fieldId: 'monthly_budget',          label: '월간 인프라 예산',        value: 35000000,           confidence: '확실', sectionId: 'cost', required: true,  unit: 'KRW', source: 'doc1_contract' },
+    { fieldId: 'cost_priority',           label: '비용 우선순위',           value: 'balanced',          confidence: '확실', sectionId: 'cost', required: true,               source: 'doc2_infra',         description: '안정성과 비용의 균형' },
+    { fieldId: 'spot_instance_scope',     label: 'Spot Instance 허용 범위', value: 'Billing Batch worker', confidence: '확실', sectionId: 'cost', required: true,          source: 'doc2_infra' },
+    { fieldId: 'budget_alert_threshold',  label: '예산 초과 경고 기준',     value: '80% / 100%',        confidence: '확실', sectionId: 'cost', required: true,               source: 'system_default' },
+    { fieldId: 'sla_violation_loss_limit',label: 'SLA 위반 손실 한도',      value: 150000000,           confidence: '추정', sectionId: 'cost', required: true,  unit: 'KRW', source: 'llm_recommendation', description: 'Phase 2 본격 적용 예정 — 현재 참고값' },
+    { fieldId: 'reserved_instance_plan',  label: 'RI 구매 계획',            value: null,                confidence: '추정', sectionId: 'cost', required: false,              source: 'llm_recommendation', activationStatus: 'inactive', description: 'Spot 전략 확정 후 적용 예정' },
 
     // ── 보안 / 컴플라이언스 ──
-    { fieldId: 'has_pii', label: '개인정보 처리', value: 'true', confidence: '확실', sectionId: 'compliance', required: true },
-    { fieldId: 'has_payment_info', label: '결제정보 처리', value: 'true', confidence: '확실', sectionId: 'compliance', required: true, description: 'PG사 (KCP·NICE) 연동' },
-    { fieldId: 'regulations', label: '적용 규제·정책', value: '개인정보보호법, ISMS-P, SKT 보안 정책', confidence: '확실', sectionId: 'compliance', required: true },
-    { fieldId: 'log_retention_service', label: '서비스 로그 보존', value: 90, confidence: '확실', sectionId: 'compliance', required: true, unit: '일' },
-    { fieldId: 'log_retention_audit', label: '감사 로그 보존', value: 365, confidence: '확실', sectionId: 'compliance', required: true, unit: '일' },
-    { fieldId: 'encryption_method', label: '암호화 방식', value: 'KMS + TLS 1.3', confidence: '확실', sectionId: 'compliance', required: true },
-    { fieldId: 'admin_access_method', label: '관리자 접근 방식', value: 'VPN + SSO', confidence: '확실', sectionId: 'compliance', required: true },
+    { fieldId: 'has_pii',             label: '개인정보 처리',    value: 'true',                          confidence: '확실', sectionId: 'compliance', required: true,  source: 'doc1_contract' },
+    { fieldId: 'has_payment_info',    label: '결제정보 처리',    value: 'true',                          confidence: '확실', sectionId: 'compliance', required: true,  source: 'doc1_contract',  description: 'PG사 (KCP·NICE) 연동' },
+    { fieldId: 'regulations',         label: '적용 규제·정책',   value: '개인정보보호법, ISMS-P, SKT 보안 정책', confidence: '확실', sectionId: 'compliance', required: true, source: 'doc1_contract' },
+    { fieldId: 'log_retention_service',label: '서비스 로그 보존', value: 90,                             confidence: '확실', sectionId: 'compliance', required: true,  unit: '일', source: 'system_default' },
+    { fieldId: 'log_retention_audit', label: '감사 로그 보존',   value: 365,                            confidence: '확실', sectionId: 'compliance', required: true,  unit: '일', source: 'system_rule' },
+    { fieldId: 'encryption_method',   label: '암호화 방식',      value: 'KMS + TLS 1.3',               confidence: '확실', sectionId: 'compliance', required: true,             source: 'system_default' },
+    { fieldId: 'admin_access_method', label: '관리자 접근 방식', value: 'VPN + SSO',                   confidence: '확실', sectionId: 'compliance', required: true,             source: 'doc2_infra' },
+    { fieldId: 'waf_required',        label: 'WAF 사용',         value: null,                           confidence: '추정', sectionId: 'compliance', required: false,            source: 'llm_recommendation', activationStatus: 'inactive', description: '내부 서비스 전용 — 외부 노출 없음' },
 
     // ── DB / 데이터 ──
-    { fieldId: 'db_type', label: 'DB 유형', value: '관계형 + 오브젝트 스토리지', confidence: '확실', sectionId: 'db', required: true },
-    { fieldId: 'consistency_priority', label: '정합성 우선순위', value: 'strong', confidence: '확실', sectionId: 'db', required: true, description: '결제·정산 트랜잭션' },
-    { fieldId: 'initial_data_volume', label: '초기 데이터 용량', value: 800, confidence: '확실', sectionId: 'db', required: true, unit: 'GB' },
-    { fieldId: 'monthly_data_growth', label: '월간 데이터 증가량', value: 150, confidence: '확실', sectionId: 'db', required: true, unit: 'GB/월' },
-    { fieldId: 'read_write_ratio', label: '읽기/쓰기 비율', value: '70:30', confidence: '확실', sectionId: 'db', required: true },
-    { fieldId: 'backup_required', label: '백업 필요', value: 'true', confidence: '확실', sectionId: 'db', required: true, description: 'RPO 기준 RDS backup·replication' },
+    { fieldId: 'db_type',             label: 'DB 유형',           value: '관계형 + 오브젝트 스토리지', confidence: '확실', sectionId: 'db', required: true,                source: 'doc2_infra' },
+    { fieldId: 'consistency_priority',label: '정합성 우선순위',   value: 'strong',                    confidence: '확실', sectionId: 'db', required: true,                source: 'llm_recommendation', description: '결제·정산 트랜잭션' },
+    { fieldId: 'initial_data_volume', label: '초기 데이터 용량',  value: 800,                         confidence: '확실', sectionId: 'db', required: true,  unit: 'GB',   source: 'doc2_infra' },
+    { fieldId: 'monthly_data_growth', label: '월간 데이터 증가량', value: 150,                         confidence: '확실', sectionId: 'db', required: true,  unit: 'GB/월',source: 'doc2_infra' },
+    { fieldId: 'read_write_ratio',    label: '읽기/쓰기 비율',    value: '70:30',                     confidence: '확실', sectionId: 'db', required: true,                source: 'doc2_infra' },
+    { fieldId: 'backup_required',     label: '백업 필요',         value: 'true',                      confidence: '확실', sectionId: 'db', required: true,                source: 'system_rule',        description: 'RPO 기준 RDS backup·replication' },
+    { fieldId: 'cache_required',      label: '캐시 레이어 사용',  value: null,                        confidence: '추정', sectionId: 'db', required: false,               source: 'llm_recommendation', activationStatus: 'inactive', description: '트래픽 패턴 분석 후 Phase 2 검토' },
   ],
 }
 
@@ -617,20 +633,36 @@ variable "db_password" {
     })
   }),
 
-  http.get('*/api/terraform/verify/:id', () => {
-    return HttpResponse.json({
-      verifyId: 'verify-mock-001',
-      overall: 'pass',
-      categories: [
-        { category: '리소스 존재 확인',     status: 'pass', detail: '12개 리소스 모두 프로비저닝 확인' },
-        { category: '네트워크 연결성',      status: 'pass', detail: 'VPC 라우팅·서브넷 간 통신 정상' },
-        { category: '보안 그룹 규칙',       status: 'pass', detail: '최소 권한 원칙 적용, 불필요 포트 차단' },
-        { category: '컴퓨팅 헬스체크',      status: 'pass', detail: 'EC2/ASG 헬스체크 통과 (2/2 인스턴스)' },
-        { category: 'DB 연결 확인',         status: 'pass', detail: 'RDS Primary 응답 정상, 복제 지연 0ms' },
-        { category: '모니터링 메트릭 송출', status: 'pass', detail: 'CloudWatch 메트릭 8종 수집 중' },
-        { category: '토폴로지 정합성',      status: 'pass', detail: '승인된 토폴로지와 구성 일치 확인' },
-        { category: '컴플라이언스 점검',    status: 'pass', detail: 'ISMS-P·개인정보보호법 항목 통과' },
+  http.get('*/api/terraform/verify/:id', ({ params }) => {
+    const topologyId = String(params.id).replace('plan-', '')
+
+    const PINGS: Record<string, Array<{ resource: string; endpoint: string; status: 'ok' | 'fail'; latencyMs: number; detail: string }>> = {
+      'topo-ha': [
+        { resource: 'aws_vpc.main',                         endpoint: '10.0.0.0/16 (내부 라우팅)',                                          status: 'ok', latencyMs: 1,  detail: 'VPC 라우팅 정상' },
+        { resource: 'aws_internet_gateway.igw',             endpoint: '0.0.0.0/0 → IGW',                                                   status: 'ok', latencyMs: 3,  detail: '인터넷 연결 정상' },
+        { resource: 'aws_nat_gateway.nat',                  endpoint: '13.124.xx.xx:443 (HTTPS 아웃바운드)',                                 status: 'ok', latencyMs: 12, detail: '외부 통신 정상' },
+        { resource: 'aws_lb.app',                           endpoint: 'zeux-ha-alb.ap-northeast-2.elb.amazonaws.com:80',                   status: 'ok', latencyMs: 8,  detail: 'HTTP 200 OK' },
+        { resource: 'aws_autoscaling_group.app',            endpoint: '10.0.11.x ~ 10.0.12.x (EC2 × 2)',                                   status: 'ok', latencyMs: 5,  detail: '인스턴스 2/2 헬시' },
+        { resource: 'aws_db_instance.primary',              endpoint: 'zeux-rds-primary.xxxx.ap-northeast-2.rds.amazonaws.com:3306',       status: 'ok', latencyMs: 3,  detail: 'MySQL 연결 정상 (Multi-AZ)' },
+        { resource: 'aws_route53_health_check.alb',         endpoint: 'health.amazonaws.com',                                              status: 'ok', latencyMs: 15, detail: '헬스체크 통과 (HTTP 200)' },
+        { resource: 'aws_cloudwatch_metric_alarm.cpu_high', endpoint: 'CloudWatch API (ap-northeast-2)',                                    status: 'ok', latencyMs: 7,  detail: '메트릭 수집 정상' },
       ],
-    })
+      'topo-cost': [
+        { resource: 'aws_vpc.main',                  endpoint: '10.0.0.0/16',                                                              status: 'ok', latencyMs: 1, detail: 'VPC 라우팅 정상' },
+        { resource: 'aws_lb.app',                    endpoint: 'zeux-cost-alb.ap-northeast-2.elb.amazonaws.com:80',                        status: 'ok', latencyMs: 9, detail: 'HTTP 200 OK' },
+        { resource: 'aws_spot_instance_request.app', endpoint: '10.0.1.xx:8080 (Spot EC2)',                                                status: 'ok', latencyMs: 6, detail: 'Spot 인스턴스 응답 정상' },
+        { resource: 'aws_db_instance.main',          endpoint: 'zeux-rds-single.xxxx.ap-northeast-2.rds.amazonaws.com:3306',               status: 'ok', latencyMs: 4, detail: 'MySQL 연결 정상' },
+      ],
+      'topo-serverless': [
+        { resource: 'aws_api_gateway_rest_api.main',    endpoint: 'https://xxxx.execute-api.ap-northeast-2.amazonaws.com/prod',           status: 'ok', latencyMs: 22,  detail: 'HTTP 200 OK' },
+        { resource: 'aws_lambda_function.app',          endpoint: 'Lambda invoke (zeux-app-handler)',                                      status: 'ok', latencyMs: 340, detail: '함수 응답 정상' },
+        { resource: 'aws_rds_cluster.aurora',           endpoint: 'zeux-aurora-serverless.cluster.ap-northeast-2.rds.amazonaws.com:3306', status: 'ok', latencyMs: 8,   detail: 'Aurora 연결 정상' },
+        { resource: 'aws_rds_cluster_instance.aurora',  endpoint: '10.0.1.xx (Aurora Writer)',                                            status: 'ok', latencyMs: 5,   detail: 'Writer 인스턴스 응답 정상' },
+        { resource: 'aws_iam_role.lambda',              endpoint: 'IAM API — sts:AssumeRole',                                             status: 'ok', latencyMs: 11,  detail: '역할 위임 성공' },
+      ],
+    }
+
+    const pings = PINGS[topologyId] ?? PINGS['topo-ha']
+    return HttpResponse.json({ verifyId: `verify-${params.id}`, overall: 'pass', pings })
   }),
 ]

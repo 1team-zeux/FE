@@ -1,8 +1,15 @@
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from 'vue'
-import ConfidenceBadge from './ConfidenceBadge.vue'
-import type { ConfidenceLevel } from '../types/sla-bundle.schema'
+import type { ConfidenceLevel, ActivationStatus, SourceType } from '../types/sla-bundle.schema'
 import { api } from '@/services/api'
+
+const SOURCE_LABEL: Record<SourceType, { text: string; cls: string }> = {
+  doc1_contract:     { text: '계약서',  cls: 'bg-blue-50   text-blue-600   border-blue-200' },
+  doc2_infra:        { text: '인프라',  cls: 'bg-purple-50 text-purple-600 border-purple-200' },
+  system_default:    { text: '기본값',  cls: 'bg-gray-50   text-gray-500   border-gray-200' },
+  system_rule:       { text: '규칙',    cls: 'bg-orange-50 text-orange-600 border-orange-200' },
+  llm_recommendation:{ text: 'AI 추천', cls: 'bg-brand/5   text-brand      border-brand/20' },
+}
 
 const props = defineProps<{
   fieldId: string
@@ -12,6 +19,8 @@ const props = defineProps<{
   required: boolean
   unit?: string
   description?: string
+  activationStatus?: ActivationStatus
+  source?: SourceType
 }>()
 
 const emit = defineEmits<{
@@ -124,12 +133,32 @@ function onSuggestAfterLeave(el: Element) {
 </script>
 
 <template>
-  <div>
+  <div :id="fieldId">
+
+    <!-- 비활성 (not_applicable) -->
+    <template v-if="activationStatus === 'inactive'">
+      <div class="flex items-center gap-1.5 mb-1.5 opacity-40">
+        <span class="text-xs font-medium text-text-muted line-through">{{ label }}</span>
+      </div>
+      <div class="h-9 px-3 flex items-center rounded-md bg-bg-muted/50 border border-dashed border-border">
+        <span class="text-[11px] text-text-muted italic">해당 없음 (비활성)</span>
+      </div>
+      <p v-if="description" class="mt-1 text-[11px] text-text-muted/50 leading-relaxed line-through">{{ description }}</p>
+    </template>
+
+    <!-- 활성 -->
+    <template v-else>
+
     <!-- 라벨 행 -->
-    <div class="flex items-center gap-1.5 mb-1.5">
+    <div class="flex items-center gap-1.5 mb-1.5 flex-wrap">
       <span class="text-xs font-medium text-text-secondary">{{ label }}</span>
       <span v-if="required" class="text-status-critical text-[10px] leading-none">*</span>
-      <ConfidenceBadge :confidence="confidence" />
+      <!-- source 배지 -->
+      <span
+        v-if="source"
+        class="px-1.5 py-px rounded text-[9px] font-medium border leading-none"
+        :class="SOURCE_LABEL[source].cls"
+      >{{ SOURCE_LABEL[source].text }}</span>
     </div>
 
     <!-- 편집 중 -->
@@ -139,12 +168,8 @@ function onSuggestAfterLeave(el: Element) {
           v-model="editValue"
           @click="(confidence === '모호' || confidence === '추정') ? fetchSuggestions() : undefined"
           @keyup.enter="confidence !== '확실' ? acceptValue() : submitEdit()"
-          class="w-full h-9 px-3 pr-8 rounded-md text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/40 transition-shadow"
-          :class="{
-            'bg-yellow-50 ring-1 ring-yellow-300': confidence === '모호',
-            'bg-red-50 ring-1 ring-red-300':       confidence === '추정',
-            'bg-bg-muted':                          confidence === '확실',
-          }"
+          class="w-full h-9 px-3 pr-8 rounded-md text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/40 transition-shadow ring-1"
+          :class="source === 'llm_recommendation' ? 'bg-white ring-brand' : 'bg-bg-muted ring-border'"
           :placeholder="String(value ?? '')"
         />
         <!-- 확인 버튼 (모호/추정만) -->
@@ -238,5 +263,7 @@ function onSuggestAfterLeave(el: Element) {
     </div>
 
     <p v-if="description" class="mt-1 text-[11px] text-text-muted leading-relaxed">{{ description }}</p>
+
+    </template><!-- /활성 -->
   </div>
 </template>
