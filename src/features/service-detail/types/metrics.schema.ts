@@ -5,3 +5,14 @@ export const ServiceDetailSchema = z.object({ serviceId: z.string(), serviceName
 export type Sli = z.infer<typeof SliSchema>;
 export type Alarm = z.infer<typeof AlarmSchema>;
 export type ServiceDetail = z.infer<typeof ServiceDetailSchema>;
+
+export const SystemMetricsSchema = z.object({
+  times: z.array(z.string()),
+  cpu: z.array(z.number()),
+  memory: z.array(z.number()),
+  networkIn: z.array(z.number()),
+  networkOut: z.array(z.number()),
+  diskRead: z.array(z.number()),
+  diskWrite: z.array(z.number()),
+});
+export type SystemMetrics = z.infer<typeof SystemMetricsSchema>;

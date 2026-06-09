@@ -45,7 +45,7 @@ const route = useRoute()
     <!-- 바디 -->
     <div class="flex-1 flex gap-4 p-4 overflow-hidden">
       <AppSidebarNav />
-      <main class="flex-1 relative overflow-hidden bg-white rounded-xl shadow-sm border border-border">
+      <main class="flex-1 relative overflow-y-auto bg-white rounded-xl shadow-sm border border-border">
         <RouterView v-slot="{ Component }">
           <Transition :name="pageTransition">
             <component :is="Component" :key="route.path" />

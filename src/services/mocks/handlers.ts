@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import type { SLABundle } from '@/features/iac/types/sla-bundle.schema'
 import type { TopologyDraft } from '@/features/iac/types/topology.schema'
+import { systemMetricsMockData, serviceMapMockData, rcaMockData, eventsMockData, tracesMockData, logsMockData } from './data'
 
 const mockSlaBundleDraft: SLABundle = {
   bundleId: 'bundle-mock-001',
@@ -632,5 +633,58 @@ variable "db_password" {
         { category: '컴플라이언스 점검',    status: 'pass', detail: 'ISMS-P·개인정보보호법 항목 통과' },
       ],
     })
+  }),
+
+  // ── Dashboard API ──────────────────────────────────────────────
+
+  http.get('*/api/portfolio', () => {
+    const { portfolioMockData } = require('./data')
+    return HttpResponse.json(portfolioMockData)
+  }),
+
+  http.get('*/api/services/:customerId', ({ params }) => {
+    const { servicesMockData } = require('./data')
+    const data = servicesMockData[params.customerId as string] ?? []
+    return HttpResponse.json(data)
+  }),
+
+  http.get('*/api/services/:svcId/system-metrics', ({ params }) => {
+    const data = systemMetricsMockData[params.svcId as string] ?? systemMetricsMockData['subscription']
+    return HttpResponse.json(data)
+  }),
+
+  http.get('*/api/customers/:customerId/service-map', ({ params }) => {
+    const data = serviceMapMockData[params.customerId as string] ?? serviceMapMockData['skt-digital']
+    return HttpResponse.json(data)
+  }),
+
+  http.get('*/api/services/:svcId/rca', ({ params }) => {
+    const data = rcaMockData[params.svcId as string] ?? rcaMockData['subscription']
+    return HttpResponse.json(data)
+  }),
+
+  http.get('*/api/events', ({ request }) => {
+    const url = new URL(request.url)
+    const severity = url.searchParams.get('severity')
+    const customerId = url.searchParams.get('customerId')
+    let data = eventsMockData
+    if (severity) data = data.filter(e => e.severity === severity)
+    if (customerId) data = data.filter(e => e.customerId === customerId)
+    return HttpResponse.json(data)
+  }),
+
+  http.get('*/api/services/:svcId/traces', ({ params }) => {
+    const data = tracesMockData[params.svcId as string] ?? tracesMockData['subscription']
+    return HttpResponse.json(data)
+  }),
+
+  http.get('*/api/services/:svcId/logs', ({ request, params }) => {
+    const url = new URL(request.url)
+    const level = url.searchParams.get('level')
+    const search = url.searchParams.get('search')?.toLowerCase()
+    let data = (logsMockData[params.svcId as string] ?? logsMockData['subscription']) as Array<{id:string;timestamp:string;level:string;message:string;traceId:string|null;container:string}>
+    if (level) data = data.filter(l => l.level === level)
+    if (search) data = data.filter(l => l.message.toLowerCase().includes(search) || (l.traceId ?? '').includes(search) || l.container.includes(search))
+    return HttpResponse.json(data)
   }),
 ]
