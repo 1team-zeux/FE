@@ -1,18 +1,23 @@
 import { type Ref } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { ServiceDetailSchema } from '../types/metrics.schema';
-import { serviceDetailMockData } from '@/services/mocks/data';
+import { api } from '@/services/api';
 import type { TimeRange } from '@/components/shared/TimeRangePicker.vue';
 
 export type { TimeRange };
 
-export const useServiceMetricsQuery = (svcId: string, range?: Ref<TimeRange>) => {
+export const useServiceMetricsQuery = (svcId: string, tenantId: string, range?: Ref<TimeRange>) => {
   return useQuery({
-    queryKey: ['service-metrics', svcId, range ?? '1h'],
+    queryKey: ['service-metrics', svcId, tenantId, range],
     queryFn: async () => {
-      const data = serviceDetailMockData[svcId as keyof typeof serviceDetailMockData];
-      if (!data) throw new Error('Service detail not found');
-      return ServiceDetailSchema.parse(data);
+      const r = range?.value ?? '1h';
+      const res = await api.get(
+        `/monitoring/api/v1/services/${encodeURIComponent(svcId)}/sli-metrics`,
+        { params: { tenant_id: tenantId, range: r } },
+      );
+      return ServiceDetailSchema.parse(res.data);
     },
+    enabled: !!tenantId,
+    staleTime: 30_000,
   });
 };

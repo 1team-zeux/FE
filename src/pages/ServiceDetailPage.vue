@@ -14,7 +14,8 @@ import type { Alarm } from '@/features/service-detail';
 
 const route  = useRoute();
 const router = useRouter();
-const svcId  = route.params.svcId as string;
+const svcId    = route.params.svcId as string;
+const tenantId = (route.query.tenantId as string) || '';
 const queryClient = useQueryClient();
 
 // ── Global Controller ──────────────────────────────────────────────
@@ -34,15 +35,15 @@ watch(refreshInterval, (val, _old, onCleanup) => {
   if (val === 'off') return;
   const ms = ({ '30s': 30_000, '1m': 60_000, '5m': 300_000 } as Record<string, number>)[val];
   const timer = setInterval(() => {
-    queryClient.invalidateQueries({ queryKey: ['service-metrics', svcId] });
-    queryClient.invalidateQueries({ queryKey: ['system-metrics', svcId] });
+    queryClient.invalidateQueries({ queryKey: ['service-metrics', svcId, tenantId] });
+    queryClient.invalidateQueries({ queryKey: ['system-metrics', svcId, tenantId] });
   }, ms);
   onCleanup(() => clearInterval(timer));
 });
 
 // ── Queries ────────────────────────────────────────────────────────
-const { data: detail, isLoading, isError } = useServiceMetricsQuery(svcId, selectedRange);
-const { data: systemMetrics } = useSystemMetricsQuery(svcId, selectedRange);
+const { data: detail, isLoading, isError } = useServiceMetricsQuery(svcId, tenantId, selectedRange);
+const { data: systemMetrics } = useSystemMetricsQuery(svcId, tenantId, selectedRange);
 const { data: incident } = useIncidentQuery(svcId);
 
 // ── SLI Chip Filter ────────────────────────────────────────────────
@@ -253,7 +254,7 @@ watch(activeTab, (tab) => {
         <div class="mb-4 px-4 py-2.5 bg-gray-50 border border-border rounded-lg text-xs text-gray-500">
           {{ tabs.find(t => t.key === 'trace')?.desc }}
         </div>
-        <TracePanel :svc-id="svcId" />
+        <TracePanel :svc-id="svcId" :tenant-id="tenantId" />
       </div>
 
       <!-- Tab: Log -->
@@ -261,7 +262,7 @@ watch(activeTab, (tab) => {
         <div class="mb-4 px-4 py-2.5 bg-gray-50 border border-border rounded-lg text-xs text-gray-500">
           {{ tabs.find(t => t.key === 'log')?.desc }}
         </div>
-        <LogPanel :svc-id="svcId" />
+        <LogPanel :svc-id="svcId" :tenant-id="tenantId" />
       </div>
 
       <!-- Tab: RCA -->
