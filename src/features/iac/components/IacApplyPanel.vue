@@ -124,7 +124,10 @@ function formatSeconds(s: number) {
       </Transition>
 
       <!-- 리소스 목록 -->
-      <div class="flex-1 overflow-y-auto min-h-0 space-y-1.5">
+      <div
+        class="flex-1 overflow-y-auto min-h-0 space-y-1.5"
+        style="mask-image: linear-gradient(to bottom, black calc(100% - 16px), transparent 100%); -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 16px), transparent 100%)"
+      >
         <TransitionGroup name="plan-row">
           <div
             v-for="res in resources"
@@ -216,7 +219,10 @@ function formatSeconds(s: number) {
       </div>
 
       <!-- 실패 리소스만 표시 -->
-      <div class="flex-1 overflow-y-auto min-h-0 space-y-1 mb-3">
+      <div
+        class="flex-1 overflow-y-auto min-h-0 space-y-1 mb-3"
+        style="mask-image: linear-gradient(to bottom, black calc(100% - 16px), transparent 100%); -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 16px), transparent 100%)"
+      >
         <div
           v-for="res in resources"
           :key="res.resource"

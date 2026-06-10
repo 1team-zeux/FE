@@ -70,10 +70,22 @@ const planPanelStyle = computed(() => {
 })
 
 // Apply: right-anchored, w-1/2, 오른쪽 밖에서 등장
+// isVerifying 시엔 wrapper가 통째로 퇴장하므로 개별 transform 고정
 const applyPanelStyle = computed(() => ({
-  transform: isApplying.value ? 'translateX(0)' : 'translateX(100%)',
+  transform: (isApplying.value || isVerifying.value) ? 'translateX(0)' : 'translateX(100%)',
   transition: `transform ${DUR} ${EASE}`,
   zIndex: '2',
+}))
+
+// Verify: 기존 패널들 왼쪽으로 밀고, 검증 패널 오른쪽에서 등장
+const isVerifying = computed(() => deployStatus.value === 'verifying' || deployStatus.value === 'done')
+const existingPanelsStyle = computed(() => ({
+  transform: isVerifying.value ? 'translateX(-100%)' : 'translateX(0)',
+  transition: `transform ${DUR} ${EASE}`,
+}))
+const verifyPanelStyle = computed(() => ({
+  transform: isVerifying.value ? 'translateX(0)' : 'translateX(100%)',
+  transition: `transform ${DUR} ${EASE}`,
 }))
 
 // ── Handlers ──────────────────────────────────────────────
@@ -113,7 +125,7 @@ function handlePlan() {
 
 function handleApply() {
   if (!planId.value) return
-  const initialResources = planData.value?.items.map(i => i.resource) ?? []
+  const initialResources = planData.value?.items.map(i => i.address) ?? []
   startApply(planId.value, initialResources)
 }
 
@@ -194,56 +206,60 @@ function handleBackStep() {
     <!-- 바디: 3-패널 CSS transition -->
     <div class="flex-1 relative overflow-hidden">
 
-      <!-- 1. HCL 패널 (left-anchored, right로 너비 조절) -->
-      <div class="absolute inset-y-0 left-0 overflow-hidden" :style="hclPanelStyle">
-        <IacHclPanel
-          :hclPreview="hclPreview"
-          :isGenerating="deployStatus === 'generating'"
-          :isPlanning="isPlanning"
-          :planStarted="planPanelVisible"
-          @plan="handlePlanClick"
-        />
-      </div>
+      <!-- 1~3. 기존 패널 wrapper (검증 시 왼쪽으로 퇴장) -->
+      <div class="absolute inset-0" :style="existingPanelsStyle">
 
-      <!-- 2. Plan 패널 (right-anchored, w-1/2) -->
-      <div class="absolute inset-y-0 right-0 w-1/2 overflow-hidden" :style="planPanelStyle">
-        <IacPlanPanel
-          :planData="planData"
-          :isPlanning="isPlanning"
-          @apply="handleApply"
-          @regen="handleRegen"
-        />
-      </div>
-
-      <!-- 3. Apply 패널 (right-anchored, w-1/2, z-index 2) -->
-      <div class="absolute inset-y-0 right-0 w-1/2 overflow-hidden" :style="applyPanelStyle">
-        <IacApplyPanel
-          :resources="resources"
-          :failedDuringApply="failedDuringApply"
-          :isApplyDone="isApplyDone"
-          @retryApply="handleRetryApply"
-          @keepPartial="handleKeepPartial"
-          @rollback="handleRollback"
-          @stop="stopApply"
-          @verifyStart="handleVerifyStart"
-        />
-      </div>
-
-      <!-- 4. 검증 패널 (full-screen overlay, 보류) -->
-      <Transition name="fade">
-        <div
-          v-if="deployStatus === 'verifying' || deployStatus === 'done'"
-          class="absolute inset-0 px-8 pt-3 pb-4 overflow-y-auto"
-          style="z-index: 10; background: var(--color-bg-page)"
-        >
-          <IacVerifyPanel
-            :verifyData="verifyData ?? null"
-            @retryVerify="store.setDeployStatus('verifying')"
-            @editCode="handleEditCode"
-            @reviewTopology="handleReviewTopology"
+        <!-- 1. HCL 패널 (left-anchored, right로 너비 조절) -->
+        <div class="absolute inset-y-0 left-0 overflow-hidden" :style="hclPanelStyle">
+          <IacHclPanel
+            :hclPreview="hclPreview"
+            :isGenerating="deployStatus === 'generating'"
+            :isPlanning="isPlanning"
+            :planStarted="planPanelVisible"
+            @plan="handlePlanClick"
           />
         </div>
-      </Transition>
+
+        <!-- 2. Plan 패널 (right-anchored, w-1/2) -->
+        <div class="absolute inset-y-0 right-0 w-1/2 overflow-hidden" :style="planPanelStyle">
+          <IacPlanPanel
+            :planData="planData"
+            :isPlanning="isPlanning"
+            @apply="handleApply"
+            @regen="handleRegen"
+          />
+        </div>
+
+        <!-- 3. Apply 패널 (right-anchored, w-1/2, z-index 2) -->
+        <div class="absolute inset-y-0 right-0 w-1/2 overflow-hidden" :style="applyPanelStyle">
+          <IacApplyPanel
+            :resources="resources"
+            :failedDuringApply="failedDuringApply"
+            :isApplyDone="isApplyDone"
+            @retryApply="handleRetryApply"
+            @keepPartial="handleKeepPartial"
+            @rollback="handleRollback"
+            @stop="stopApply"
+            @verifyStart="handleVerifyStart"
+          />
+        </div>
+
+      </div>
+
+      <!-- 4. 검증 패널 (full-screen, 오른쪽에서 진입하며 push) -->
+      <div
+        class="absolute inset-0 px-8 pt-3 pb-4 overflow-y-auto bg-white"
+        style="mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 24px), transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 24px), transparent 100%)"
+        :style="verifyPanelStyle"
+      >
+        <IacVerifyPanel
+          :verifyData="verifyData ?? null"
+          :visible="isVerifying"
+          @retryVerify="store.setDeployStatus('verifying')"
+          @editCode="handleEditCode"
+          @reviewTopology="handleReviewTopology"
+        />
+      </div>
 
     </div>
 

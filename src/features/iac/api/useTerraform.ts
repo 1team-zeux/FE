@@ -11,17 +11,14 @@ export interface ResourceStatus {
 }
 
 export interface PlanItem {
-  resource: string
-  changeType: 'add' | 'change' | 'destroy'
-  riskLevel: 'low' | 'medium' | 'high'
-  slaImpact: string
-  estimatedCost: string
+  address: string
+  type: string
+  actions: Array<'create' | 'update' | 'delete' | 'replace' | 'no-op'>
 }
 
 export interface PlanResult {
   planId: string
   summary: { add: number; change: number; destroy: number }
-  riskLevel: string
   items: PlanItem[]
 }
 
@@ -102,10 +99,18 @@ export function useTerraformApply() {
   return { resources, isStreaming, isApplyDone, startApply, stopApply }
 }
 
+export interface PingResult {
+  resource: string
+  endpoint: string
+  status: 'ok' | 'fail'
+  latencyMs: number
+  detail: string
+}
+
 export interface VerifyResult {
   verifyId: string
   overall: 'pass' | 'fail'
-  categories: { category: string; status: 'pass' | 'fail'; detail: string }[]
+  pings: PingResult[]
 }
 
 export function useTerraformVerify(planId: Ref<string | null>) {

@@ -3,7 +3,6 @@ import {
   ConfidenceLevelSchema,
   SLAItemSchema,
   SLABundleSchema,
-  FieldActionSchema,
 } from '../types/sla-bundle.schema'
 import {
   TopologyNodeSchema,
@@ -24,25 +23,26 @@ describe('SLA Bundle Schema', () => {
 
   it('SLAItem: 유효한 항목 파싱', () => {
     const item = SLAItemSchema.parse({
-      fieldId: 'sla_availability',
+      slaItemId: 'portal_availability',
+      serviceId: 'svc-portal',
+      category: 'availability',
       label: '가용성 목표',
-      value: '99.9%',
+      targetValue: '99.9%',
       confidence: '확실',
-      sectionId: 'availability',
       required: true,
     })
-    expect(item.fieldId).toBe('sla_availability')
+    expect(item.slaItemId).toBe('portal_availability')
     expect(item.confidence).toBe('확실')
   })
 
-  it('SLAItem: value는 string | number | null 허용', () => {
+  it('SLAItem: targetValue는 string | number | null 허용', () => {
     expect(() => SLAItemSchema.parse({
-      fieldId: 'f1', label: 'L', value: null,
-      confidence: '추정', sectionId: 's1', required: false,
+      slaItemId: 'f1', serviceId: 's1', category: 'rto', label: 'L',
+      targetValue: null, confidence: '추정', required: false,
     })).not.toThrow()
     expect(() => SLAItemSchema.parse({
-      fieldId: 'f2', label: 'L', value: 99.9,
-      confidence: '모호', sectionId: 's1', required: true,
+      slaItemId: 'f2', serviceId: 's1', category: 'latency', label: 'L',
+      targetValue: 99.9, confidence: '모호', required: true,
     })).not.toThrow()
   })
 
@@ -50,18 +50,14 @@ describe('SLA Bundle Schema', () => {
     const bundle = SLABundleSchema.parse({
       bundleId: 'b-001',
       uploadSessionId: 'sess-001',
-      items: [],
+      services: [],
+      slaItems: [],
+      bundleFields: [],
       confirmedCount: 0,
       totalRequiredCount: 47,
       status: 'draft',
     })
     expect(bundle.status).toBe('draft')
-  })
-
-  it('FieldAction: accept | edit | direct 허용', () => {
-    expect(FieldActionSchema.parse('accept')).toBe('accept')
-    expect(FieldActionSchema.parse('edit')).toBe('edit')
-    expect(FieldActionSchema.parse('direct')).toBe('direct')
   })
 })
 
