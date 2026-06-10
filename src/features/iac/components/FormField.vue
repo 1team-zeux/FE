@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted } from 'vue'
 import type { ConfidenceLevel, ActivationStatus, SourceType, AiSuggestion } from '../types/sla-bundle.schema'
+import { useIacStore } from '../stores/iac.store'
+import PdfEvidenceViewer from './PdfEvidenceViewer.vue'
+import type { Evidence } from '../types/sla-bundle.schema'
 
 const SOURCE_LABEL: Record<SourceType, { text: string; cls: string }> = {
   doc1_contract:     { text: '계약서',  cls: 'bg-blue-50   text-blue-600   border-blue-200' },
@@ -21,6 +24,7 @@ const props = defineProps<{
   activationStatus?: ActivationStatus
   source?: SourceType
   suggestions?: AiSuggestion[]
+  evidence?: Evidence
 }>()
 
 const emit = defineEmits<{
@@ -32,6 +36,29 @@ const editValue = ref<string>(String(props.value ?? ''))
 
 const showSuggestions = ref(false)
 const containerRef = ref<HTMLElement | null>(null)
+
+const showEvidence = ref(false)
+const evidenceAnchorRef = ref<HTMLElement | null>(null)
+const iacStore = useIacStore()
+
+const evidencePdfFile = computed(() => {
+  if (!props.evidence?.documentId) return null
+  if (props.evidence.documentId === 'doc1_contract') return iacStore.pdfFiles.sla
+  return iacStore.pdfFiles.infra
+})
+
+const popoverPosition = computed(() => {
+  if (!evidenceAnchorRef.value) return {}
+  const rect = evidenceAnchorRef.value.getBoundingClientRect()
+  const spaceBelow = window.innerHeight - rect.bottom
+  const top = spaceBelow > 440 ? rect.bottom + 4 : rect.top - 444
+  const left = Math.min(rect.left, window.innerWidth - 492)
+  return { top: `${top}px`, left: `${Math.max(8, left)}px` }
+})
+
+function toggleEvidence() {
+  showEvidence.value = !showEvidence.value
+}
 
 watch(() => props.confidence, (c) => {
   if (c === '확실' || c === '확정') {
@@ -75,9 +102,17 @@ function handleClickOutside(e: MouseEvent) {
   if (containerRef.value && !containerRef.value.contains(e.target as Node)) {
     showSuggestions.value = false
   }
+  if (evidenceAnchorRef.value && !evidenceAnchorRef.value.contains(e.target as Node)) {
+    showEvidence.value = false
+  }
 }
 
 watch(showSuggestions, (v) => {
+  if (v) document.addEventListener('click', handleClickOutside)
+  else document.removeEventListener('click', handleClickOutside)
+})
+
+watch(showEvidence, (v) => {
   if (v) document.addEventListener('click', handleClickOutside)
   else document.removeEventListener('click', handleClickOutside)
 })
@@ -145,6 +180,51 @@ function onSuggestAfterLeave(el: Element) {
         class="px-1.5 py-px rounded text-[9px] font-medium border leading-none"
         :class="SOURCE_LABEL[source].cls"
       >{{ SOURCE_LABEL[source].text }}</span>
+      <!-- PDF 근거 버튼 -->
+      <button
+        v-if="evidence && (evidence.page || evidence.snippet)"
+        ref="evidenceAnchorRef"
+        @click.stop="toggleEvidence"
+        class="relative ml-auto p-0.5 rounded text-text-muted hover:text-brand transition-colors"
+        title="PDF 원문 보기"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        <!-- 팝오버 -->
+        <Teleport to="body">
+          <div
+            v-if="showEvidence"
+            class="fixed z-50 shadow-xl rounded-xl border border-border overflow-hidden"
+            style="width: 480px;"
+            :style="popoverPosition"
+          >
+            <!-- 헤더 -->
+            <div class="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-border">
+              <span class="text-[11px] font-medium text-text-secondary">PDF 원문</span>
+              <span v-if="evidence.page" class="text-[10px] text-text-muted">p.{{ evidence.page }}</span>
+              <button @click.stop="showEvidence = false" class="ml-2 p-0.5 rounded hover:bg-gray-200 text-text-muted">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+            <!-- PDF 렌더링 (파일 있을 때) -->
+            <PdfEvidenceViewer
+              v-if="evidencePdfFile"
+              :file="evidencePdfFile"
+              :page="evidence.page ?? 1"
+              :snippet="evidence.snippet"
+            />
+            <!-- 파일 없을 때: 스니펫 텍스트 폴백 -->
+            <div v-else class="px-4 py-3 bg-white">
+              <p class="text-[11px] text-text-muted mb-1">원문 발췌</p>
+              <p class="text-xs text-text-primary whitespace-pre-wrap leading-relaxed">{{ evidence.snippet ?? '원문 없음' }}</p>
+            </div>
+          </div>
+        </Teleport>
+      </button>
     </div>
 
     <!-- 편집 중 -->

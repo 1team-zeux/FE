@@ -77,7 +77,7 @@ export const SLAItemSchema = z.object({
   required: z.boolean(),
   description: z.string().optional(),
   suggestions: z.array(AiSuggestionSchema).optional(),
-})
+}).passthrough()
 export type SLAItem = z.infer<typeof SLAItemSchema>
 
 // Bundle-level form fields for non-SLA sections (infra, cost, compliance, db, basic info, performance)
@@ -94,7 +94,7 @@ export const BundleFieldSchema = z.object({
   source: SourceTypeSchema.optional(),
   reviewStatus: ReviewStatusSchema.optional(),
   evidence: EvidenceSchema.optional(),
-})
+}).passthrough()
 export type BundleField = z.infer<typeof BundleFieldSchema>
 
 export const BundleStatusSchema = z.enum(['draft', 'confirmed', 'saved'])
@@ -109,7 +109,7 @@ export const SLABundleSchema = z.object({
   confirmedCount: z.number().int().nonnegative(),
   totalRequiredCount: z.number().int().positive(),
   status: BundleStatusSchema,
-})
+}).passthrough()
 export type SLABundle = z.infer<typeof SLABundleSchema>
 
 // SLA section schema kept for topology / screen 3 usage

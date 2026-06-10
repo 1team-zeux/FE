@@ -17,6 +17,7 @@ export const useIacStore = defineStore('iac', () => {
   const deployStatus = ref<DeployStatus>('idle')
   const chatbotTriggers = ref<ChatbotTrigger[]>([])
   const chatbotOpen = ref(false)
+  const pdfFiles = ref<{ sla: File | null; infra: File | null }>({ sla: null, infra: null })
 
   const chatbotBadgeCount = computed(() => chatbotTriggers.value.length)
 
@@ -52,6 +53,10 @@ export const useIacStore = defineStore('iac', () => {
     chatbotOpen.value = true
   }
 
+  function setPdfFiles(files: { sla: File; infra: File }) {
+    pdfFiles.value = files
+  }
+
   function reset() {
     uploadSessionId.value = null
     bundleDraft.value = null
@@ -59,6 +64,7 @@ export const useIacStore = defineStore('iac', () => {
     deployStatus.value = 'idle'
     chatbotTriggers.value = []
     chatbotOpen.value = false
+    pdfFiles.value = { sla: null, infra: null }
   }
 
   return {
@@ -77,6 +83,8 @@ export const useIacStore = defineStore('iac', () => {
     clearChatbotTriggers,
     toggleChatbot,
     openChatbot,
+    pdfFiles,
+    setPdfFiles,
     reset,
   }
 })

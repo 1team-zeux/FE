@@ -7,7 +7,7 @@ import {
   useSlaBundleDraft, useConfirmField, useSaveSlaBundle,
   FormField,
 } from '@/features/iac'
-import type { ConfidenceLevel, ActivationStatus, SourceType, Service, AiSuggestion } from '@/features/iac'
+import type { ConfidenceLevel, ActivationStatus, SourceType, Service, AiSuggestion, Evidence } from '@/features/iac'
 
 // ── 상수 ──────────────────────────────────────────────────────────────────────
 
@@ -41,6 +41,7 @@ interface NormalizedField {
   activationStatus?: ActivationStatus
   source?: SourceType
   suggestions?: AiSuggestion[]
+  evidence?: Evidence
 }
 
 interface ReviewSection {
@@ -134,6 +135,7 @@ const groupedReviewSections = computed((): ReviewSection[] => {
         activationStatus: i.activationStatus,
         source:           i.source,
         suggestions:      i.suggestions,
+        evidence:         i.evidence,
       }))
     if (fields.length) sections.push({ sectionId: service.serviceId, label: service.serviceName, isService: true, service, fields })
   }
@@ -150,8 +152,8 @@ const groupedReviewSections = computed((): ReviewSection[] => {
   return sections
 })
 
-function toNorm(f: { fieldId: string; label: string; value: string | number | null; confidence: ConfidenceLevel; required: boolean; unit?: string; description?: string; activationStatus?: ActivationStatus; source?: SourceType }): NormalizedField {
-  return { fieldId: f.fieldId, label: f.label, value: f.value, confidence: f.confidence, required: f.required, unit: f.unit, description: f.description, activationStatus: f.activationStatus, source: f.source }
+function toNorm(f: NormalizedField): NormalizedField {
+  return { fieldId: f.fieldId, label: f.label, value: f.value, confidence: f.confidence, required: f.required, unit: f.unit, description: f.description, activationStatus: f.activationStatus, source: f.source, evidence: f.evidence }
 }
 
 // ── 계산 ──────────────────────────────────────────────────────────────────────
