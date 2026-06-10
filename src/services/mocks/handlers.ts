@@ -184,22 +184,8 @@ const mockTopologies: TopologyDraft[] = [
 ]
 
 export const handlers = [
-  http.post('*/api/upload-sessions', () => {
-    return HttpResponse.json({ uploadSessionId: 'sess-mock-001' }, { status: 201 })
-  }),
-
-  http.get('*/api/sla-bundles/draft/:sessionId', () => {
-    return HttpResponse.json(mockSlaBundleDraft)
-  }),
-
-  http.patch('*/api/sla-bundles/draft/:id/fields', async ({ request }) => {
-    const body = await request.json() as { fieldId: string; value: string | number | null }
-    return HttpResponse.json({ fieldId: body.fieldId, confirmed: true })
-  }),
-
-  http.post('*/api/sla-bundles', () => {
-    return HttpResponse.json({ bundleId: 'bundle-mock-001' }, { status: 201 })
-  }),
+  // upload-sessions / sla-bundles → 실제 BE (http://localhost:8090) 로 bypass
+  // vite proxy: /api → http://localhost:8090 (rewrite strips /api prefix)
 
   http.get('*/api/topologies/:bundleId', () => {
     return HttpResponse.json({ topologies: mockTopologies })
