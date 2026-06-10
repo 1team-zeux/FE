@@ -6,7 +6,7 @@ import { systemMetricsMockData, serviceMapMockData, rcaMockData, eventsMockData,
 const mockSlaBundleDraft: SLABundle = {
   bundleId: 'bundle-mock-001',
   uploadSessionId: 'sess-mock-001',
-  confirmedCount: 44,
+  confirmedCount: 41,
   totalRequiredCount: 47,
   status: 'draft',
 
@@ -21,13 +21,25 @@ const mockSlaBundleDraft: SLABundle = {
   slaItems: [
     // Customer Portal Web
     { slaItemId: 'portal_availability',    serviceId: 'svc-portal',       category: 'availability', slaLevel: 'L2_service',   label: 'Customer Portal Web — 가용성',    targetValue: '99.90', unit: '%',  confidence: '확실', source: 'doc1_contract', required: true,  measurementWindow: '월간',         description: 'ALB log + synthetic probe' },
-    { slaItemId: 'portal_latency_p95',     serviceId: 'svc-portal',       category: 'latency',      slaLevel: 'L2_service',   label: 'Customer Portal Web — Latency p95', targetValue: 800,   unit: 'ms', confidence: '확실', source: 'doc1_contract', required: true,  measurementWindow: '5분 rolling window' },
-    { slaItemId: 'portal_rto',             serviceId: 'svc-portal',       category: 'rto',                                    label: 'Customer Portal Web — RTO',       targetValue: 30,      unit: '분', confidence: '확실', source: 'doc1_contract', required: true,  description: '장애 탐지 ~ 복구 완료' },
+    { slaItemId: 'portal_latency_p95',     serviceId: 'svc-portal',       category: 'latency',      slaLevel: 'L2_service',   label: 'Customer Portal Web — Latency p95', targetValue: 800,   unit: 'ms', confidence: '모호', source: 'llm_recommendation', required: true,  measurementWindow: '5분 rolling window', description: '계약서에 명시 없음 — LLM 추정', suggestions: [
+      { value: '500',  reason: '국내 이커머스 Tier-1 서비스 평균 (NAVER, Kakao 기준)' },
+      { value: '800',  reason: '현재 추정값 — 트래픽 패턴 상 무리 없는 수준' },
+      { value: '1000', reason: '보수적 SLA — Phase 1 안정화 기간 적용 권장' },
+    ]},
+    { slaItemId: 'portal_rto',             serviceId: 'svc-portal',       category: 'rto',                                    label: 'Customer Portal Web — RTO',       targetValue: 30,      unit: '분', confidence: '추정', source: 'llm_recommendation', required: true,  description: '장애 탐지 ~ 복구 완료 (문서 미명시)', suggestions: [
+      { value: '15', reason: 'Multi-AZ 자동 failover 기준 — 업계 표준 RTO' },
+      { value: '30', reason: '현재 추정값 — 수동 개입 포함한 안전 마진' },
+      { value: '60', reason: '배치 장애 등 복합 장애 시나리오 대비' },
+    ]},
 
     // Subscription API
     { slaItemId: 'subscription_availability',          serviceId: 'svc-subscription', category: 'availability', slaLevel: 'L2_service',   label: 'Subscription API — 가용성',           targetValue: '99.95', unit: '%',  confidence: '확실', source: 'doc1_contract', required: true,  measurementWindow: '월간', description: 'ALB log + Ingress metric' },
     { slaItemId: 'subscription_endpoint_availability', serviceId: 'svc-subscription', category: 'availability', slaLevel: 'L3_endpoint',  label: 'POST /subscriptions — 가용성',        targetValue: '99.99', unit: '%',  confidence: '확실', source: 'doc1_contract', required: true,  measurementFilter: 'POST /subscriptions', measurementWindow: '월간', description: '결제 endpoint 별도 SLA' },
-    { slaItemId: 'subscription_latency_p95',           serviceId: 'svc-subscription', category: 'latency',      slaLevel: 'L2_service',   label: 'Subscription API — Latency p95',      targetValue: 500,     unit: 'ms', confidence: '확실', source: 'doc1_contract', required: true,  measurementWindow: '5분 rolling', description: 'OpenTelemetry trace' },
+    { slaItemId: 'subscription_latency_p95',           serviceId: 'svc-subscription', category: 'latency',      slaLevel: 'L2_service',   label: 'Subscription API — Latency p95',      targetValue: 500,     unit: 'ms', confidence: '모호', source: 'llm_recommendation', required: true,  measurementWindow: '5분 rolling', description: 'PG 연동 포함 — 실측값 미확인', suggestions: [
+      { value: '200', reason: '내부 API 처리만 고려 시 달성 가능한 목표치' },
+      { value: '500', reason: '현재 추정값 — PG사 응답 지연 포함한 현실적 SLA' },
+      { value: '800', reason: 'PG사 피크 타임 응답 지연까지 포함한 보수적 수치' },
+    ]},
     { slaItemId: 'subscription_rpo',                   serviceId: 'svc-subscription', category: 'rpo',                                    label: 'Subscription API — RPO',              targetValue: 5,       unit: '분', confidence: '확실', source: 'doc1_contract', required: true,  description: 'RDS backup·replication 기준' },
 
     // Billing Batch
@@ -459,29 +471,29 @@ variable "db_password" {
 }`,
     }
 
-    const PLAN_ITEMS: Record<string, { resource: string; changeType: 'add' | 'change' | 'destroy'; riskLevel: 'low' | 'medium' | 'high'; slaImpact: string; estimatedCost: string }[]> = {
+    const PLAN_ITEMS: Record<string, { address: string; type: string; actions: string[] }[]> = {
       'topo-ha': [
-        { resource: 'aws_vpc.main',               changeType: 'add', riskLevel: 'low',    slaImpact: '없음',            estimatedCost: '+₩0/월' },
-        { resource: 'aws_internet_gateway.igw',   changeType: 'add', riskLevel: 'low',    slaImpact: '없음',            estimatedCost: '+₩0/월' },
-        { resource: 'aws_nat_gateway.nat',         changeType: 'add', riskLevel: 'low',    slaImpact: '없음',            estimatedCost: '+₩50,000/월' },
-        { resource: 'aws_lb.app',                  changeType: 'add', riskLevel: 'medium', slaImpact: '가용성 +0.3%',   estimatedCost: '+₩28,000/월' },
-        { resource: 'aws_autoscaling_group.app',   changeType: 'add', riskLevel: 'medium', slaImpact: '가용성 +0.5%',   estimatedCost: '+₩640,000/월' },
-        { resource: 'aws_db_instance.primary',     changeType: 'add', riskLevel: 'high',   slaImpact: 'RTO 10분 달성',  estimatedCost: '+₩890,000/월' },
-        { resource: 'aws_route53_health_check.alb',changeType: 'add', riskLevel: 'low',    slaImpact: 'RPO 5분 달성',   estimatedCost: '+₩2,500/월' },
-        { resource: 'aws_cloudwatch_metric_alarm.cpu_high', changeType: 'add', riskLevel: 'low', slaImpact: '장애 감지 개선', estimatedCost: '+₩0/월' },
+        { address: 'aws_vpc.main',                            type: 'aws_vpc',                    actions: ['create'] },
+        { address: 'aws_internet_gateway.igw',                type: 'aws_internet_gateway',       actions: ['create'] },
+        { address: 'aws_nat_gateway.nat',                     type: 'aws_nat_gateway',            actions: ['create'] },
+        { address: 'aws_lb.app',                              type: 'aws_lb',                     actions: ['create'] },
+        { address: 'aws_autoscaling_group.app',               type: 'aws_autoscaling_group',      actions: ['create'] },
+        { address: 'aws_db_instance.primary',                 type: 'aws_db_instance',            actions: ['create'] },
+        { address: 'aws_route53_health_check.alb',            type: 'aws_route53_health_check',   actions: ['create'] },
+        { address: 'aws_cloudwatch_metric_alarm.cpu_high',    type: 'aws_cloudwatch_metric_alarm',actions: ['create'] },
       ],
       'topo-cost': [
-        { resource: 'aws_vpc.main',                changeType: 'add', riskLevel: 'low',    slaImpact: '없음',            estimatedCost: '+₩0/월' },
-        { resource: 'aws_lb.app',                  changeType: 'add', riskLevel: 'medium', slaImpact: '가용성 +0.1%',   estimatedCost: '+₩18,000/월' },
-        { resource: 'aws_spot_instance_request.app', changeType: 'add', riskLevel: 'high', slaImpact: '인터럽트 위험',  estimatedCost: '+₩96,000/월' },
-        { resource: 'aws_db_instance.main',        changeType: 'add', riskLevel: 'medium', slaImpact: 'RPO 15분',       estimatedCost: '+₩180,000/월' },
+        { address: 'aws_vpc.main',                            type: 'aws_vpc',                    actions: ['create'] },
+        { address: 'aws_lb.app',                              type: 'aws_lb',                     actions: ['create'] },
+        { address: 'aws_spot_instance_request.app',           type: 'aws_spot_instance_request',  actions: ['create'] },
+        { address: 'aws_db_instance.main',                    type: 'aws_db_instance',            actions: ['create'] },
       ],
       'topo-serverless': [
-        { resource: 'aws_api_gateway_rest_api.main', changeType: 'add', riskLevel: 'low',  slaImpact: '없음',           estimatedCost: '+₩5,000/월' },
-        { resource: 'aws_lambda_function.app',     changeType: 'add', riskLevel: 'low',    slaImpact: '가용성 +0.2%',   estimatedCost: '+₩120,000/월' },
-        { resource: 'aws_rds_cluster.aurora',      changeType: 'add', riskLevel: 'medium', slaImpact: 'RPO 10분 달성',  estimatedCost: '+₩350,000/월' },
-        { resource: 'aws_rds_cluster_instance.aurora', changeType: 'add', riskLevel: 'medium', slaImpact: '자동 스케일', estimatedCost: '+₩0 (사용량 과금)' },
-        { resource: 'aws_iam_role.lambda',         changeType: 'add', riskLevel: 'low',    slaImpact: '없음',           estimatedCost: '+₩0/월' },
+        { address: 'aws_api_gateway_rest_api.main',           type: 'aws_api_gateway_rest_api',   actions: ['create'] },
+        { address: 'aws_lambda_function.app',                 type: 'aws_lambda_function',        actions: ['create'] },
+        { address: 'aws_rds_cluster.aurora',                  type: 'aws_rds_cluster',            actions: ['create'] },
+        { address: 'aws_rds_cluster_instance.aurora',         type: 'aws_rds_cluster_instance',   actions: ['create'] },
+        { address: 'aws_iam_role.lambda',                     type: 'aws_iam_role',               actions: ['create'] },
       ],
     }
 
@@ -499,39 +511,38 @@ variable "db_password" {
     const body = await request.json() as { planId: string }
     const topologyId = body.planId.replace('plan-', '')
 
-    const PLAN_ITEMS: Record<string, { resource: string; changeType: 'add' | 'change' | 'destroy'; riskLevel: 'low' | 'medium' | 'high'; slaImpact: string; estimatedCost: string }[]> = {
+    const PLAN_ITEMS: Record<string, { address: string; type: string; actions: string[] }[]> = {
       'topo-ha': [
-        { resource: 'aws_vpc.main',               changeType: 'add', riskLevel: 'low',    slaImpact: '없음',            estimatedCost: '+₩0/월' },
-        { resource: 'aws_internet_gateway.igw',   changeType: 'add', riskLevel: 'low',    slaImpact: '없음',            estimatedCost: '+₩0/월' },
-        { resource: 'aws_nat_gateway.nat',         changeType: 'add', riskLevel: 'low',    slaImpact: '없음',            estimatedCost: '+₩50,000/월' },
-        { resource: 'aws_lb.app',                  changeType: 'add', riskLevel: 'medium', slaImpact: '가용성 +0.3%',   estimatedCost: '+₩28,000/월' },
-        { resource: 'aws_autoscaling_group.app',   changeType: 'add', riskLevel: 'medium', slaImpact: '가용성 +0.5%',   estimatedCost: '+₩640,000/월' },
-        { resource: 'aws_db_instance.primary',     changeType: 'add', riskLevel: 'high',   slaImpact: 'RTO 10분 달성',  estimatedCost: '+₩890,000/월' },
-        { resource: 'aws_route53_health_check.alb',changeType: 'add', riskLevel: 'low',    slaImpact: 'RPO 5분 달성',   estimatedCost: '+₩2,500/월' },
-        { resource: 'aws_cloudwatch_metric_alarm.cpu_high', changeType: 'add', riskLevel: 'low', slaImpact: '장애 감지 개선', estimatedCost: '+₩0/월' },
+        { address: 'aws_vpc.main',                            type: 'aws_vpc',                    actions: ['create'] },
+        { address: 'aws_internet_gateway.igw',                type: 'aws_internet_gateway',       actions: ['create'] },
+        { address: 'aws_nat_gateway.nat',                     type: 'aws_nat_gateway',            actions: ['create'] },
+        { address: 'aws_lb.app',                              type: 'aws_lb',                     actions: ['create'] },
+        { address: 'aws_autoscaling_group.app',               type: 'aws_autoscaling_group',      actions: ['create'] },
+        { address: 'aws_db_instance.primary',                 type: 'aws_db_instance',            actions: ['create'] },
+        { address: 'aws_route53_health_check.alb',            type: 'aws_route53_health_check',   actions: ['create'] },
+        { address: 'aws_cloudwatch_metric_alarm.cpu_high',    type: 'aws_cloudwatch_metric_alarm',actions: ['create'] },
       ],
       'topo-cost': [
-        { resource: 'aws_vpc.main',                changeType: 'add', riskLevel: 'low',    slaImpact: '없음',            estimatedCost: '+₩0/월' },
-        { resource: 'aws_lb.app',                  changeType: 'add', riskLevel: 'medium', slaImpact: '가용성 +0.1%',   estimatedCost: '+₩18,000/월' },
-        { resource: 'aws_spot_instance_request.app', changeType: 'add', riskLevel: 'high', slaImpact: '인터럽트 위험',  estimatedCost: '+₩96,000/월' },
-        { resource: 'aws_db_instance.main',        changeType: 'add', riskLevel: 'medium', slaImpact: 'RPO 15분',       estimatedCost: '+₩180,000/월' },
+        { address: 'aws_vpc.main',                            type: 'aws_vpc',                    actions: ['create'] },
+        { address: 'aws_lb.app',                              type: 'aws_lb',                     actions: ['create'] },
+        { address: 'aws_spot_instance_request.app',           type: 'aws_spot_instance_request',  actions: ['create'] },
+        { address: 'aws_db_instance.main',                    type: 'aws_db_instance',            actions: ['create'] },
       ],
       'topo-serverless': [
-        { resource: 'aws_api_gateway_rest_api.main', changeType: 'add', riskLevel: 'low',  slaImpact: '없음',           estimatedCost: '+₩5,000/월' },
-        { resource: 'aws_lambda_function.app',     changeType: 'add', riskLevel: 'low',    slaImpact: '가용성 +0.2%',   estimatedCost: '+₩120,000/월' },
-        { resource: 'aws_rds_cluster.aurora',      changeType: 'add', riskLevel: 'medium', slaImpact: 'RPO 10분 달성',  estimatedCost: '+₩350,000/월' },
-        { resource: 'aws_rds_cluster_instance.aurora', changeType: 'add', riskLevel: 'medium', slaImpact: '자동 스케일', estimatedCost: '+₩0 (사용량 과금)' },
-        { resource: 'aws_iam_role.lambda',         changeType: 'add', riskLevel: 'low',    slaImpact: '없음',           estimatedCost: '+₩0/월' },
+        { address: 'aws_api_gateway_rest_api.main',           type: 'aws_api_gateway_rest_api',   actions: ['create'] },
+        { address: 'aws_lambda_function.app',                 type: 'aws_lambda_function',        actions: ['create'] },
+        { address: 'aws_rds_cluster.aurora',                  type: 'aws_rds_cluster',            actions: ['create'] },
+        { address: 'aws_rds_cluster_instance.aurora',         type: 'aws_rds_cluster_instance',   actions: ['create'] },
+        { address: 'aws_iam_role.lambda',                     type: 'aws_iam_role',               actions: ['create'] },
       ],
     }
 
     const items = PLAN_ITEMS[topologyId] ?? PLAN_ITEMS['topo-ha']
-    const addCount = items.filter(i => i.changeType === 'add').length
+    const createCount = items.filter(i => i.actions.includes('create')).length
 
     return HttpResponse.json({
       planId: body.planId,
-      summary: { add: addCount, change: 0, destroy: 0 },
-      riskLevel: items.some(i => i.riskLevel === 'high') ? 'high' : 'medium',
+      summary: { add: createCount, change: 0, destroy: 0 },
       items,
     })
   }),

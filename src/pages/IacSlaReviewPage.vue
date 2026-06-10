@@ -7,7 +7,7 @@ import {
   useSlaBundleDraft, useConfirmField, useSaveSlaBundle,
   FormField,
 } from '@/features/iac'
-import type { ConfidenceLevel, ActivationStatus, SourceType, Service } from '@/features/iac'
+import type { ConfidenceLevel, ActivationStatus, SourceType, Service, AiSuggestion } from '@/features/iac'
 
 // ── 상수 ──────────────────────────────────────────────────────────────────────
 
@@ -40,6 +40,7 @@ interface NormalizedField {
   description?: string
   activationStatus?: ActivationStatus
   source?: SourceType
+  suggestions?: AiSuggestion[]
 }
 
 interface ReviewSection {
@@ -132,6 +133,7 @@ const groupedReviewSections = computed((): ReviewSection[] => {
         description:      i.description,
         activationStatus: i.activationStatus,
         source:           i.source,
+        suggestions:      i.suggestions,
       }))
     if (fields.length) sections.push({ sectionId: service.serviceId, label: service.serviceName, isService: true, service, fields })
   }
@@ -294,6 +296,9 @@ function handleConfirm(fieldId: string, value: string | number | null) {
       if (el) {
         const target = el.offsetTop - bodyRef.value.clientHeight / 2 + el.clientHeight / 2
         lerpScrollTo(bodyRef.value, target)
+        setTimeout(() => {
+          el.querySelector('input')?.click()
+        }, 400)
       }
     }
     updateIconPos()
@@ -398,7 +403,7 @@ function handleSave() {
               v-bind="field"
               :confidence="resolvedConfidence(field.fieldId, field.confidence)"
               class="field-stagger"
-              :style="{ animationDelay: `${(staggerIndex.get(field.fieldId) ?? 0) * 60}ms` }"
+              :style="{ animationDelay: `${(staggerIndex.get(field.fieldId) ?? 0) * 20}ms` }"
               @confirm="handleConfirm"
             />
           </div>

@@ -125,7 +125,7 @@ function handlePlan() {
 
 function handleApply() {
   if (!planId.value) return
-  const initialResources = planData.value?.items.map(i => i.resource) ?? []
+  const initialResources = planData.value?.items.map(i => i.address) ?? []
   startApply(planId.value, initialResources)
 }
 

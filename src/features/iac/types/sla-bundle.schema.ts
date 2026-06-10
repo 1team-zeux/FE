@@ -50,6 +50,12 @@ export const ServiceSchema = z.object({
 })
 export type Service = z.infer<typeof ServiceSchema>
 
+export const AiSuggestionSchema = z.object({
+  value: z.string(),
+  reason: z.string(),
+})
+export type AiSuggestion = z.infer<typeof AiSuggestionSchema>
+
 // SLA review item linked to a service (availability/latency/rto/rpo per service)
 export const SLAItemSchema = z.object({
   slaItemId: z.string(),
@@ -70,6 +76,7 @@ export const SLAItemSchema = z.object({
   evidence: EvidenceSchema.optional(),
   required: z.boolean(),
   description: z.string().optional(),
+  suggestions: z.array(AiSuggestionSchema).optional(),
 })
 export type SLAItem = z.infer<typeof SLAItemSchema>
 

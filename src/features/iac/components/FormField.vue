@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from 'vue'
-import type { ConfidenceLevel, ActivationStatus, SourceType } from '../types/sla-bundle.schema'
-import { api } from '@/services/api'
+import type { ConfidenceLevel, ActivationStatus, SourceType, AiSuggestion } from '../types/sla-bundle.schema'
 
 const SOURCE_LABEL: Record<SourceType, { text: string; cls: string }> = {
   doc1_contract:     { text: '계약서',  cls: 'bg-blue-50   text-blue-600   border-blue-200' },
@@ -21,6 +20,7 @@ const props = defineProps<{
   description?: string
   activationStatus?: ActivationStatus
   source?: SourceType
+  suggestions?: AiSuggestion[]
 }>()
 
 const emit = defineEmits<{
@@ -30,28 +30,26 @@ const emit = defineEmits<{
 const isEditing = ref(props.confidence === '모호' || props.confidence === '추정')
 const editValue = ref<string>(String(props.value ?? ''))
 
-// AI 추천
-interface AiSuggestion { value: string; reason: string }
 const showSuggestions = ref(false)
-const aiSuggestions = ref<AiSuggestion[]>([])
-const isLoadingAi = ref(false)
 const containerRef = ref<HTMLElement | null>(null)
 
 watch(() => props.confidence, (c) => {
   if (c === '확실' || c === '확정') {
     isEditing.value = false
     showSuggestions.value = false
-    aiSuggestions.value = []
   } else if (c === '모호' || c === '추정') {
     editValue.value = String(props.value ?? '')
     isEditing.value = true
-    aiSuggestions.value = []
   }
 })
 
 function acceptValue() {
-  showSuggestions.value = false
-  emit('confirm', props.fieldId, isEditing.value ? editValue.value : props.value)
+  if (showSuggestions.value) {
+    showSuggestions.value = false
+    setTimeout(() => emit('confirm', props.fieldId, editValue.value), 210)
+  } else {
+    emit('confirm', props.fieldId, isEditing.value ? editValue.value : props.value)
+  }
 }
 
 function startEdit() {
@@ -64,21 +62,8 @@ function submitEdit() {
   emit('confirm', props.fieldId, editValue.value)
 }
 
-async function fetchSuggestions() {
-  showSuggestions.value = true
-  if (aiSuggestions.value.length > 0) return
-  isLoadingAi.value = true
-  try {
-    const res = await api.post<{ suggestions: AiSuggestion[] }>('/ai/suggest', {
-      fieldId: props.fieldId,
-      label: props.label,
-      value: props.value,
-      unit: props.unit,
-    })
-    aiSuggestions.value = res.data.suggestions
-  } finally {
-    isLoadingAi.value = false
-  }
+function openSuggestions() {
+  if (props.suggestions?.length) showSuggestions.value = true
 }
 
 function applySuggestion(val: string) {
@@ -117,7 +102,8 @@ function onSuggestAfterEnter(el: Element) {
 }
 function onSuggestLeave(el: Element) {
   const e = el as HTMLElement
-  e.style.height = e.scrollHeight + 'px'
+  const h = e.getBoundingClientRect().height
+  e.style.height = h + 'px'
   e.style.overflow = 'hidden'
   requestAnimationFrame(() => {
     e.style.transition = 'height 0.2s cubic-bezier(0.4,0,0.2,1)'
@@ -166,23 +152,23 @@ function onSuggestAfterLeave(el: Element) {
       <div class="relative">
         <input
           v-model="editValue"
-          @click="(confidence === '모호' || confidence === '추정') ? fetchSuggestions() : undefined"
+          @click="(confidence === '모호' || confidence === '추정') ? openSuggestions() : undefined"
           @keyup.enter="confidence !== '확실' ? acceptValue() : submitEdit()"
           class="w-full h-9 px-3 pr-8 rounded-md text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/40 transition-shadow ring-1"
           :class="source === 'llm_recommendation' ? 'bg-white ring-brand' : 'bg-bg-muted ring-border'"
           :placeholder="String(value ?? '')"
         />
-        <!-- 확인 버튼 (모호/추정만) -->
-        <button
-          v-if="confidence === '모호' || confidence === '추정'"
-          @click="acceptValue"
-          class="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-status-ok hover:bg-green-100 transition-colors"
-          title="확인"
-        >
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-          </svg>
-        </button>
+        <!-- 확인 버튼 (모호/추정) -->
+        <div v-if="confidence === '모호' || confidence === '추정'"
+          class="absolute right-2 top-1/2 -translate-y-1/2">
+          <button @click="acceptValue"
+            class="p-1 rounded text-status-ok hover:bg-green-100 transition-colors"
+            title="확인">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+            </svg>
+          </button>
+        </div>
         <!-- 확실 수동 편집: 저장/취소 -->
         <div v-else class="flex gap-3 mt-1.5">
           <button @click="submitEdit" class="text-xs text-brand font-medium">저장</button>
@@ -198,8 +184,8 @@ function onSuggestAfterLeave(el: Element) {
         @after-leave="onSuggestAfterLeave"
       >
         <div
-          v-if="showSuggestions && (confidence === '모호' || confidence === '추정')"
-          class="mt-1.5 rounded-xl border border-brand/25 bg-white shadow-lg overflow-hidden z-20 relative"
+          v-if="showSuggestions && suggestions?.length"
+          class="mt-1.5 rounded-xl border border-brand/25 bg-white shadow-lg z-20 relative"
         >
           <!-- 헤더 -->
           <div class="flex items-center gap-1.5 px-3 py-2 bg-brand/5 border-b border-brand/10">
@@ -210,15 +196,10 @@ function onSuggestAfterLeave(el: Element) {
             <span class="ml-auto text-[9px] text-brand/50">클릭하면 입력값에 반영됩니다</span>
           </div>
 
-          <!-- 로딩 스켈레톤 -->
-          <div v-if="isLoadingAi" class="p-2.5 space-y-1.5">
-            <div v-for="i in 3" :key="i" class="h-10 rounded-lg bg-gray-100 animate-pulse" />
-          </div>
-
           <!-- 추천 목록 -->
-          <div v-else class="divide-y divide-border/60">
+          <div class="divide-y divide-border/60">
             <button
-              v-for="(s, i) in aiSuggestions"
+              v-for="(s, i) in suggestions"
               :key="i"
               @click.stop="applySuggestion(s.value)"
               class="w-full text-left px-3 py-2.5 hover:bg-brand/5 transition-colors group"
