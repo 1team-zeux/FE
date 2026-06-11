@@ -2,6 +2,12 @@ import { ref, watch } from 'vue'
 import type { Ref } from 'vue'
 import type { ConfidenceLevel } from '../../types/sla-bundle.schema'
 
+const SUGGESTION_CLOSE_DELAY_MS = 210
+
+/**
+ * props must be the component's reactive props proxy (or a reactive() object)
+ * for the confidence watch to trigger.
+ */
 export function useFieldEdit(
   props: { value: string | number | null; confidence: ConfidenceLevel; fieldId: string },
   emit: (event: 'confirm', fieldId: string, value: string | number | null) => void,
@@ -22,7 +28,7 @@ export function useFieldEdit(
   function acceptValue() {
     if (showSuggestions.value) {
       showSuggestions.value = false
-      setTimeout(() => emit('confirm', props.fieldId, editValue.value), 210)
+      setTimeout(() => emit('confirm', props.fieldId, editValue.value), SUGGESTION_CLOSE_DELAY_MS)
     } else {
       emit('confirm', props.fieldId, editValue.value)
     }

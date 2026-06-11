@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { ref } from 'vue'
+import { ref, reactive, nextTick } from 'vue'
 import { useFieldEdit } from '../composables/useFieldEdit'
+import type { ConfidenceLevel } from '../../types/sla-bundle.schema'
 
 describe('useFieldEdit', () => {
   it('모호/추정 confidence면 편집 모드로 시작', () => {
@@ -81,6 +82,20 @@ describe('useFieldEdit', () => {
     editValue.value = '수정됨'
     acceptValue()
     expect(emit).toHaveBeenCalledWith('confirm', 'f1', '수정됨')
+  })
+
+  it('confidence 변경 시 isEditing 상태 전환', async () => {
+    const emit = vi.fn()
+    const showSuggestions = ref(false)
+    const propsObj = reactive({ value: '99.9', confidence: '확실' as ConfidenceLevel, fieldId: 'f1' })
+    const { isEditing } = useFieldEdit(propsObj, emit, showSuggestions)
+    expect(isEditing.value).toBe(false)
+    propsObj.confidence = '모호'
+    await nextTick()
+    expect(isEditing.value).toBe(true)
+    propsObj.confidence = '확실'
+    await nextTick()
+    expect(isEditing.value).toBe(false)
   })
 
   it('startEdit — editValue를 prop value로 초기화', () => {
