@@ -21,6 +21,8 @@ const notifications = ref([
 
 const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
 
+const fabBadgeCount = computed(() => badgeCount.value + unreadCount.value)
+
 function markAllRead() {
   notifications.value.forEach(n => { n.read = true })
 }
@@ -41,7 +43,8 @@ const pendingText = ref('')
 
 const nimbusVariant = computed<NimbusVariant>(() => {
   if (isWaiting.value) return 'question'
-  if (badgeCount.value > 0 || unreadCount.value > 0) return 'notify'
+  if (unreadCount.value > 0) return 'notify'
+  if (badgeCount.value > 0) return 'question'
   return 'idle'
 })
 
@@ -179,16 +182,19 @@ function stopResize() {
       :class="['inline-flex items-center justify-center relative select-none bg-transparent p-0 border-0 overflow-visible', isDragging ? 'cursor-grabbing' : 'cursor-grab']"
       aria-label="챗봇 열기"
     >
-      <NimbusAvatar
-        :variant="nimbusVariant"
-        :size="FAB_AVATAR_SIZE"
-        :scale="1"
-        class="pointer-events-none drop-shadow-lg"
-      />
-      <span
-        v-if="badgeCount > 0"
-        class="absolute -top-1 -right-1 w-5 h-5 bg-status-critical text-white text-xs rounded-full flex items-center justify-center font-bold z-10"
-      >{{ badgeCount }}</span>
+      <span class="relative inline-block">
+        <NimbusAvatar
+          :variant="nimbusVariant"
+          :size="FAB_AVATAR_SIZE"
+          :scale="1"
+          class="pointer-events-none drop-shadow-lg"
+        />
+        <span
+          v-if="fabBadgeCount > 0"
+          class="absolute top-[9%] right-[20%] z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-status-critical px-1 text-[10px] font-bold text-white shadow-sm ring-2 ring-white"
+          :aria-label="`읽지 않은 알림 ${fabBadgeCount}개`"
+        >{{ fabBadgeCount > 99 ? '99+' : fabBadgeCount }}</span>
+      </span>
     </button>
 
     <!-- 채팅 모달 -->

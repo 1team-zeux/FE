@@ -22,6 +22,11 @@ function handleLogout() {
     <!-- 헤더 -->
     <header class="h-14 bg-white border-b border-border flex items-center px-6 gap-8 shrink-0">
       <div class="flex items-center gap-2 shrink-0">
+        <img
+          src="@/assets/images/zeux-logo.png"
+          alt="ZeuX"
+          class="h-8 w-8 object-contain shrink-0"
+        />
         <span class="font-bold text-text-primary text-[15px] tracking-tight">ZeuX</span>
       </div>
 
