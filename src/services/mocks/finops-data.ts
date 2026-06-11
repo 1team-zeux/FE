@@ -1,11 +1,84 @@
 import type { FinOpsRun } from '@/features/finops/types/finops.schema'
 
+const executiveReport = {
+  report_summary:
+    'API Gateway 서비스에서 유휴 EC2·미부착 EBS 2건이 P0/P1 eligible로 식별되었습니다. ' +
+    '예상 월 절감 $50(약 ₩67,500)이며, prod RDS 다운사이즈 1건($120)은 SLA 가드에 의해 blocked입니다. ' +
+    '즉시 stop/delete 권유 2건에 대한 운영 승인을 권합니다.',
+  sla_context: {
+    bundle_id: 'sla-bundle-demo',
+    environment: 'staging',
+    primary_region: 'ap-northeast-2',
+    monthly_budget_krw: 5_000_000,
+    spot_instance_allowed: true,
+    cost_priority: 'balanced',
+  },
+  scope: {
+    regions: ['ap-northeast-2'],
+    environments: ['staging', 'dev'],
+    evaluation_days: 14,
+    prod_recommend_block: true,
+  },
+  funnel: {
+    findings_total: 3,
+    guarded_total: 3,
+    eligible: 2,
+    defer: 0,
+    blocked: 1,
+  },
+  priority_summary: {
+    P0: { count: 1, waste_usd: 42 },
+    P1: { count: 1, waste_usd: 8 },
+    P2: { count: 0, waste_usd: 0 },
+  },
+  total_monthly_waste_usd: 50,
+  prioritized_backlog: [
+    {
+      priority_band: 'P0' as const,
+      priority_score: 0.92,
+      pattern_id: 'idle_ec2_cpu',
+      resource_id: 'i-demo-idle-01',
+      resource_type: 'ec2',
+      recommended_action: 'stop',
+      monthly_waste_usd: 42,
+      confidence_score: 0.88,
+      reason: '14일 CPU p95 < 5%, staging 태그',
+    },
+    {
+      priority_band: 'P1' as const,
+      priority_score: 0.71,
+      pattern_id: 'idle_ebs_unattached',
+      resource_id: 'vol-orphan-01',
+      resource_type: 'ebs',
+      recommended_action: 'delete',
+      monthly_waste_usd: 8,
+      confidence_score: 0.75,
+      reason: '미부착 볼륨 30일+',
+    },
+  ],
+  pattern_rollup: [
+    { pattern_id: 'idle_ec2_cpu', count: 1, waste_usd: 42 },
+    { pattern_id: 'idle_ebs_unattached', count: 1, waste_usd: 8 },
+  ],
+  blocked_defer: [
+    {
+      resource_id: 'db-prod-01',
+      pattern_id: 'overprovision_rds',
+      guard_status: 'blocked' as const,
+      guard_reason: 'prod 환경 — MVP 권유 본문 제외',
+      monthly_waste_usd: 120,
+    },
+  ],
+  rca_summary: null,
+}
+
 const snapshot = {
   findings_count: 3,
   guarded_count: 3,
   eligible_count: 2,
   guard_summary: { eligible: 2, defer: 0, blocked: 1 },
   total_monthly_waste_usd: 50,
+  executive_report: executiveReport,
   findings: [
     {
       finding_id: 'f1',
@@ -49,8 +122,8 @@ export const finopsMockRuns: FinOpsRun[] = [
     team_id: 'demo-team',
     service_id: 'api-gateway',
     service_name: 'API Gateway',
-    schedule_window: '2026-W23',
-    status: 'COMPLETED',
+    schedule_window: '2026-06-05-daily',
+    status: 'PROPOSAL_SENT',
     report_artifact_uri: '',
     findings_count: 3,
     eligible_count: 2,
@@ -62,7 +135,10 @@ export const finopsMockRuns: FinOpsRun[] = [
     data_quality_summary: {
       overall_quality: 'degraded',
       cmdb_source: 'demo',
-      utilization_source: 'demo',
+      utilization_source: 'prometheus',
+      sla_bundle_freshness: 'demo',
+      eb_available: true,
+      rca_linked: false,
       warnings: ['CMDB: demo/fallback 데이터 사용 중', 'RCA handoff 없음'],
     },
     started_at: '2026-06-08T10:00:00Z',
@@ -77,7 +153,7 @@ export const finopsMockRuns: FinOpsRun[] = [
     team_id: 'demo-team',
     service_id: 'payment-api',
     service_name: 'Payment API',
-    schedule_window: '2026-W22',
+    schedule_window: '2026-06-01-daily',
     status: 'COMPLETED',
     report_artifact_uri: '',
     findings_count: 1,
@@ -93,9 +169,19 @@ export const finopsMockRuns: FinOpsRun[] = [
       eligible_count: 1,
       guard_summary: { eligible: 1, defer: 0, blocked: 0 },
       total_monthly_waste_usd: 42,
+      executive_report: {
+        ...executiveReport,
+        report_summary: 'Payment API — 유휴 EC2 1건(P0) stop 권유. 월 $42 절감 예상.',
+        funnel: { findings_total: 1, guarded_total: 1, eligible: 1, defer: 0, blocked: 0 },
+        priority_summary: { P0: { count: 1, waste_usd: 42 }, P1: { count: 0, waste_usd: 0 }, P2: { count: 0, waste_usd: 0 } },
+        total_monthly_waste_usd: 42,
+        prioritized_backlog: [executiveReport.prioritized_backlog[0]],
+        pattern_rollup: [executiveReport.pattern_rollup[0]],
+        blocked_defer: [],
+      },
       findings: [snapshot.findings[0]],
     },
-    data_quality_summary: { overall_quality: 'ok', cmdb_source: 'demo', utilization_source: 'demo' },
+    data_quality_summary: { overall_quality: 'ok', cmdb_source: 'demo', utilization_source: 'demo', eb_available: true },
     started_at: '2026-06-01T09:00:00Z',
     finished_at: '2026-06-01T09:01:10Z',
     created_at: '2026-06-01T09:00:00Z',
