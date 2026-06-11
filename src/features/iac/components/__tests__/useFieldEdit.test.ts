@@ -70,6 +70,19 @@ describe('useFieldEdit', () => {
     expect(emit).toHaveBeenCalledWith('confirm', 'f1', '800')
   })
 
+  it('acceptValue — isEditing false 상태에서도 editValue emit', () => {
+    const emit = vi.fn()
+    const showSuggestions = ref(false)
+    const { editValue, acceptValue } = useFieldEdit(
+      { value: '원본', confidence: '확실', fieldId: 'f1' },
+      emit,
+      showSuggestions,
+    )
+    editValue.value = '수정됨'
+    acceptValue()
+    expect(emit).toHaveBeenCalledWith('confirm', 'f1', '수정됨')
+  })
+
   it('startEdit — editValue를 prop value로 초기화', () => {
     const emit = vi.fn()
     const showSuggestions = ref(false)

@@ -24,7 +24,7 @@ export function useFieldEdit(
       showSuggestions.value = false
       setTimeout(() => emit('confirm', props.fieldId, editValue.value), 210)
     } else {
-      emit('confirm', props.fieldId, isEditing.value ? editValue.value : props.value)
+      emit('confirm', props.fieldId, editValue.value)
     }
   }
 
