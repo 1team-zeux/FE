@@ -21,7 +21,11 @@ async function handleLogin() {
   error.value = ''
   try {
     await auth.login(email.value, password.value)
-    router.push('/dashboard')
+    if (auth.user?.role === 'CUSTOMER') {
+      router.push('/guide')
+    } else {
+      router.push('/dashboard')
+    }
   } catch (e: any) {
     error.value = e.message ?? '로그인에 실패했습니다.'
   } finally {
