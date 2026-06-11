@@ -21,6 +21,7 @@ const router = createRouter({
         { path: 'dashboard/trace/:alarmId',     name: 'root-cause',      component: () => import('@/pages/RootCausePage.vue') },
         { path: 'dashboard/events',             name: 'event-center',    component: () => import('@/pages/EventCenterPage.vue') },
         { path: 'admin/customers',              name: 'customers',        component: () => import('@/pages/CustomerManagementPage.vue'), meta: { requiresAdmin: true } },
+        { path: 'guide',                        name: 'customer-guide',   component: () => import('@/pages/CustomerGuidePage.vue') },
       ],
     },
     {
@@ -62,10 +63,20 @@ router.beforeEach((to, from) => {
   if (to.meta.requiresAdmin) {
     try {
       const user = JSON.parse(localStorage.getItem('zeux_user') ?? 'null')
-      if (user?.role !== 'ADMIN') return { name: 'portfolio' }
+      if (user?.role !== 'ADMIN') return { name: 'customer-guide' }
     } catch {
-      return { name: 'portfolio' }
+      return { name: 'customer-guide' }
     }
+  }
+
+  // CUSTOMER 역할은 admin 경로 차단 → guide로
+  if (token) {
+    try {
+      const user = JSON.parse(localStorage.getItem('zeux_user') ?? 'null')
+      if (user?.role === 'CUSTOMER' && to.path.startsWith('/admin')) {
+        return { name: 'customer-guide' }
+      }
+    } catch { /* ignore */ }
   }
 })
 

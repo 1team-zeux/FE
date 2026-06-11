@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
-import { useCustomersQuery } from '@/features/customer/api/useCustomersQuery'
+import { useCustomersQuery, type CustomerSummary } from '@/features/customer/api/useCustomersQuery'
 import { useOnboardMutation, type OnboardPayload } from '@/features/customer/api/useOnboardMutation'
 
 const router = useRouter()
@@ -10,11 +10,15 @@ const { data: customers, isLoading } = useCustomersQuery()
 const { mutateAsync: onboard, isPending } = useOnboardMutation()
 const queryClient = useQueryClient()
 
+// 고객 상세 모달
+const selectedCust = ref<CustomerSummary | null>(null)
+const showCredPw = ref(false)
+
 // 위저드 상태
 const showWizard = ref(false)
 const step = ref(1)
 const totalSteps = 5
-const result = ref<{ curl_command: string; registration_token: string } | null>(null)
+const result = ref<{ curl_command: string; registration_token: string; loginEmail: string; loginPassword: string } | null>(null)
 const wizardError = ref('')
 
 // 폼 데이터
@@ -47,21 +51,21 @@ async function submitWizard() {
   wizardError.value = ''
   try {
     const res = await onboard(form.value)
-    result.value = { curl_command: res.curl_command, registration_token: res.registration_token }
+    result.value = { curl_command: res.curl_command, registration_token: res.registration_token, loginEmail: form.value.loginEmail, loginPassword: form.value.loginPassword }
     queryClient.invalidateQueries({ queryKey: ['customers'] })
   } catch (e: any) {
     wizardError.value = e.message ?? '등록에 실패했습니다.'
   }
 }
 
-const copied = ref(false)
-function copyCurl() {
-  if (result.value) {
-    navigator.clipboard.writeText(result.value.curl_command)
-    copied.value = true
-    setTimeout(() => { copied.value = false }, 2000)
-  }
+const copied = ref<string | null>(null)
+function copyText(text: string, key: string) {
+  navigator.clipboard.writeText(text)
+  copied.value = key
+  setTimeout(() => { copied.value = null }, 2000)
 }
+
+const showPassword = ref(false)
 </script>
 
 <template>
@@ -112,7 +116,13 @@ function copyCurl() {
             <div class="font-semibold text-text-primary text-sm truncate">{{ cust.customer_name }}</div>
             <div class="text-xs text-text-muted mt-0.5 font-mono">{{ cust.customer_code }}</div>
           </div>
-          <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700 shrink-0 ml-2">Active</span>
+          <div class="flex items-center gap-2 shrink-0 ml-2">
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700">Active</span>
+            <button
+              class="text-[10px] text-[#2980B9] hover:underline font-medium"
+              @click.stop="selectedCust = cust; showCredPw = false"
+            >계정 정보</button>
+          </div>
         </div>
 
         <!-- BU 목록 -->
@@ -143,6 +153,62 @@ function copyCurl() {
     </div>
   </div>
 
+  <!-- 고객 계정 정보 모달 -->
+  <Teleport to="body">
+    <div v-if="selectedCust" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="selectedCust = null">
+      <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-border">
+          <div>
+            <h2 class="font-bold text-text-primary">{{ selectedCust.customer_name }}</h2>
+            <p class="text-xs text-text-muted font-mono mt-0.5">{{ selectedCust.customer_code }}</p>
+          </div>
+          <button @click="selectedCust = null" class="text-text-muted hover:text-text-primary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="px-6 py-5 space-y-4">
+          <!-- 로그인 계정 -->
+          <div>
+            <p class="text-xs font-semibold text-text-secondary mb-2">로그인 계정</p>
+            <div class="bg-gray-50 rounded-xl p-3 space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-text-muted">이메일 (ID)</span>
+                <span class="text-sm font-mono text-text-primary">{{ selectedCust.login_email || selectedCust.contact_email || '—' }}</span>
+              </div>
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-text-muted">비밀번호</span>
+                <span class="text-xs text-text-muted italic">등록 시 설정됨 (재확인 불가)</span>
+              </div>
+            </div>
+          </div>
+          <!-- 담당자 -->
+          <div v-if="selectedCust.contact_email">
+            <p class="text-xs font-semibold text-text-secondary mb-2">담당자 이메일</p>
+            <p class="text-sm font-mono text-text-primary bg-gray-50 rounded-xl px-3 py-2">{{ selectedCust.contact_email }}</p>
+          </div>
+          <!-- BU 목록 -->
+          <div v-if="selectedCust.business_units?.length">
+            <p class="text-xs font-semibold text-text-secondary mb-2">비즈니스 유닛</p>
+            <div class="space-y-1">
+              <div
+                v-for="bu in selectedCust.business_units"
+                :key="bu.bu_id"
+                class="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2 cursor-pointer hover:bg-[#2980B9]/5 transition-colors"
+                @click="router.push(`/dashboard/bu/${bu.bu_id}`); selectedCust = null"
+              >
+                <span class="text-xs font-medium text-text-primary">{{ bu.bu_name }}</span>
+                <span class="text-[10px] text-[#2980B9] font-semibold">{{ bu.subscription_tier }}</span>
+              </div>
+            </div>
+          </div>
+          <p class="text-[10px] text-text-muted">등록일 {{ selectedCust.created_at ? new Date(selectedCust.created_at).toLocaleDateString('ko-KR') : '—' }}</p>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+
   <!-- 온보딩 위저드 모달 -->
   <Teleport to="body">
     <div v-if="showWizard" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -170,27 +236,74 @@ function copyCurl() {
         </div>
 
         <!-- 완료 화면 -->
-        <div v-if="result" class="flex-1 flex flex-col items-center justify-center px-6 py-8 text-center">
-          <div class="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mb-4">
-            <svg class="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-            </svg>
-          </div>
-          <h3 class="text-lg font-bold text-text-primary mb-1">등록 완료!</h3>
-          <p class="text-sm text-text-secondary mb-6">모니터링 에이전트를 설치하려면 아래 명령어를 실행하세요.</p>
-          <div class="w-full bg-gray-900 rounded-xl p-4 text-left mb-4">
-            <code class="text-xs text-green-400 break-all">{{ result.curl_command }}</code>
-          </div>
-          <div class="flex gap-3">
-            <button
-              @click="copyCurl"
-              class="flex items-center gap-2 px-4 py-2 bg-[#2980B9] text-white text-sm font-medium rounded-xl hover:bg-[#2471a3] transition-colors"
-            >
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+        <div v-if="result" class="flex-1 overflow-y-auto px-6 py-6">
+          <div class="flex flex-col items-center mb-6">
+            <div class="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center mb-3">
+              <svg class="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
               </svg>
-              {{ copied ? '복사됨!' : '명령어 복사' }}
-            </button>
+            </div>
+            <h3 class="text-lg font-bold text-text-primary">등록 완료!</h3>
+            <p class="text-sm text-text-secondary mt-1">고객사에 아래 로그인 정보를 전달하세요.</p>
+          </div>
+
+          <!-- 로그인 계정 정보 -->
+          <div class="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-4">
+            <p class="text-xs font-semibold text-blue-700 mb-3">로그인 계정 정보</p>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-blue-100">
+                <div class="min-w-0">
+                  <span class="text-[10px] text-gray-400 block">ID (이메일)</span>
+                  <span class="text-sm font-mono text-text-primary">{{ result.loginEmail }}</span>
+                </div>
+                <button @click="copyText(result.loginEmail, 'email')" class="shrink-0 ml-2 text-xs text-[#2980B9] hover:underline">
+                  {{ copied === 'email' ? '복사됨!' : '복사' }}
+                </button>
+              </div>
+              <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-blue-100">
+                <div class="min-w-0">
+                  <span class="text-[10px] text-gray-400 block">비밀번호</span>
+                  <span class="text-sm font-mono text-text-primary">{{ showPassword ? result.loginPassword : '••••••••' }}</span>
+                </div>
+                <div class="flex items-center gap-2 shrink-0 ml-2">
+                  <button @click="showPassword = !showPassword" class="text-xs text-gray-400 hover:text-gray-600">
+                    {{ showPassword ? '숨기기' : '보기' }}
+                  </button>
+                  <button @click="copyText(result.loginPassword, 'pw')" class="text-xs text-[#2980B9] hover:underline">
+                    {{ copied === 'pw' ? '복사됨!' : '복사' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 에이전트 설치 토큰 -->
+          <div class="mb-3">
+            <div class="flex items-center justify-between mb-1.5">
+              <p class="text-xs font-semibold text-text-secondary">Registration Token</p>
+              <button @click="copyText(result.registration_token, 'token')" class="text-xs text-[#2980B9] hover:underline">
+                {{ copied === 'token' ? '복사됨!' : '복사' }}
+              </button>
+            </div>
+            <div class="bg-gray-900 rounded-lg px-3 py-2">
+              <code class="text-xs text-yellow-300 break-all">{{ result.registration_token }}</code>
+            </div>
+          </div>
+
+          <!-- curl 명령어 -->
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-1.5">
+              <p class="text-xs font-semibold text-text-secondary">에이전트 설치 명령어</p>
+              <button @click="copyText(result.curl_command, 'curl')" class="text-xs text-[#2980B9] hover:underline">
+                {{ copied === 'curl' ? '복사됨!' : '복사' }}
+              </button>
+            </div>
+            <div class="bg-gray-900 rounded-xl p-3">
+              <code class="text-xs text-green-400 break-all">{{ result.curl_command }}</code>
+            </div>
+          </div>
+
+          <div class="flex justify-end">
             <button @click="showWizard = false" class="px-4 py-2 border border-border text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors">
               닫기
             </button>

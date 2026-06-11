@@ -14,6 +14,7 @@ export interface CustomerSummary {
   customer_name: string
   customer_code: string
   contact_email: string | null
+  login_email: string | null
   created_at: string | null
   business_units: BusinessUnitSummary[]
 }
