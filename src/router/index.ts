@@ -20,6 +20,7 @@ const router = createRouter({
         { path: 'dashboard/service/:svcId',     name: 'service-detail',  component: () => import('@/pages/ServiceDetailPage.vue') },
         { path: 'dashboard/trace/:alarmId',     name: 'root-cause',      component: () => import('@/pages/RootCausePage.vue') },
         { path: 'dashboard/events',             name: 'event-center',    component: () => import('@/pages/EventCenterPage.vue') },
+        { path: 'dashboard/finops/:runId?',     name: 'finops',          component: () => import('@/pages/FinOpsPage.vue') },
         { path: 'admin/customers',              name: 'customers',        component: () => import('@/pages/CustomerManagementPage.vue'), meta: { requiresAdmin: true } },
         { path: 'guide',                        name: 'customer-guide',   component: () => import('@/pages/CustomerGuidePage.vue') },
       ],

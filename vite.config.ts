@@ -16,6 +16,11 @@ export default defineConfig({
       // sla-agent-service (8090) — onboard API, contract, tenants
       '/api/v1': { target: 'http://localhost:8090', changeOrigin: true },
       '/tenants': { target: 'http://localhost:8090', changeOrigin: true },
+      // FinOps agent (sla-agent-service legacy port or dedicated)
+      '/api/finops': {
+        target: process.env.VITE_FINOPS_API_URL ?? 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
       // monitoring-api (8091) — Prometheus/Tempo/Loki stateless 쿼리
       '/monitoring': { target: 'http://localhost:8091', changeOrigin: true },
       // aiops-service (via api-gateway 8080) — IaC, terraform, sla-bundles

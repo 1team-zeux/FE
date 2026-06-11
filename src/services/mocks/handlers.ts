@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw'
 import type { SLABundle } from '@/features/iac/types/sla-bundle.schema'
 import type { TopologyDraft } from '@/features/iac/types/topology.schema'
 import { systemMetricsMockData, serviceMapMockData, rcaMockData, eventsMockData, tracesMockData, logsMockData } from './data'
+import { finopsMockRuns, getFinOpsMockRun } from './finops-data'
 
 const mockSlaBundleDraft: SLABundle = {
   bundleId: 'bundle-mock-001',
@@ -715,5 +716,68 @@ variable "db_password" {
     if (level) data = data.filter(l => l.level === level)
     if (search) data = data.filter(l => l.message.toLowerCase().includes(search) || (l.traceId ?? '').includes(search) || l.container.includes(search))
     return HttpResponse.json(data)
+  }),
+
+  // ── FinOps API (sla-agent-service /api/finops) ─────────────────
+
+  http.get('*/api/finops/runs', ({ request }) => {
+    const url = new URL(request.url)
+    const tenantId = url.searchParams.get('tenant_id')
+    const serviceId = url.searchParams.get('service_id')
+    let data = [...finopsMockRuns]
+    if (tenantId) data = data.filter((r) => r.tenant_id === tenantId)
+    if (serviceId) data = data.filter((r) => r.service_id === serviceId)
+    return HttpResponse.json({ storage: 'mariadb', runs: data })
+  }),
+
+  http.get('*/api/finops/runs/:runId', ({ params }) => {
+    const run = getFinOpsMockRun(params.runId as string)
+    if (!run) return HttpResponse.json({ detail: 'not found' }, { status: 404 })
+    return HttpResponse.json({ storage: 'mariadb', run })
+  }),
+
+  http.post('*/api/finops/run', ({ request }) => {
+    const url = new URL(request.url)
+    const serviceId = url.searchParams.get('service_id') ?? 'api-gateway'
+    const runId = `run-${Date.now()}`
+    const clone = structuredClone(finopsMockRuns[0])
+    clone.run_id = runId
+    clone.id = `row-${Date.now()}`
+    clone.service_id = serviceId
+    clone.service_name = serviceId
+    clone.approval_status = 'PENDING_REVIEW'
+    clone.started_at = new Date().toISOString()
+    clone.finished_at = new Date().toISOString()
+    finopsMockRuns.unshift(clone)
+    return HttpResponse.json({
+      status: 'COMPLETED',
+      run_id: runId,
+      tenant_id: 'demo-tenant',
+      service_id: serviceId,
+      eligible_count: clone.eligible_count,
+      storage: 'mariadb',
+    })
+  }),
+
+  http.post('*/api/finops/runs/:runId/approve', async ({ params, request }) => {
+    const run = getFinOpsMockRun(params.runId as string)
+    if (!run) return HttpResponse.json({ detail: 'not found' }, { status: 404 })
+    const body = (await request.json().catch(() => ({}))) as { reviewer?: string; comment?: string }
+    run.approval_status = 'APPROVED'
+    run.approval_reviewer = body.reviewer ?? null
+    run.approval_comment = body.comment ?? null
+    run.approval_reviewed_at = new Date().toISOString()
+    return HttpResponse.json({ run_id: run.run_id, approval_status: 'APPROVED', run })
+  }),
+
+  http.post('*/api/finops/runs/:runId/reject', async ({ params, request }) => {
+    const run = getFinOpsMockRun(params.runId as string)
+    if (!run) return HttpResponse.json({ detail: 'not found' }, { status: 404 })
+    const body = (await request.json().catch(() => ({}))) as { reviewer?: string; comment?: string }
+    run.approval_status = 'REJECTED'
+    run.approval_reviewer = body.reviewer ?? null
+    run.approval_comment = body.comment ?? null
+    run.approval_reviewed_at = new Date().toISOString()
+    return HttpResponse.json({ run_id: run.run_id, approval_status: 'REJECTED', run })
   }),
 ]
