@@ -2,7 +2,9 @@ import { http, HttpResponse } from 'msw'
 import type { SLABundle } from '@/features/iac/types/sla-bundle.schema'
 import type { TopologyDraft } from '@/features/iac/types/topology.schema'
 import { systemMetricsMockData, serviceMapMockData, rcaMockData, eventsMockData, tracesMockData, logsMockData } from './data'
+import { buildExecutiveReportMarkdown } from '@/features/finops/utils/executiveReportMarkdown'
 import { finopsMockRuns, getFinOpsMockRun } from './finops-data'
+import { FINOPS_STREAM_SCRIPT } from './finops-stream-script'
 
 const mockSlaBundleDraft: SLABundle = {
   bundleId: 'bundle-mock-001',
@@ -734,6 +736,67 @@ variable "db_password" {
     const run = getFinOpsMockRun(params.runId as string)
     if (!run) return HttpResponse.json({ detail: 'not found' }, { status: 404 })
     return HttpResponse.json({ storage: 'mariadb', run })
+  }),
+
+  http.get('*/api/finops/run/stream', async ({ request }) => {
+    const url = new URL(request.url)
+    const serviceId = url.searchParams.get('service_id') ?? 'api-gateway'
+    const encoder = new TextEncoder()
+    const runId = `run-${Date.now()}`
+
+    const stream = new ReadableStream({
+      async start(controller) {
+        const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+        for (const line of FINOPS_STREAM_SCRIPT) {
+          const adapted = line
+            .replace('api-gateway', serviceId)
+            .replace('run-stream-mock', runId)
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: 'line', line: adapted })}\n\n`),
+          )
+          await sleep(line.startsWith('[') ? 280 : 80)
+        }
+        const clone = structuredClone(finopsMockRuns[0])
+        clone.run_id = runId
+        clone.id = `row-${Date.now()}`
+        clone.service_id = serviceId
+        clone.service_name = serviceId
+        clone.status = 'PROPOSAL_SENT'
+        clone.started_at = new Date().toISOString()
+        clone.finished_at = new Date().toISOString()
+        finopsMockRuns.unshift(clone)
+        controller.enqueue(
+          encoder.encode(
+            `event: done\ndata: ${JSON.stringify({
+              skipped: false,
+              run_id: runId,
+              tenant_id: 'demo-tenant',
+              service_id: serviceId,
+              status: 'PROPOSAL_SENT',
+              eligible_count: 2,
+            })}\n\n`,
+          ),
+        )
+        controller.close()
+      },
+    })
+
+    return new HttpResponse(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+    })
+  }),
+
+  http.get('*/api/finops/runs/:runId/report.md', ({ params }) => {
+    const run = getFinOpsMockRun(params.runId as string)
+    if (!run) return HttpResponse.json({ detail: 'not found' }, { status: 404 })
+    const md = buildExecutiveReportMarkdown(run)
+    return new HttpResponse(md, {
+      headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
+    })
   }),
 
   http.post('*/api/finops/run', ({ request }) => {
