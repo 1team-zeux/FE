@@ -44,7 +44,7 @@ watch(refreshInterval, (val, _old, onCleanup) => {
 // ── Queries ────────────────────────────────────────────────────────
 const { data: detail, isLoading, isError } = useServiceMetricsQuery(svcId, tenantId, selectedRange);
 const { data: systemMetrics } = useSystemMetricsQuery(svcId, tenantId, selectedRange);
-const { data: incident } = useIncidentQuery(svcId);
+const { data: incident } = useIncidentQuery(svcId, tenantId || undefined);
 
 // ── SLI Chip Filter ────────────────────────────────────────────────
 const selectedSliIds = ref<string[]>([]);
