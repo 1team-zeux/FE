@@ -21,6 +21,11 @@ export default defineConfig({
         target: process.env.VITE_FINOPS_API_URL ?? 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
+      // RCA read API (sla-agent-service)
+      '/api/rca': {
+        target: process.env.VITE_SLA_AGENT_URL ?? 'http://localhost:8090',
+        changeOrigin: true,
+      },
       // monitoring-api (8091) — Prometheus/Tempo/Loki stateless 쿼리
       '/monitoring': { target: 'http://localhost:8091', changeOrigin: true },
       // aiops-service (via api-gateway 8080) — IaC, terraform, sla-bundles

@@ -720,6 +720,40 @@ variable "db_password" {
     return HttpResponse.json(data)
   }),
 
+  // ── RCA API (sla-agent-service /api/rca) ───────────────────────
+
+  http.get('*/api/rca/services/:serviceId/results', ({ params }) => {
+    const svcId = params.serviceId as string
+    const mock = (rcaMockData[svcId] ?? rcaMockData['subscription']) as {
+      incidentId: string
+      candidates: Array<{ rank: number; description: string; probability: number; evidence: string[] }>
+    }
+    const hints = mock.candidates.map((c) => ({
+      cause_type: 'unknown',
+      confidence: c.probability / 100,
+      rationale: c.description,
+      evidence_refs: c.evidence.map((e) => ({ type: 'log', ref: e })),
+    }))
+    const results = [{
+      root_cause_type: hints[0]?.cause_type ?? 'unknown',
+      root_cause_summary: hints[0]?.rationale ?? '',
+      confidence_score: mock.candidates[0]?.probability ?? 0,
+      hints,
+      evidences: hints.map((h) => ({
+        evidence_type: 'rca_hint',
+        evidence_summary: JSON.stringify(h),
+      })),
+      affected_resource_ids: [],
+    }]
+    return HttpResponse.json({
+      service_id: svcId,
+      tenant_id: 'demo-tenant',
+      incident_id: mock.incidentId,
+      count: results.length,
+      results,
+    })
+  }),
+
   // ── FinOps API (sla-agent-service /api/finops) ─────────────────
 
   http.get('*/api/finops/runs', ({ request }) => {
