@@ -27,7 +27,7 @@ export function useAiSuggestions(
   watch(showSuggestions, (v) => {
     if (v) document.addEventListener('click', handleClickOutside)
     else document.removeEventListener('click', handleClickOutside)
-  })
+  }, { flush: 'sync' })
 
   onUnmounted(() => {
     document.removeEventListener('click', handleClickOutside)
