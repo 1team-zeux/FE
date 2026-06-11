@@ -61,6 +61,7 @@ const { isEditing, acceptValue, startEdit, submitEdit, cancelEdit } = useFieldEd
 
 const {
   pinnedByClick,
+  visibleByHover,
   overlayPos,
   triggerRef,
   panelRef,
@@ -68,6 +69,8 @@ const {
   canShowPanel,
   showPanel,
   togglePin,
+  handleMouseEnter,
+  handleMouseLeave,
 } = useEvidencePanel(
   toRef(props, 'source'),
   toRef(props, 'evidence'),
@@ -106,9 +109,11 @@ const {
             v-if="canShowPanel"
             ref="triggerRef"
             @click.stop="togglePin"
+            @mouseenter="handleMouseEnter"
+            @mouseleave="handleMouseLeave"
             class="ml-auto p-0.5 rounded transition-colors"
-            :class="pinnedByClick ? 'text-brand' : 'text-text-muted hover:text-brand'"
-            :title="source === 'system_rule' ? '규칙 설명 고정' : 'PDF 원문 고정'"
+            :class="pinnedByClick ? 'text-brand' : (visibleByHover ? 'text-brand/70' : 'text-text-muted hover:text-brand')"
+            :title="source === 'system_rule' ? '규칙 설명 확인' : 'PDF 원문 확인'"
           >
             <svg v-if="source === 'system_rule'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -197,19 +202,21 @@ const {
 
       <!-- Evidence overlay (Teleport to body) -->
       <Teleport to="body">
-        <div
-          v-if="showPanel && overlayPos"
-          ref="panelRef"
-          class="fixed w-96 z-[200] rounded-xl border overflow-hidden shadow-lg bg-white"
-          :style="{ top: `${overlayPos.top}px`, left: `${overlayPos.left}px` }"
-        >
-          <EvidenceOverlay
-            :source="source"
-            :evidence="evidence"
-            :evidence-pdf-file="evidencePdfFile"
-            :description="description"
-          />
-        </div>
+        <Transition name="fade">
+          <div
+            v-if="showPanel && overlayPos"
+            ref="panelRef"
+            class="fixed w-96 z-[200] rounded-xl border overflow-hidden shadow-lg bg-white"
+            :style="{ top: `${overlayPos.top}px`, left: `${overlayPos.left}px` }"
+          >
+            <EvidenceOverlay
+              :source="source"
+              :evidence="evidence"
+              :evidence-pdf-file="evidencePdfFile"
+              :description="description"
+            />
+          </div>
+        </Transition>
       </Teleport>
     </template>
   </div>

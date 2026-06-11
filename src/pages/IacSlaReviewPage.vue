@@ -153,7 +153,7 @@ const groupedReviewSections = computed((): ReviewSection[] => {
 })
 
 function toNorm(f: NormalizedField): NormalizedField {
-  return { fieldId: f.fieldId, label: f.label, value: f.value, confidence: f.confidence, required: f.required, unit: f.unit, description: f.description, activationStatus: f.activationStatus, source: f.source, evidence: f.evidence }
+  return { fieldId: f.fieldId, label: f.label, value: f.value, confidence: f.confidence, required: f.required, unit: f.unit, description: f.description, activationStatus: f.activationStatus, source: f.source, evidence: f.evidence, suggestions: f.suggestions }
 }
 
 // ── 계산 ──────────────────────────────────────────────────────────────────────

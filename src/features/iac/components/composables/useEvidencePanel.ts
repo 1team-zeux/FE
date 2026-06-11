@@ -13,6 +13,7 @@ export function useEvidencePanel(
   pdfFiles: Ref<{ sla: File | null; infra: File | null }>,
 ) {
   const pinnedByClick = ref(false)
+  const visibleByHover = ref(false)
   const overlayPos = ref<OverlayPos | null>(null)
   const triggerRef = ref<HTMLElement | null>(null)
   const panelRef = ref<HTMLElement | null>(null)
@@ -31,12 +32,16 @@ export function useEvidencePanel(
     return false
   })
 
-  const showPanel = computed(() => canShowPanel.value && pinnedByClick.value)
+  const showPanel = computed(() => canShowPanel.value && (pinnedByClick.value || visibleByHover.value))
 
   function updateOverlayPos() {
     if (!triggerRef.value) return
     const rect = triggerRef.value.getBoundingClientRect()
-    overlayPos.value = { top: rect.bottom + 8, left: rect.left }
+    // Position panel to the right of the trigger button
+    overlayPos.value = { 
+      top: rect.top - 20, 
+      left: rect.right + 12 
+    }
   }
 
   function togglePin() {
@@ -45,8 +50,19 @@ export function useEvidencePanel(
       pinnedByClick.value = true
     } else {
       pinnedByClick.value = false
-      overlayPos.value = null
+      if (!visibleByHover.value) overlayPos.value = null
     }
+  }
+
+  function handleMouseEnter() {
+    if (!canShowPanel.value) return
+    updateOverlayPos()
+    visibleByHover.value = true
+  }
+
+  function handleMouseLeave() {
+    visibleByHover.value = false
+    if (!pinnedByClick.value) overlayPos.value = null
   }
 
   function handleClickOutside(e: MouseEvent) {
@@ -55,7 +71,7 @@ export function useEvidencePanel(
     const inTrigger = triggerRef.value?.contains(target) ?? false
     if (!inPanel && !inTrigger) {
       pinnedByClick.value = false
-      overlayPos.value = null
+      if (!visibleByHover.value) overlayPos.value = null
     }
   }
 
@@ -70,6 +86,7 @@ export function useEvidencePanel(
 
   return {
     pinnedByClick,
+    visibleByHover,
     overlayPos,
     triggerRef,
     panelRef,
@@ -77,5 +94,7 @@ export function useEvidencePanel(
     canShowPanel,
     showPanel,
     togglePin,
+    handleMouseEnter,
+    handleMouseLeave,
   }
 }
