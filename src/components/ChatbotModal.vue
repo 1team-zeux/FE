@@ -114,10 +114,12 @@ function handleOpen() {
 const MIN_W = 240, MAX_W = 640
 const MIN_H = 200, MAX_H = 800
 const BOTTOM_GAP = 64  // 버튼 위 최소 여백
+/** 모달을 캐릭터 오른쪽으로 밀어 겹침 없이 FAB가 앞에 보이게 함 */
+const MODAL_SHIFT_RIGHT = 72
 
 const modalWidth  = ref(320)
 const modalHeight = ref(480)
-const modalLeft   = ref(0)    // 버튼 컨테이너 기준 좌측 오프셋
+const modalLeft   = ref(MODAL_SHIFT_RIGHT)
 const modalBottom = ref(BOTTOM_GAP)
 
 type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br'
@@ -173,35 +175,11 @@ function stopResize() {
     class="fixed z-50"
     :style="{ left: pos.x + 'px', top: pos.y + 'px' }"
   >
-    <!-- 챗봇 버튼 -->
-    <button
-      @pointerdown="onPointerDown"
-      @pointermove="onPointerMove"
-      @pointerup="onPointerUp"
-      @click="handleOpen"
-      :class="['inline-flex items-center justify-center relative select-none bg-transparent p-0 border-0 overflow-visible', isDragging ? 'cursor-grabbing' : 'cursor-grab']"
-      aria-label="챗봇 열기"
-    >
-      <span class="relative inline-block">
-        <NimbusAvatar
-          :variant="nimbusVariant"
-          :size="FAB_AVATAR_SIZE"
-          :scale="1"
-          class="pointer-events-none drop-shadow-lg"
-        />
-        <span
-          v-if="fabBadgeCount > 0"
-          class="absolute top-[9%] right-[20%] z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-status-critical px-1 text-[10px] font-bold text-white shadow-sm ring-2 ring-white"
-          :aria-label="`읽지 않은 알림 ${fabBadgeCount}개`"
-        >{{ fabBadgeCount > 99 ? '99+' : fabBadgeCount }}</span>
-      </span>
-    </button>
-
-    <!-- 채팅 모달 -->
+    <!-- 채팅 모달 (캐릭터 FAB보다 뒤 레이어) -->
     <Transition name="slide-up">
       <div
         v-if="isOpen"
-        class="absolute bg-white border border-border rounded-xl shadow-2xl flex flex-col select-none"
+        class="absolute z-0 bg-white border border-border rounded-xl shadow-2xl flex flex-col select-none"
         :style="{
           width:  modalWidth  + 'px',
           height: modalHeight + 'px',
@@ -324,6 +302,30 @@ function stopResize() {
         <div class="resize-handle resize-tr" @pointerdown="startResize($event, 'tr')" />
       </div>
     </Transition>
+
+    <!-- 챗봇 FAB (모달 위 레이어) -->
+    <button
+      @pointerdown="onPointerDown"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @click="handleOpen"
+      :class="['relative z-10 inline-flex items-center justify-center select-none bg-transparent p-0 border-0 overflow-visible', isDragging ? 'cursor-grabbing' : 'cursor-grab']"
+      aria-label="챗봇 열기"
+    >
+      <span class="relative inline-block">
+        <NimbusAvatar
+          :variant="nimbusVariant"
+          :size="FAB_AVATAR_SIZE"
+          :scale="1"
+          class="pointer-events-none drop-shadow-lg"
+        />
+        <span
+          v-if="fabBadgeCount > 0"
+          class="absolute top-[9%] right-[20%] z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-status-critical px-1 text-[10px] font-bold text-white shadow-sm ring-2 ring-white"
+          :aria-label="`읽지 않은 알림 ${fabBadgeCount}개`"
+        >{{ fabBadgeCount > 99 ? '99+' : fabBadgeCount }}</span>
+      </span>
+    </button>
   </div>
 </template>
 
