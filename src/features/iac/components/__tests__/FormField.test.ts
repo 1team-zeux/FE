@@ -47,4 +47,15 @@ describe('FormField', () => {
     expect(w.find('[data-testid="accept-btn"]').exists()).toBe(false)
     expect(w.find('[data-testid="edit-btn"]').exists()).toBe(false)
   })
+
+  it('입력 후 확인 버튼 클릭 시 수정된 값 emit', async () => {
+    const w = mount(FormField, {
+      props: { ...baseProps, confidence: '모호' as const },
+      global: { plugins: [createPinia()] },
+    })
+    const input = w.find('input')
+    await input.setValue('새 값')
+    await w.find('[data-testid="accept-btn"]').trigger('click')
+    expect(w.emitted('confirm')![0]).toEqual(['f1', '새 값'])
+  })
 })

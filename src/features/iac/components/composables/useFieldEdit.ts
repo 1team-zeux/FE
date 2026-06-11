@@ -12,9 +12,10 @@ export function useFieldEdit(
   props: { value: string | number | null; confidence: ConfidenceLevel; fieldId: string },
   emit: (event: 'confirm', fieldId: string, value: string | number | null) => void,
   showSuggestions: Ref<boolean>,
+  externalEditValue?: Ref<string>,
 ) {
   const isEditing = ref(props.confidence === '모호' || props.confidence === '추정')
-  const editValue = ref<string>(String(props.value ?? ''))
+  const editValue = externalEditValue ?? ref<string>(String(props.value ?? ''))
 
   watch(() => props.confidence, (c) => {
     if (c === '확실' || c === '확정') {
@@ -44,5 +45,10 @@ export function useFieldEdit(
     emit('confirm', props.fieldId, editValue.value)
   }
 
-  return { isEditing, editValue, acceptValue, startEdit, submitEdit }
+  function cancelEdit() {
+    editValue.value = String(props.value ?? '')
+    isEditing.value = false
+  }
+
+  return { isEditing, editValue, acceptValue, startEdit, submitEdit, cancelEdit }
 }
