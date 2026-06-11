@@ -35,15 +35,17 @@ const allRevealed = computed(() =>
   !!props.planData && visibleCount.value >= props.planData.items.length
 )
 
-const changeTypeClass: Record<string, string> = {
-  add:     'bg-green-50 text-status-ok border border-green-200',
-  change:  'bg-yellow-50 text-status-pending border border-yellow-200',
-  destroy: 'bg-red-50 text-status-critical border border-red-200',
+const actionClass: Record<string, string> = {
+  create:  'bg-green-50 text-status-ok border border-green-200',
+  update:  'bg-yellow-50 text-status-pending border border-yellow-200',
+  delete:  'bg-red-50 text-status-critical border border-red-200',
+  replace: 'bg-orange-50 text-orange-600 border border-orange-200',
+  'no-op': 'bg-gray-50 text-text-muted border border-gray-200',
 }
-const riskLevelClass: Record<string, string> = {
-  low:    'bg-green-50 text-status-ok border border-green-200',
-  medium: 'bg-yellow-50 text-status-pending border border-yellow-200',
-  high:   'bg-red-50 text-status-critical border border-red-200',
+
+function actionLabel(actions: string[]) {
+  if (actions.includes('delete') && actions.includes('create')) return 'replace'
+  return actions[0] ?? 'no-op'
 }
 </script>
 
@@ -68,30 +70,24 @@ const riskLevelClass: Record<string, string> = {
           <table class="w-full text-sm">
             <thead>
               <tr class="bg-bg-muted">
-                <th class="text-left px-3 py-2 text-xs font-semibold text-text-secondary">리소스</th>
-                <th class="px-3 py-2 text-xs font-semibold text-text-secondary">유형</th>
-                <th class="px-3 py-2 text-xs font-semibold text-text-secondary">위험도</th>
-                <th class="px-3 py-2 text-xs font-semibold text-text-secondary">SLA 영향</th>
+                <th class="text-left px-3 py-2 text-xs font-semibold text-text-secondary">주소</th>
+                <th class="px-3 py-2 text-xs font-semibold text-text-secondary">타입</th>
+                <th class="px-3 py-2 text-xs font-semibold text-text-secondary">변경</th>
               </tr>
             </thead>
             <TransitionGroup tag="tbody" name="plan-row">
               <tr
                 v-for="item in visibleItems"
-                :key="item.resource"
+                :key="item.address"
                 class="border-t border-border hover:bg-bg-muted/50 transition-colors"
               >
-                <td class="px-3 py-2.5 font-mono text-[10px] text-text-primary">{{ item.resource }}</td>
+                <td class="px-3 py-2.5 font-mono text-[10px] text-text-primary">{{ item.address }}</td>
+                <td class="px-3 py-2.5 font-mono text-[10px] text-text-secondary text-center">{{ item.type }}</td>
                 <td class="px-3 py-2.5 text-center">
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="changeTypeClass[item.changeType]">
-                    {{ item.changeType }}
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="actionClass[actionLabel(item.actions)]">
+                    {{ actionLabel(item.actions) }}
                   </span>
                 </td>
-                <td class="px-3 py-2.5 text-center">
-                  <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold" :class="riskLevelClass[item.riskLevel]">
-                    {{ item.riskLevel }}
-                  </span>
-                </td>
-                <td class="px-3 py-2.5 text-[10px] text-text-secondary">{{ item.slaImpact }}</td>
               </tr>
             </TransitionGroup>
           </table>

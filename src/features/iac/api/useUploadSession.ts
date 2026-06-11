@@ -19,9 +19,10 @@ export function useUploadSession() {
       const res = await api.post<UploadSessionResponse>('/upload-sessions', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       })
-      return res.data
+      return { uploadSessionId: res.data.uploadSessionId, files }
     },
     onSuccess(data) {
+      store.setPdfFiles(data.files)
       store.setUploadSession(data.uploadSessionId)
       router.push('/iac/2')
     },

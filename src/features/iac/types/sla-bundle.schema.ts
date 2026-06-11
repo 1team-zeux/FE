@@ -50,6 +50,12 @@ export const ServiceSchema = z.object({
 })
 export type Service = z.infer<typeof ServiceSchema>
 
+export const AiSuggestionSchema = z.object({
+  value: z.string(),
+  reason: z.string(),
+})
+export type AiSuggestion = z.infer<typeof AiSuggestionSchema>
+
 // SLA review item linked to a service (availability/latency/rto/rpo per service)
 export const SLAItemSchema = z.object({
   slaItemId: z.string(),
@@ -70,7 +76,8 @@ export const SLAItemSchema = z.object({
   evidence: EvidenceSchema.optional(),
   required: z.boolean(),
   description: z.string().optional(),
-})
+  suggestions: z.array(AiSuggestionSchema).optional(),
+}).passthrough()
 export type SLAItem = z.infer<typeof SLAItemSchema>
 
 // Bundle-level form fields for non-SLA sections (infra, cost, compliance, db, basic info, performance)
@@ -87,7 +94,7 @@ export const BundleFieldSchema = z.object({
   source: SourceTypeSchema.optional(),
   reviewStatus: ReviewStatusSchema.optional(),
   evidence: EvidenceSchema.optional(),
-})
+}).passthrough()
 export type BundleField = z.infer<typeof BundleFieldSchema>
 
 export const BundleStatusSchema = z.enum(['draft', 'confirmed', 'saved'])
@@ -102,7 +109,7 @@ export const SLABundleSchema = z.object({
   confirmedCount: z.number().int().nonnegative(),
   totalRequiredCount: z.number().int().positive(),
   status: BundleStatusSchema,
-})
+}).passthrough()
 export type SLABundle = z.infer<typeof SLABundleSchema>
 
 // SLA section schema kept for topology / screen 3 usage

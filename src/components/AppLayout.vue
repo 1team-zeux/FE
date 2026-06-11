@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import AppSidebarNav from './AppSidebarNav.vue'
 import ChatbotModal from './ChatbotModal.vue'
 import { topTabs } from './layout/nav-config'
 import { pageTransition } from '@/composables/usePageTransition'
+import { useAuthStore } from '@/features/auth/store/useAuthStore'
 
 const route = useRoute()
+const router = useRouter()
+const auth = useAuthStore()
+
+function handleLogout() {
+  auth.logout()
+  router.push('/login')
+}
 </script>
 
 <template>
@@ -39,6 +47,25 @@ const route = useRoute()
         </RouterLink>
       </nav>
       <div class="flex-1" />
+
+      <!-- 사용자 정보 + 로그아웃 -->
+      <div class="flex items-center gap-3 shrink-0">
+        <span class="text-xs text-text-secondary">{{ auth.user?.email }}</span>
+        <span
+          v-if="auth.isAdmin"
+          class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#2980B9]/10 text-[#2980B9]"
+        >ADMIN</span>
+        <button
+          @click="handleLogout"
+          class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-text-secondary hover:bg-gray-50 hover:text-red-500 transition-colors"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+          </svg>
+          로그아웃
+        </button>
+      </div>
 
     </header>
 

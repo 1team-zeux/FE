@@ -11,17 +11,14 @@ export interface ResourceStatus {
 }
 
 export interface PlanItem {
-  resource: string
-  changeType: 'add' | 'change' | 'destroy'
-  riskLevel: 'low' | 'medium' | 'high'
-  slaImpact: string
-  estimatedCost: string
+  address: string
+  type: string
+  actions: Array<'create' | 'update' | 'delete' | 'replace' | 'no-op'>
 }
 
 export interface PlanResult {
   planId: string
   summary: { add: number; change: number; destroy: number }
-  riskLevel: string
   items: PlanItem[]
 }
 

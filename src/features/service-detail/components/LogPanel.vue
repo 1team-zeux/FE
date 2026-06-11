@@ -2,9 +2,9 @@
 import { ref, computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { z } from 'zod';
-import { logsMockData } from '@/services/mocks/data';
+import { api } from '@/services/api';
 
-const props = defineProps<{ svcId: string }>();
+const props = defineProps<{ svcId: string; tenantId: string }>();
 
 const LogSchema = z.object({
   id: z.string(), timestamp: z.string(), level: z.enum(['ERROR','WARN','INFO']),
@@ -12,11 +12,15 @@ const LogSchema = z.object({
 });
 
 const { data: logs, isLoading } = useQuery({
-  queryKey: ['logs', props.svcId],
+  queryKey: ['logs', props.svcId, props.tenantId],
   queryFn: async () => {
-    const raw = logsMockData[props.svcId] ?? logsMockData['subscription'];
-    return z.array(LogSchema).parse(raw);
+    const res = await api.get(
+      `/monitoring/api/v1/services/${encodeURIComponent(props.svcId)}/logs`,
+      { params: { tenant_id: props.tenantId } },
+    );
+    return z.array(LogSchema).parse(res.data);
   },
+  enabled: !!props.tenantId,
 });
 
 type Level = 'ALL' | 'ERROR' | 'WARN' | 'INFO';
