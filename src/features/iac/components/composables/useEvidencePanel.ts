@@ -77,6 +77,5 @@ export function useEvidencePanel(
     canShowPanel,
     showPanel,
     togglePin,
-    updateOverlayPos,
   }
 }
