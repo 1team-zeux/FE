@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/vue-query'
 import { computed } from 'vue'
-import api from '@/services/api'
+import { api } from '@/services/api'
 import { useAuthStore } from '@/features/auth/store/useAuthStore'
 
 interface CustomerSetup {

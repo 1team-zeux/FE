@@ -2,6 +2,8 @@
 import { ref, watch, onMounted } from 'vue'
 import * as pdfjsLib from 'pdfjs-dist'
 
+type PdfTextItem = { str: string; transform: number[]; width?: number }
+
 // Set worker — use the bundled legacy worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -36,7 +38,7 @@ async function render() {
     canvas.height = viewport.height
 
     const ctx = canvas.getContext('2d')!
-    await pdfPage.render({ canvasContext: ctx, viewport }).promise
+    await pdfPage.render({ canvas, canvasContext: ctx, viewport }).promise
 
     // Overlay canvas (same size)
     const overlay = overlayRef.value
@@ -67,10 +69,10 @@ async function highlightSnippet(
   // Normalize snippet for fuzzy matching (strip whitespace, lowercase)
   const normalizedSnippet = snippet.replace(/\s+/g, ' ').toLowerCase().trim().slice(0, 60)
 
-  const items = textContent.items as pdfjsLib.TextItem[]
+  const items = textContent.items as PdfTextItem[]
   // Build full text with item index map
   let fullText = ''
-  const itemMap: { start: number; end: number; item: pdfjsLib.TextItem }[] = []
+  const itemMap: { start: number; end: number; item: PdfTextItem }[] = []
   for (const item of items) {
     const start = fullText.length
     fullText += item.str
