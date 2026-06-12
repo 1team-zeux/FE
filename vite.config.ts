@@ -18,7 +18,7 @@ export default defineConfig({
       '/tenants': { target: 'http://localhost:8090', changeOrigin: true },
       // FinOps agent (sla-agent-service legacy port or dedicated)
       '/api/finops': {
-        target: process.env.VITE_FINOPS_API_URL ?? 'http://127.0.0.1:8000',
+        target: process.env.VITE_FINOPS_API_URL ?? 'http://localhost:8090',
         changeOrigin: true,
       },
       // RCA read API (sla-agent-service)
