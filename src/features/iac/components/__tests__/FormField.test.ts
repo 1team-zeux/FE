@@ -42,10 +42,10 @@ describe('FormField', () => {
     expect(w.find('input').exists()).toBe(true)
   })
 
-  it('확정 상태에서 수용/수정 버튼 숨김', () => {
+  it('확정 상태에서 accept-btn 없음, edit-btn은 표시됨', () => {
     const w = mount(FormField, { props: { ...baseProps, confidence: '확정' as const } })
     expect(w.find('[data-testid="accept-btn"]').exists()).toBe(false)
-    expect(w.find('[data-testid="edit-btn"]').exists()).toBe(false)
+    expect(w.find('[data-testid="edit-btn"]').exists()).toBe(true)
   })
 
   it('입력 후 확인 버튼 클릭 시 수정된 값 emit', async () => {

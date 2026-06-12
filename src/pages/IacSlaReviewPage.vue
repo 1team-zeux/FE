@@ -5,73 +5,43 @@ import { storeToRefs } from 'pinia'
 import {
   useIacStore,
   useSlaBundleDraft, useConfirmField, useSaveSlaBundle,
-  FormField,
+  IacPdfViewer,
+  FormField
 } from '@/features/iac'
-import type { ConfidenceLevel, ActivationStatus, SourceType, Service, AiSuggestion, Evidence } from '@/features/iac'
+import type { ConfidenceLevel, ActivationStatus, SourceType, AiSuggestion, Evidence } from '@/features/iac'
 
-// ── 상수 ──────────────────────────────────────────────────────────────────────
-
-const BUNDLE_SECTION_LABELS: Record<string, string> = {
-  sla_basic:   'SLA 기본 정보',
-  performance: '성능 / 트래픽',
-  infra:       '인프라 / 리전',
-  cost:        '비용',
-  compliance:  '보안 / 컴플라이언스',
-  db:          'DB / 데이터',
-}
-
-const BUNDLE_SECTION_ORDER = ['sla_basic', 'performance', 'infra', 'cost', 'compliance', 'db'] as const
-
-const SERVICE_TYPE_LABELS: Record<string, string> = {
-  web:   'Web',
-  api:   'API',
-  batch: 'Batch',
-}
-
-// ── 타입 ──────────────────────────────────────────────────────────────────────
-
-interface NormalizedField {
-  fieldId: string
-  label: string
-  value: string | number | null
-  confidence: ConfidenceLevel
-  required: boolean
-  unit?: string
-  description?: string
-  activationStatus?: ActivationStatus
-  source?: SourceType
-  suggestions?: AiSuggestion[]
-  evidence?: Evidence
-}
-
-interface ReviewSection {
-  sectionId: string
-  label: string
-  isService: boolean
-  service?: Service
-  fields: NormalizedField[]
-}
-
-// ── 스토어 / 라우터 ────────────────────────────────────────────────────────────
-
-const store = useIacStore()
 const router = useRouter()
-const { uploadSessionId, bundleDraft } = storeToRefs(store)
+const iacStore = useIacStore()
+const { uploadSessionId, activeDocumentId, pdfFiles, bundleDraft } = storeToRefs(iacStore)
 
-const { data: bundleData, isLoading } = useSlaBundleDraft(uploadSessionId)
+// Redirect back if session or files are missing
+if (!uploadSessionId.value || !pdfFiles.value.sla) {
+  router.replace('/iac/1')
+}
+
+const { data: bundleData, isLoading, error: apiError } = useSlaBundleDraft(uploadSessionId)
+
+watch(bundleData, (newData) => {
+  if (newData) iacStore.setBundleDraft(newData)
+}, { immediate: true })
+
+const sections = [
+  { id: 'sla_basic', label: 'SLA 기본 정보' },
+  { id: 'performance', label: '성능 및 트래픽' },
+  { id: 'infra', label: '인프라 및 가용성' },
+  { id: 'cost', label: '비용 정보' },
+  { id: 'compliance', label: '컴플라이언스 및 보안' },
+  { id: 'db', label: '데이터베이스 요구사항' },
+]
+
 const { mutate: confirmField } = useConfirmField()
 const { mutate: saveBundle, isPending: isSaving } = useSaveSlaBundle()
 
-// ── 로컬 상태 ─────────────────────────────────────────────────────────────────
+// ── Local Navigation & Guide Logic ───────────────────────────────────────────
 
-// 체크 버튼 클릭 시 confidence를 즉시 '확실'로 오버라이드
-const localConfidence = ref<Record<string, ConfidenceLevel>>({})
-
-// 챗봇 가이드 아이콘: 현재 포커스 필드 + 플로팅 위치
+const leftScrollRef = ref<HTMLElement | null>(null)
 const currentGuideFieldId = ref<string | null>(null)
-const bodyRef = ref<HTMLElement | null>(null)
 const iconPos = ref<{ top: number; left: number } | null>(null)
-
 let scrollRafId: number | null = null
 
 function cancelScrollRaf() {
@@ -86,15 +56,20 @@ function lerpScrollTo(container: HTMLElement, target: number) {
   function step() {
     const current = container.scrollTop
     const delta = target - current
-    if (Math.abs(delta) < 0.5) { container.scrollTop = target; scrollRafId = null; return }
-    container.scrollTop += delta * 0.04
+    if (Math.abs(delta) < 0.5) {
+      container.scrollTop = target
+      scrollRafId = null
+      return
+    }
+    container.scrollTop += delta * 0.08
     scrollRafId = requestAnimationFrame(step)
   }
   scrollRafId = requestAnimationFrame(step)
 }
 
+// User interaction cancels auto-scroll
 let bodyListenerAttached = false
-watch(bodyRef, (el) => {
+watch(leftScrollRef, (el) => {
   if (el && !bodyListenerAttached) {
     el.addEventListener('wheel', cancelScrollRaf, { passive: true })
     el.addEventListener('touchstart', cancelScrollRaf, { passive: true })
@@ -102,354 +77,217 @@ watch(bodyRef, (el) => {
   }
 })
 
-onUnmounted(() => {
-  cancelScrollRaf()
-  bodyRef.value?.removeEventListener('wheel', cancelScrollRaf)
-  bodyRef.value?.removeEventListener('touchstart', cancelScrollRaf)
-})
-
-// ── 섹션 그루핑 ───────────────────────────────────────────────────────────────
-
-const groupedReviewSections = computed((): ReviewSection[] => {
-  if (!bundleDraft.value) return []
-  const sections: ReviewSection[] = []
-
-  // 1. SLA 기본 정보 (bundle field)
-  const basicFields = bundleDraft.value.bundleFields
-    .filter(f => f.sectionId === 'sla_basic')
-    .map(toNorm)
-  if (basicFields.length) sections.push({ sectionId: 'sla_basic', label: BUNDLE_SECTION_LABELS['sla_basic'], isService: false, fields: basicFields })
-
-  // 2. 서비스별 SLA 항목
-  for (const service of bundleDraft.value.services) {
-    const fields = bundleDraft.value.slaItems
-      .filter(i => i.serviceId === service.serviceId)
-      .map(i => ({
-        fieldId:          i.slaItemId,
-        label:            i.label,
-        value:            i.targetValue,
-        confidence:       i.confidence,
-        required:         i.required,
-        unit:             i.unit,
-        description:      i.description,
-        activationStatus: i.activationStatus,
-        source:           i.source,
-        suggestions:      i.suggestions,
-        evidence:         i.evidence,
-      }))
-    if (fields.length) sections.push({ sectionId: service.serviceId, label: service.serviceName, isService: true, service, fields })
-  }
-
-  // 3. 나머지 공통 섹션 (performance / infra / cost / compliance / db)
-  for (const sectionId of BUNDLE_SECTION_ORDER) {
-    if (sectionId === 'sla_basic') continue
-    const fields = bundleDraft.value.bundleFields
-      .filter(f => f.sectionId === sectionId)
-      .map(toNorm)
-    if (fields.length) sections.push({ sectionId, label: BUNDLE_SECTION_LABELS[sectionId] ?? sectionId, isService: false, fields })
-  }
-
-  return sections
-})
-
-function toNorm(f: NormalizedField): NormalizedField {
-  return { fieldId: f.fieldId, label: f.label, value: f.value, confidence: f.confidence, required: f.required, unit: f.unit, description: f.description, activationStatus: f.activationStatus, source: f.source, evidence: f.evidence, suggestions: f.suggestions }
-}
-
-// ── 계산 ──────────────────────────────────────────────────────────────────────
-
-// global stagger index 계산 (진입 애니메이션)
-const staggerIndex = computed(() => {
-  const idx = new Map<string, number>()
-  let i = 0
-  for (const section of groupedReviewSections.value) {
-    for (const field of section.fields) {
-      idx.set(field.fieldId, i++)
-    }
-  }
-  return idx
-})
-
-function isActiveField(field: NormalizedField) {
-  return field.activationStatus !== 'inactive'
-}
-
-function resolvedConfidence(fieldId: string, base: ConfidenceLevel): ConfidenceLevel {
-  return localConfidence.value[fieldId] ?? base
-}
-
-const confirmedCount = computed(() => {
-  let count = 0
-  for (const section of groupedReviewSections.value) {
-    for (const field of section.fields) {
-      if (!isActiveField(field) || !field.required) continue
-      const c = resolvedConfidence(field.fieldId, field.confidence)
-      if (c === '확실' || c === '확정') count++
-    }
-  }
-  return count
-})
-
-const totalRequired = computed(() => {
-  let count = 0
-  for (const section of groupedReviewSections.value) {
-    for (const field of section.fields) {
-      if (isActiveField(field) && field.required) count++
-    }
-  }
-  return count
-})
-
-const p0UnresolvedCount = computed(() => {
-  let count = 0
-  for (const section of groupedReviewSections.value) {
-    for (const field of section.fields) {
-      if (!isActiveField(field) || !field.required) continue
-      if (resolvedConfidence(field.fieldId, field.confidence) === '추정') count++
-    }
-  }
-  return count
-})
-
-const progressPct = computed(() =>
-  totalRequired.value > 0 ? Math.round((confirmedCount.value / totalRequired.value) * 100) : 0
-)
-
-const canSave = computed(() => confirmedCount.value === totalRequired.value && totalRequired.value > 0)
-
-// ── 챗봇 가이드 아이콘 ────────────────────────────────────────────────────────
-
-function firstUnconfirmedField(excludeId?: string): NormalizedField | null {
-  for (const section of groupedReviewSections.value) {
-    for (const field of section.fields) {
-      if (field.fieldId === excludeId) continue
-      if (!isActiveField(field)) continue
-      const c = resolvedConfidence(field.fieldId, field.confidence)
-      if (c !== '확실' && c !== '확정') return field
-    }
+function firstUnconfirmedField(excludeId?: string): string | null {
+  if (!bundleDraft.value) return null
+  const allFields = [
+    ...bundleDraft.value.bundleFields,
+    ...bundleDraft.value.slaItems.map(i => ({ ...i, fieldId: i.slaItemId }))
+  ]
+  for (const f of allFields) {
+    if (f.fieldId === excludeId) continue
+    if (f.activationStatus === 'inactive') continue
+    if (f.confidence === '추정' || f.confidence === '모호') return f.fieldId
   }
   return null
 }
 
 function updateIconPos() {
-  if (!currentGuideFieldId.value || !bodyRef.value) { iconPos.value = null; return }
+  if (!currentGuideFieldId.value || !leftScrollRef.value) {
+    iconPos.value = null
+    return
+  }
   const el = document.getElementById(currentGuideFieldId.value)
   if (!el) return
-  const c = bodyRef.value
+  const c = leftScrollRef.value
   const eRect = el.getBoundingClientRect()
   const cRect = c.getBoundingClientRect()
   iconPos.value = {
-    top:  eRect.top  - cRect.top  + c.scrollTop + 30,
-    left: eRect.left - cRect.left - 40,
+    top: eRect.top - cRect.top + c.scrollTop + 20,
+    left: eRect.left - cRect.left - 35,
   }
 }
 
-watch(currentGuideFieldId, async () => {
-  await nextTick()
-  updateIconPos()
-})
-
-// ── 데이터 로드 ───────────────────────────────────────────────────────────────
-
-watch(bundleData, async (data) => {
-  if (!data) return
-  store.setBundleDraft(data)
-
-  // 챗봇 트리거 등록 (추정=P0, 모호=P1)
-  for (const item of data.slaItems) {
-    if (item.activationStatus === 'inactive') continue
-    if (item.confidence === '추정' || item.confidence === '모호') {
-      store.addChatbotTrigger({
-        fieldId:  item.slaItemId,
-        priority: item.confidence === '추정' ? 'P0' : 'P1',
-        reason:   item.confidence === '추정' ? 'LLM 추정값 — 운영자 검토 필수' : '모호한 값 — 확인 권장',
-      })
-    }
-  }
-  for (const field of data.bundleFields) {
-    if (field.activationStatus === 'inactive') continue
-    if (field.confidence === '추정' || field.confidence === '모호') {
-      store.addChatbotTrigger({
-        fieldId:  field.fieldId,
-        priority: field.confidence === '추정' ? 'P0' : 'P1',
-        reason:   field.confidence === '추정' ? 'LLM 추정값 — 운영자 검토 필수' : '모호한 값 — 확인 권장',
-      })
-    }
-  }
-
-  // 첫 미확정 필드에 가이드 아이콘 배치
-  const first = firstUnconfirmedField()
-  currentGuideFieldId.value = first?.fieldId ?? null
-  await nextTick()
-  updateIconPos()
-})
-
-// ── 액션 ──────────────────────────────────────────────────────────────────────
+const confirmedCount = computed(() => bundleData.value?.confirmedCount ?? 0)
+const totalRequired = computed(() => bundleData.value?.totalRequiredCount ?? 0)
+const canSave = computed(() => confirmedCount.value >= totalRequired.value && totalRequired.value > 0)
 
 function handleConfirm(fieldId: string, value: string | number | null) {
-  if (!bundleDraft.value) return
-  localConfidence.value = { ...localConfidence.value, [fieldId]: '확실' }
-  confirmField({ bundleId: bundleDraft.value.bundleId, fieldId, value })
+  confirmField({ bundleId: bundleData.value!.bundleId, fieldId, value })
   nextTick(() => {
-    const next = firstUnconfirmedField(fieldId)
-    currentGuideFieldId.value = next?.fieldId ?? null
-    if (next && bodyRef.value) {
-      const el = document.getElementById(next.fieldId)
+    const nextId = firstUnconfirmedField(fieldId)
+    currentGuideFieldId.value = nextId
+    if (nextId && leftScrollRef.value) {
+      const el = document.getElementById(nextId)
       if (el) {
-        const target = el.offsetTop - bodyRef.value.clientHeight / 2 + el.clientHeight / 2
-        lerpScrollTo(bodyRef.value, target)
-        setTimeout(() => {
-          el.querySelector('input')?.click()
-        }, 400)
+        const target = el.offsetTop - leftScrollRef.value.clientHeight / 2 + el.clientHeight / 2
+        lerpScrollTo(leftScrollRef.value, target)
       }
     }
     updateIconPos()
   })
 }
 
-function scrollToFirstUnconfirmed(excludeId?: string) {
-  if (!bodyRef.value) return
-  const field = firstUnconfirmedField(excludeId)
-  if (!field) return
-  const el = document.getElementById(field.fieldId)
+function scrollToFirstUnconfirmed() {
+  if (!leftScrollRef.value) return
+  const nextId = firstUnconfirmedField()
+  if (!nextId) return
+  const el = document.getElementById(nextId)
   if (!el) return
-  const target = el.offsetTop - bodyRef.value.clientHeight / 2 + el.clientHeight / 2
-  lerpScrollTo(bodyRef.value, target)
+  const target = el.offsetTop - leftScrollRef.value.clientHeight / 2 + el.clientHeight / 2
+  lerpScrollTo(leftScrollRef.value, target)
+  currentGuideFieldId.value = nextId
 }
 
-
-function handleSave() {
-  if (!bundleDraft.value) return
-  saveBundle(bundleDraft.value.bundleId, {
-    onSuccess() { router.push('/iac/3') },
+async function handleNext() {
+  if (!bundleData.value) return
+  saveBundle(bundleData.value.bundleId, {
+    onSuccess: () => router.push('/iac/3')
   })
 }
 
+watch([bundleData, currentGuideFieldId], () => {
+  if (bundleData.value && !currentGuideFieldId.value) {
+    currentGuideFieldId.value = firstUnconfirmedField()
+  }
+  nextTick(updateIconPos)
+})
+
+onUnmounted(() => {
+  iacStore.setActiveField(null)
+  cancelScrollRaf()
+  leftScrollRef.value?.removeEventListener('wheel', cancelScrollRaf)
+  leftScrollRef.value?.removeEventListener('touchstart', cancelScrollRaf)
+})
 </script>
 
 <template>
-  <div class="flex flex-col h-full">
-    <!-- 헤더 -->
-    <div class="px-8 pt-6 pb-4 shrink-0">
-      <div class="flex items-center justify-between mb-5">
+  <div class="h-full flex flex-col bg-bg-page overflow-hidden">
+    <header class="h-14 bg-white border-b border-border flex items-center px-6 shrink-0 z-20 shadow-sm">
+      <div class="flex items-center gap-4">
+        <button @click="router.back()" class="p-2 hover:bg-bg-muted rounded-full transition-colors">
+          <svg class="w-5 h-5 text-text-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
         <div>
-          <h1 class="text-xl font-bold text-text-primary">SLA 검토</h1>
-          <p class="text-xs text-text-secondary mt-0.5">AI가 추출한 SLA 항목을 검토하고 확정합니다.</p>
-        </div>
-        <div class="text-right">
-          <p class="text-xs text-text-muted">필드 확정 진행률</p>
-          <p class="text-sm font-semibold text-text-primary mt-0.5">{{ confirmedCount }} / {{ totalRequired }}</p>
+          <h1 class="text-base font-bold text-text-primary">SLA 및 인프라 요구사항 검토</h1>
+          <p class="text-[11px] text-text-muted">문서에서 추출된 내용을 확인하고 확정해 주세요.</p>
         </div>
       </div>
-      <div class="mt-2 h-1.5 bg-bg-muted rounded-full overflow-hidden">
-        <div
-          class="h-full transition-all duration-500 rounded-full"
-          :style="{ width: `${progressPct}%`, background: 'linear-gradient(90deg, var(--color-brand-light), var(--color-brand))' }"
-        />
-      </div>
-    </div>
-
-    <!-- 로딩 -->
-    <div v-if="isLoading" class="flex-1 flex items-center justify-center">
-      <div class="text-center space-y-3">
-        <div class="w-10 h-10 border-4 border-brand border-t-transparent rounded-full animate-spin mx-auto" />
-        <p class="text-text-secondary">AI가 문서를 분석하고 있습니다...</p>
-      </div>
-    </div>
-
-    <!-- 바디 -->
-    <div
-      v-else
-      ref="bodyRef"
-      class="flex-1 overflow-y-auto relative"
-      style="mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 24px), transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 24px), transparent 100%);"
-    >
-      <!-- 플로팅 챗봇 가이드 아이콘 -->
-      <Transition name="fade">
-        <img
-          v-if="iconPos"
-          src="@/assets/images/chatbot.png"
-          alt="AI 가이드"
-          class="absolute z-30 w-7 h-7 rounded-full shadow-lg ring-2 ring-white object-cover pointer-events-none"
-          :style="{
-            top:  `${iconPos.top}px`,
-            left: `${iconPos.left}px`,
-            transition: 'top 0.48s cubic-bezier(0.4,0,0.2,1), left 0.48s cubic-bezier(0.4,0,0.2,1)',
-          }"
-        />
-      </Transition>
-
-      <div class="divide-y divide-border">
-        <section
-          v-for="section in groupedReviewSections"
-          :key="section.sectionId"
-          class="grid gap-10 px-8 py-7"
-          style="grid-template-columns: 180px 1fr"
-        >
-          <!-- 왼쪽: 섹션명 -->
-          <div class="pt-0.5 space-y-1.5">
-            <h2 class="text-sm font-bold text-text-primary">{{ section.label }}</h2>
-            <!-- 서비스 섹션: 서비스 타입 배지 -->
-            <span
-              v-if="section.isService && section.service"
-              class="inline-block text-[9px] font-semibold px-1.5 py-0.5 rounded bg-brand/10 text-brand"
-            >
-              {{ SERVICE_TYPE_LABELS[section.service.serviceType] ?? section.service.serviceType }}
-            </span>
+      <div class="ml-auto flex items-center gap-6">
+        <div v-if="bundleData" class="flex flex-col items-end">
+          <div class="flex items-center gap-2 mb-0.5">
+            <span class="text-[10px] font-bold text-text-muted uppercase tracking-wider">Review Progress</span>
+            <span class="text-xs font-bold text-brand">{{ confirmedCount }} / {{ totalRequired }}</span>
           </div>
-          <!-- 오른쪽: 필드 그리드 -->
-          <div class="grid grid-cols-2 gap-x-8 gap-y-5 pl-8">
-            <FormField
-              v-for="field in section.fields"
-              :key="field.fieldId"
-              v-bind="field"
-              :confidence="resolvedConfidence(field.fieldId, field.confidence)"
-              class="field-stagger"
-              :style="{ animationDelay: `${(staggerIndex.get(field.fieldId) ?? 0) * 20}ms` }"
-              @confirm="handleConfirm"
+          <div class="w-48 h-1.5 bg-gray-100 rounded-full overflow-hidden border border-gray-200/50">
+            <div 
+              class="h-full bg-brand transition-all duration-500 ease-out shadow-[0_0_8px_rgba(41,128,185,0.4)]"
+              :style="{ width: `${(confirmedCount / totalRequired) * 100}%` }"
             />
           </div>
-        </section>
-      </div>
-    </div>
-
-    <!-- 푸터 -->
-    <div class="px-6 py-4 flex items-center justify-between shrink-0">
-      <button @click="router.push('/iac/1')" class="flex items-center gap-1.5 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-bg-muted rounded-lg transition-colors">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-        </svg>
-        이전 단계
-      </button>
-      <div class="flex items-center gap-4">
-        <div v-if="!canSave" class="text-right space-y-0.5">
-          <p class="text-xs text-text-muted">
-            미확정 필드 {{ totalRequired - confirmedCount }}개가 남아있습니다.
-          </p>
-          <p v-if="p0UnresolvedCount > 0" class="text-[10px] font-semibold text-status-critical flex items-center justify-end gap-1">
-            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-            </svg>
-            P0 검토 필수 {{ p0UnresolvedCount }}건
-          </p>
         </div>
-        <p v-else class="text-xs text-status-ok flex items-center gap-1.5">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-          </svg>
-          모든 필드 확정 완료
-        </p>
-        <button
-          :disabled="!canSave || isSaving"
-          @click="handleSave"
-          @mouseenter="!canSave ? scrollToFirstUnconfirmed() : undefined"
-          class="btn-brand min-w-[180px] flex items-center justify-center gap-2"
-        >
-          <div v-if="isSaving" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-          {{ isSaving ? '저장 중...' : 'SLA Bundle 저장 및 다음' }}
-        </button>
       </div>
-    </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+      <section class="w-3/5 flex flex-col bg-white border-r border-border overflow-hidden relative">
+        <div v-if="apiError" class="absolute inset-0 flex flex-col items-center justify-center bg-white z-20 p-8 text-center">
+          <button @click="router.replace('/iac/1')" class="btn-brand">다시 시도하기</button>
+        </div>
+        <div v-if="isLoading" class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10">
+          <div class="w-10 h-10 border-4 border-brand border-t-transparent rounded-full animate-spin mb-4" />
+          <p class="text-sm font-medium text-text-secondary">AI 분석 결과를 불러오는 중...</p>
+        </div>
+        <div v-else-if="bundleData" ref="leftScrollRef" class="flex-1 overflow-y-auto custom-scrollbar p-6 relative">
+          <Transition name="fade">
+            <img
+              v-if="iconPos"
+              src="@/assets/images/chatbot.png"
+              alt="AI Guide"
+              class="absolute z-30 w-7 h-7 rounded-full shadow-lg ring-2 ring-white object-cover pointer-events-none"
+              :style="{
+                top: `${iconPos.top}px`,
+                left: `${iconPos.left}px`,
+                transition: 'top 0.4s cubic-bezier(0.4,0,0.2,1), left 0.4s cubic-bezier(0.4,0,0.2,1)',
+              }"
+            />
+          </Transition>
+          <div v-for="section in sections" :key="section.id" class="mb-10 last:mb-20">
+            <h2 class="text-sm font-bold text-text-primary mb-4 flex items-center gap-2">
+              <span class="w-1 h-4 bg-brand rounded-full" />
+              {{ section.label }}
+            </h2>
+            <div class="grid grid-cols-2 gap-4">
+              <FormField
+                v-for="field in bundleData.bundleFields.filter(f => f.sectionId === section.id)"
+                :key="field.fieldId"
+                v-bind="field"
+                @confirm="handleConfirm"
+              />
+              <template v-if="section.id === 'performance'">
+                <FormField
+                  v-for="item in bundleData.slaItems"
+                  :key="item.slaItemId"
+                  :field-id="item.slaItemId"
+                  :label="item.label"
+                  :value="item.targetValue"
+                  :confidence="item.confidence"
+                  :required="item.required"
+                  :unit="item.unit"
+                  :description="item.description"
+                  :source="item.source"
+                  :suggestions="item.suggestions"
+                  :evidence="item.evidence"
+                  @confirm="handleConfirm"
+                />
+              </template>
+            </div>
+          </div>
+        </div>
+        <div class="p-4 bg-gray-50 border-t border-border flex justify-between items-center shrink-0">
+          <p class="text-[11px] text-text-muted">
+            <span class="font-bold text-status-critical">*</span> 필수 항목을 모두 확정해야 다음 단계로 진행할 수 있습니다.
+          </p>
+          <button
+            @click="handleNext"
+            @mouseenter="!canSave ? scrollToFirstUnconfirmed() : undefined"
+            :disabled="isSaving || !canSave"
+            class="btn-brand h-10 px-8 text-sm flex items-center gap-2 shadow-md disabled:shadow-none disabled:grayscale"
+          >
+            <div v-if="isSaving" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            {{ isSaving ? '저장 중...' : 'SLA Bundle 저장 및 다음' }}
+          </button>
+        </div>
+      </section>
+      <!-- Right: PDF Viewer -->
+      <section class="w-2/5 h-full relative overflow-hidden bg-bg-muted shadow-inner border-l border-border">
+        <div class="absolute inset-0 z-0">
+          <IacPdfViewer v-if="pdfFiles.sla" :file="pdfFiles.sla" document-id="doc1_contract" />
+        </div>
+        <Transition name="pdf-slide">
+          <div v-show="activeDocumentId === 'doc2_infra' && pdfFiles.infra" class="absolute inset-0 z-10 shadow-[-10px_0_30px_rgba(0,0,0,0.15)] bg-bg-muted">
+            <IacPdfViewer v-if="pdfFiles.infra" :file="pdfFiles.infra" document-id="doc2_infra" />
+          </div>
+        </Transition>
+      </section>
+
+    </main>
   </div>
 </template>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background: #E5E7EB; border-radius: 10px; }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #D1D5DB; }
+
+.pdf-slide-enter-active, .pdf-slide-leave-active {
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pdf-slide-enter-from, .pdf-slide-leave-to { transform: translateX(100%); }
+.pdf-slide-enter-to, .pdf-slide-leave-from { transform: translateX(0); }
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>

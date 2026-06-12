@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { ref, toRef } from 'vue'
+import { ref, computed, toRef } from 'vue'
 import type { ConfidenceLevel, ActivationStatus, SourceType, AiSuggestion, Evidence } from '../types/sla-bundle.schema'
 import { useIacStore } from '../stores/iac.store'
 import { storeToRefs } from 'pinia'
 import AiSuggestionsPanel from './AiSuggestionsPanel.vue'
-import EvidenceOverlay from './EvidenceOverlay.vue'
 import { useFieldEdit } from './composables/useFieldEdit'
 import { useAiSuggestions } from './composables/useAiSuggestions'
-import { useEvidencePanel } from './composables/useEvidencePanel'
 
 const SOURCE_LABEL: Record<SourceType, { text: string; cls: string }> = {
   doc1_contract:      { text: '계약서',  cls: 'bg-blue-50   text-blue-600   border-blue-200' },
@@ -37,7 +35,21 @@ const emit = defineEmits<{
 
 const containerRef = ref<HTMLElement | null>(null)
 const iacStore = useIacStore()
-const { pdfFiles } = storeToRefs(iacStore)
+const { activeFieldId } = storeToRefs(iacStore)
+
+const isHovered = computed(() => activeFieldId.value === props.fieldId)
+
+function handleMouseEnter() {
+  if (props.activationStatus === 'inactive') return
+  // Only trigger PDF interaction for document-sourced fields
+  if (props.source === 'doc1_contract' || props.source === 'doc2_infra') {
+    iacStore.setActiveField(props.fieldId, props.source)
+  }
+}
+
+function handleMouseLeave() {
+  iacStore.setActiveField(null)
+}
 
 // Shared editValue ref — passed to both useAiSuggestions and useFieldEdit
 const sharedEditValue = ref(String(props.value ?? ''))
@@ -58,35 +70,26 @@ const { isEditing, acceptValue, startEdit, submitEdit, cancelEdit } = useFieldEd
   showSuggestions,
   sharedEditValue,
 )
-
-const {
-  pinnedByClick,
-  visibleByHover,
-  overlayPos,
-  triggerRef,
-  panelRef,
-  evidencePdfFile,
-  canShowPanel,
-  showPanel,
-  togglePin,
-  handleMouseEnter,
-  handleMouseLeave,
-} = useEvidencePanel(
-  toRef(props, 'source'),
-  toRef(props, 'evidence'),
-  pdfFiles,
-)
 </script>
 
 <template>
-  <div :id="fieldId">
+  <div
+    :id="fieldId"
+    @mouseenter="handleMouseEnter"
+    @mouseleave="handleMouseLeave"
+    class="p-3 rounded-lg border transition-all duration-200 h-full flex flex-col"
+    :class="[
+      isHovered ? 'border-brand bg-brand/5 ring-1 ring-brand/20 shadow-sm' : 'border-border/50 bg-white/50 hover:bg-white hover:border-border',
+      activationStatus === 'inactive' ? 'opacity-40 grayscale pointer-events-none' : ''
+    ]"
+  >
 
     <!-- 비활성 -->
     <template v-if="activationStatus === 'inactive'">
       <div class="flex items-center gap-1.5 mb-1.5 opacity-40">
         <span class="text-xs font-medium text-text-muted line-through">{{ label }}</span>
       </div>
-      <div class="h-9 px-3 flex items-center rounded-md bg-bg-muted/50 border border-dashed border-border">
+      <div class="h-9 px-3 flex items-center rounded-md bg-bg-muted/50 border border-dashed border-border mt-auto">
         <span class="text-[11px] text-text-muted italic">해당 없음 (비활성)</span>
       </div>
       <p v-if="description" class="mt-1 text-[11px] text-text-muted/50 leading-relaxed line-through">{{ description }}</p>
@@ -94,7 +97,7 @@ const {
 
     <!-- 활성 -->
     <template v-else>
-      <div ref="containerRef" class="relative">
+      <div ref="containerRef" class="relative flex flex-col h-full">
 
         <!-- 라벨 행 -->
         <div class="flex items-center gap-1.5 mb-1.5 flex-wrap">
@@ -102,28 +105,9 @@ const {
           <span v-if="required" class="text-status-critical text-[10px] leading-none">*</span>
           <span
             v-if="source"
-            class="px-1.5 py-px rounded text-[9px] font-medium border leading-none"
+            class="px-1.5 py-px rounded text-[9px] font-medium border leading-none ml-auto"
             :class="SOURCE_LABEL[source].cls"
           >{{ SOURCE_LABEL[source].text }}</span>
-          <button
-            v-if="canShowPanel"
-            ref="triggerRef"
-            @click.stop="togglePin"
-            @mouseenter="handleMouseEnter"
-            @mouseleave="handleMouseLeave"
-            class="ml-auto p-0.5 rounded transition-colors"
-            :class="pinnedByClick ? 'text-brand' : (visibleByHover ? 'text-brand/70' : 'text-text-muted hover:text-brand')"
-            :title="source === 'system_rule' ? '규칙 설명 확인' : 'PDF 원문 확인'"
-          >
-            <svg v-if="source === 'system_rule'" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-            </svg>
-            <svg v-else class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-            </svg>
-          </button>
         </div>
 
         <!-- 편집 중 -->
@@ -132,9 +116,9 @@ const {
             <input
               v-model="sharedEditValue"
               @click="(confidence === '모호' || confidence === '추정') ? openSuggestions() : undefined"
-              @keyup.enter="confidence !== '확실' ? acceptValue() : submitEdit()"
+              @keyup.enter="(confidence === '모호' || confidence === '추정') ? acceptValue() : submitEdit()"
               class="w-full h-9 px-3 pr-8 rounded-md text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-brand/40 transition-shadow ring-1"
-              :class="source === 'llm_recommendation' ? 'bg-white ring-brand' : 'bg-bg-muted ring-border'"
+              :class="(confidence === '모호' || confidence === '추정' || source === 'llm_recommendation') ? 'bg-white ring-brand shadow-sm' : 'bg-bg-muted ring-border'"
               :placeholder="String(value ?? '')"
             />
             <div v-if="confidence === '모호' || confidence === '추정'"
@@ -174,50 +158,40 @@ const {
         <!-- 읽기 전용 -->
         <div
           v-else
-          class="flex items-center justify-between h-9 px-3 rounded-md text-sm group transition-colors"
-          :class="confidence === '확정' ? 'bg-green-50' : 'bg-bg-muted hover:bg-gray-200/50'"
+          class="flex items-center justify-between min-h-[2.25rem] px-3 py-1.5 rounded-md text-sm group transition-colors bg-bg-muted hover:bg-gray-200/50"
         >
-          <span class="text-text-primary truncate">
+          <span class="text-text-primary break-all">
             {{ value !== null && value !== undefined ? `${value}${unit ? ' ' + unit : ''}` : '—' }}
           </span>
-          <svg v-if="confidence === '확정'" class="w-4 h-4 text-status-ok shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-          </svg>
-          <button
-            v-else-if="confidence === '확실'"
-            data-testid="edit-btn"
-            @click="startEdit"
-            class="opacity-0 group-hover:opacity-100 p-1 rounded text-text-muted hover:text-brand transition-all shrink-0"
-            title="수정"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+          <div class="flex items-center gap-1 shrink-0 ml-2">
+            <svg v-if="confidence === '확정'" class="w-4 h-4 text-status-ok" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
             </svg>
-          </button>
+            <button
+              v-if="confidence === '확실' || confidence === '확정'"
+              data-testid="edit-btn"
+              @click="startEdit"
+              class="opacity-0 group-hover:opacity-100 p-1 rounded text-text-muted hover:text-brand transition-all"
+              title="수정"
+            >
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+            </button>
+          </div>
         </div>
 
-        <p v-if="description && source !== 'system_rule'" class="mt-1 text-[11px] text-text-muted leading-relaxed">{{ description }}</p>
-      </div>
-
-      <!-- Evidence overlay (Teleport to body) -->
-      <Teleport to="body">
-        <Transition name="fade">
-          <div
-            v-if="showPanel && overlayPos"
-            ref="panelRef"
-            class="fixed w-96 z-[200] rounded-xl border overflow-hidden shadow-lg bg-white"
-            :style="{ top: `${overlayPos.top}px`, left: `${overlayPos.left}px` }"
-          >
-            <EvidenceOverlay
-              :source="source"
-              :evidence="evidence"
-              :evidence-pdf-file="evidencePdfFile"
-              :description="description"
-            />
+        <template v-if="description">
+          <div v-if="source === 'system_rule'" class="mt-2 flex gap-1.5 items-start bg-orange-50/50 p-2 rounded text-orange-700/80 border border-orange-100/50 mt-auto">
+            <svg class="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-[10px] leading-relaxed">{{ description }}</p>
           </div>
-        </Transition>
-      </Teleport>
+          <p v-else class="mt-2 text-[11px] text-text-muted leading-relaxed mt-auto">{{ description }}</p>
+        </template>
+      </div>
     </template>
   </div>
 </template>

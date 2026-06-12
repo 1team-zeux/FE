@@ -19,6 +19,10 @@ export const useIacStore = defineStore('iac', () => {
   const chatbotOpen = ref(false)
   const pdfFiles = ref<{ sla: File | null; infra: File | null }>({ sla: null, infra: null })
 
+  // Active state for PDF viewer interaction
+  const activeFieldId = ref<string | null>(null)
+  const activeDocumentId = ref<'doc1_contract' | 'doc2_infra'>('doc1_contract')
+
   const chatbotBadgeCount = computed(() => chatbotTriggers.value.length)
 
   function setUploadSession(id: string) {
@@ -57,6 +61,17 @@ export const useIacStore = defineStore('iac', () => {
     pdfFiles.value = files
   }
 
+  function setActiveField(fieldId: string | null, documentId?: 'doc1_contract' | 'doc2_infra') {
+    activeFieldId.value = fieldId
+    if (documentId) {
+      activeDocumentId.value = documentId
+    }
+  }
+
+  function setActiveDocument(documentId: 'doc1_contract' | 'doc2_infra') {
+    activeDocumentId.value = documentId
+  }
+
   function reset() {
     uploadSessionId.value = null
     bundleDraft.value = null
@@ -65,6 +80,8 @@ export const useIacStore = defineStore('iac', () => {
     chatbotTriggers.value = []
     chatbotOpen.value = false
     pdfFiles.value = { sla: null, infra: null }
+    activeFieldId.value = null
+    activeDocumentId.value = 'doc1_contract'
   }
 
   return {
@@ -75,6 +92,8 @@ export const useIacStore = defineStore('iac', () => {
     chatbotTriggers,
     chatbotOpen,
     chatbotBadgeCount,
+    activeFieldId,
+    activeDocumentId,
     setUploadSession,
     setBundleDraft,
     setSelectedTopology,
@@ -85,6 +104,8 @@ export const useIacStore = defineStore('iac', () => {
     openChatbot,
     pdfFiles,
     setPdfFiles,
+    setActiveField,
+    setActiveDocument,
     reset,
   }
 })
