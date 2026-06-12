@@ -48,6 +48,7 @@ export const TopologyDraftSchema = z.object({
   estimatedMonthlyCost: z.number().nonnegative(),
   slaSatisfaction: z.record(z.string()),
   rationale: z.array(z.string()),
+  conceptNote: z.string().optional(),
   nodes: z.array(TopologyNodeSchema),
   edges: z.array(TopologyEdgeSchema),
   groups: z.array(TopologyGroupSchema).optional(),
