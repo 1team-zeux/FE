@@ -1,0 +1,160 @@
+import { z } from 'zod'
+
+export const GuardStatusSchema = z.enum(['eligible', 'defer', 'blocked'])
+export const PriorityBandSchema = z.enum(['P0', 'P1', 'P2'])
+
+export const FinOpsFindingSchema = z.object({
+  finding_id: z.string().optional(),
+  resource_id: z.string(),
+  pattern_id: z.string().optional(),
+  recommended_action: z.string().optional(),
+  guard_status: GuardStatusSchema.optional(),
+  guard_reason: z.string().optional(),
+  monthly_waste_usd: z.number().optional(),
+  data_source: z.string().optional(),
+})
+
+export const BacklogItemSchema = z.object({
+  priority_band: PriorityBandSchema.optional(),
+  priority_score: z.number().optional(),
+  pattern_id: z.string().optional(),
+  resource_id: z.string(),
+  resource_type: z.string().optional(),
+  recommended_action: z.string().optional(),
+  monthly_waste_usd: z.number().optional(),
+  confidence_score: z.number().optional(),
+  reason: z.string().optional(),
+})
+
+export const PatternRollupSchema = z.object({
+  pattern_id: z.string(),
+  count: z.number(),
+  waste_usd: z.number(),
+})
+
+export const PrioritySummarySchema = z.object({
+  count: z.number(),
+  waste_usd: z.number(),
+})
+
+export const ExecutiveReportSchema = z.object({
+  report_summary: z.string().optional(),
+  sla_context: z
+    .object({
+      bundle_id: z.string().nullable().optional(),
+      environment: z.string().nullable().optional(),
+      primary_region: z.string().nullable().optional(),
+      monthly_budget_krw: z.number().nullable().optional(),
+      spot_instance_allowed: z.boolean().nullable().optional(),
+      cost_priority: z.string().nullable().optional(),
+    })
+    .optional(),
+  scope: z
+    .object({
+      regions: z.array(z.string()).optional(),
+      environments: z.array(z.string()).optional(),
+      evaluation_days: z.number().nullable().optional(),
+      prod_recommend_block: z.boolean().nullable().optional(),
+    })
+    .optional(),
+  funnel: z
+    .object({
+      findings_total: z.number(),
+      guarded_total: z.number(),
+      eligible: z.number(),
+      defer: z.number(),
+      blocked: z.number(),
+    })
+    .optional(),
+  priority_summary: z
+    .object({
+      P0: PrioritySummarySchema,
+      P1: PrioritySummarySchema,
+      P2: PrioritySummarySchema,
+    })
+    .optional(),
+  total_monthly_waste_usd: z.number().optional(),
+  prioritized_backlog: z.array(BacklogItemSchema).optional(),
+  pattern_rollup: z.array(PatternRollupSchema).optional(),
+  blocked_defer: z.array(FinOpsFindingSchema).optional(),
+  rca_summary: z
+    .object({
+      hint_count: z.number(),
+      hints: z.array(
+        z.object({
+          cause_type: z.string().optional(),
+          confidence: z.number().optional(),
+          rationale: z.string().optional(),
+        }),
+      ),
+      rules_applied: z.array(z.string()),
+      rca_informed: z.boolean(),
+    })
+    .nullable()
+    .optional(),
+})
+
+export const FindingsSnapshotSchema = z.object({
+  findings_count: z.number(),
+  guarded_count: z.number(),
+  eligible_count: z.number(),
+  guard_summary: z.object({
+    eligible: z.number(),
+    defer: z.number(),
+    blocked: z.number(),
+  }),
+  total_monthly_waste_usd: z.number(),
+  executive_report: ExecutiveReportSchema.optional(),
+  findings: z.array(FinOpsFindingSchema),
+})
+
+export const DataQualitySummarySchema = z.object({
+  overall_quality: z.string().optional(),
+  cmdb_source: z.string().optional(),
+  utilization_source: z.string().optional(),
+  sla_bundle_freshness: z.string().optional(),
+  eb_available: z.boolean().optional(),
+  rca_linked: z.boolean().optional(),
+  warnings: z.array(z.string()).optional(),
+})
+
+export const FinOpsRunSchema = z.object({
+  id: z.string(),
+  run_id: z.string(),
+  batch_id: z.string().nullable().optional(),
+  tenant_id: z.string(),
+  team_id: z.string().nullable().optional(),
+  service_id: z.string(),
+  service_name: z.string().nullable().optional(),
+  schedule_window: z.string().nullable().optional(),
+  status: z.string(),
+  report_artifact_uri: z.string().nullable().optional(),
+  findings_count: z.number().nullable().optional(),
+  eligible_count: z.number().nullable().optional(),
+  error_message: z.string().nullable().optional(),
+  approval_status: z.string().nullable().optional(),
+  approval_reviewer: z.string().nullable().optional(),
+  approval_comment: z.string().nullable().optional(),
+  approval_reviewed_at: z.string().nullable().optional(),
+  findings_snapshot: FindingsSnapshotSchema.nullable().optional(),
+  data_quality_summary: DataQualitySummarySchema.nullable().optional(),
+  started_at: z.string().nullable().optional(),
+  finished_at: z.string().nullable().optional(),
+  created_at: z.string().nullable().optional(),
+})
+
+export const FinOpsRunsResponseSchema = z.object({
+  storage: z.string(),
+  runs: z.array(FinOpsRunSchema),
+})
+
+export const FinOpsRunDetailResponseSchema = z.object({
+  storage: z.string(),
+  run: FinOpsRunSchema,
+})
+
+export type FinOpsRun = z.infer<typeof FinOpsRunSchema>
+export type FinOpsFinding = z.infer<typeof FinOpsFindingSchema>
+export type FindingsSnapshot = z.infer<typeof FindingsSnapshotSchema>
+export type ExecutiveReport = z.infer<typeof ExecutiveReportSchema>
+export type BacklogItem = z.infer<typeof BacklogItemSchema>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import { useChatbot } from '@/composables/useChatbot'
+import NimbusAvatar, { type NimbusVariant } from '@/components/NimbusAvatar.vue'
 
 defineProps<{
   mode?: 'floating' | 'panel'
@@ -20,6 +21,8 @@ const notifications = ref([
 
 const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
 
+const fabBadgeCount = computed(() => badgeCount.value + unreadCount.value)
+
 function markAllRead() {
   notifications.value.forEach(n => { n.read = true })
 }
@@ -38,6 +41,12 @@ const textareaEl = ref<HTMLTextAreaElement | null>(null)
 const isWaiting = ref(false)
 const pendingText = ref('')
 
+const nimbusVariant = computed<NimbusVariant>(() => {
+  if (isWaiting.value) return 'question'
+  if (unreadCount.value > 0) return 'notify'
+  if (badgeCount.value > 0) return 'question'
+  return 'idle'
+})
 
 async function scrollToBottom() {
   await nextTick()
@@ -64,7 +73,8 @@ async function sendMessage(e?: KeyboardEvent) {
 }
 
 // ── 드래그 이동 ──────────────────────────────
-const BUTTON_SIZE = 56
+const FAB_AVATAR_SIZE = 108
+const BUTTON_SIZE = FAB_AVATAR_SIZE
 const pos = ref({ x: 24, y: window.innerHeight - BUTTON_SIZE - 24 })
 const dragOffset = ref({ x: 0, y: 0 })
 const isDragging = ref(false)
@@ -104,10 +114,12 @@ function handleOpen() {
 const MIN_W = 240, MAX_W = 640
 const MIN_H = 200, MAX_H = 800
 const BOTTOM_GAP = 64  // 버튼 위 최소 여백
+/** 모달을 캐릭터 오른쪽으로 밀어 겹침 없이 FAB가 앞에 보이게 함 */
+const MODAL_SHIFT_RIGHT = 72
 
 const modalWidth  = ref(320)
 const modalHeight = ref(480)
-const modalLeft   = ref(0)    // 버튼 컨테이너 기준 좌측 오프셋
+const modalLeft   = ref(MODAL_SHIFT_RIGHT)
 const modalBottom = ref(BOTTOM_GAP)
 
 type ResizeCorner = 'tl' | 'tr' | 'bl' | 'br'
@@ -163,27 +175,11 @@ function stopResize() {
     class="fixed z-50"
     :style="{ left: pos.x + 'px', top: pos.y + 'px' }"
   >
-    <!-- 챗봇 버튼 -->
-    <button
-      @pointerdown="onPointerDown"
-      @pointermove="onPointerMove"
-      @pointerup="onPointerUp"
-      @click="handleOpen"
-      :class="['w-14 h-14 rounded-full shadow-lg flex items-center justify-center relative select-none', isDragging ? 'cursor-grabbing' : 'cursor-grab']"
-      aria-label="챗봇 열기"
-    >
-      <div class="chatbot-sprite" />
-      <span
-        v-if="badgeCount > 0"
-        class="absolute -top-1 -right-1 w-5 h-5 bg-status-critical text-white text-xs rounded-full flex items-center justify-center font-bold z-10"
-      >{{ badgeCount }}</span>
-    </button>
-
-    <!-- 채팅 모달 -->
+    <!-- 채팅 모달 (캐릭터 FAB보다 뒤 레이어) -->
     <Transition name="slide-up">
       <div
         v-if="isOpen"
-        class="absolute bg-white border border-border rounded-xl shadow-2xl flex flex-col select-none"
+        class="absolute z-0 bg-white border border-border rounded-xl shadow-2xl flex flex-col select-none"
         :style="{
           width:  modalWidth  + 'px',
           height: modalHeight + 'px',
@@ -306,6 +302,30 @@ function stopResize() {
         <div class="resize-handle resize-tr" @pointerdown="startResize($event, 'tr')" />
       </div>
     </Transition>
+
+    <!-- 챗봇 FAB (모달 위 레이어) -->
+    <button
+      @pointerdown="onPointerDown"
+      @pointermove="onPointerMove"
+      @pointerup="onPointerUp"
+      @click="handleOpen"
+      :class="['relative z-10 inline-flex items-center justify-center select-none bg-transparent p-0 border-0 overflow-visible', isDragging ? 'cursor-grabbing' : 'cursor-grab']"
+      aria-label="챗봇 열기"
+    >
+      <span class="relative inline-block">
+        <NimbusAvatar
+          :variant="nimbusVariant"
+          :size="FAB_AVATAR_SIZE"
+          :scale="1"
+          class="pointer-events-none drop-shadow-lg"
+        />
+        <span
+          v-if="fabBadgeCount > 0"
+          class="absolute top-[9%] right-[20%] z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-status-critical px-1 text-[10px] font-bold text-white shadow-sm ring-2 ring-white"
+          :aria-label="`읽지 않은 알림 ${fabBadgeCount}개`"
+        >{{ fabBadgeCount > 99 ? '99+' : fabBadgeCount }}</span>
+      </span>
+    </button>
   </div>
 </template>
 
@@ -344,42 +364,4 @@ function stopResize() {
 .resize-br { bottom: 0; right: 0; cursor: se-resize; }
 .resize-br::after { bottom: 4px; right: 4px; border-width: 0 2px 2px 0; border-radius: 0 0 1px 0; }
 
-/* 스프라이트 */
-.chatbot-sprite {
-  width: 55px;
-  height: 48px;
-  background-image: url('@/assets/images/chatbot.png');
-  background-size: 281px 351px;
-  background-repeat: no-repeat;
-  animation: chatbot-blink 3s infinite;
-}
-
-@keyframes chatbot-blink {
-  0%        { background-position: -8px -6px;    animation-timing-function: steps(1, end); }
-  80%       { background-position: -78px -6px;   animation-timing-function: steps(1, end); }
-  83%       { background-position: -148px -6px;  animation-timing-function: steps(1, end); }
-  86%       { background-position: -218px -6px;  animation-timing-function: steps(1, end); }
-  89%       { background-position: -148px -6px;  animation-timing-function: steps(1, end); }
-  92%       { background-position: -78px -6px;   animation-timing-function: steps(1, end); }
-  95%, 100% { background-position: -8px -6px; }
-}
-
-.chatbot-sprite-sm {
-  width: 44px;
-  height: 38px;
-  background-image: url('@/assets/images/chatbot.png');
-  background-size: 224px 280px;
-  background-repeat: no-repeat;
-  animation: chatbot-blink-sm 3s infinite;
-}
-
-@keyframes chatbot-blink-sm {
-  0%        { background-position: -6px -4px;    animation-timing-function: steps(1, end); }
-  80%       { background-position: -62px -4px;   animation-timing-function: steps(1, end); }
-  83%       { background-position: -118px -4px;  animation-timing-function: steps(1, end); }
-  86%       { background-position: -174px -4px;  animation-timing-function: steps(1, end); }
-  89%       { background-position: -118px -4px;  animation-timing-function: steps(1, end); }
-  92%       { background-position: -62px -4px;   animation-timing-function: steps(1, end); }
-  95%, 100% { background-position: -6px -4px; }
-}
 </style>

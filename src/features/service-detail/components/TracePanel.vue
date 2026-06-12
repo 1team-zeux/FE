@@ -2,20 +2,24 @@
 import { ref, computed } from 'vue';
 import { useQuery } from '@tanstack/vue-query';
 import { z } from 'zod';
-import { tracesMockData } from '@/services/mocks/data';
+import { api } from '@/services/api';
 
-const props = defineProps<{ svcId: string }>();
+const props = defineProps<{ svcId: string; tenantId: string }>();
 
 const SpanSchema = z.object({ name: z.string(), start: z.number(), duration: z.number(), error: z.boolean() });
 const TraceSchema = z.object({ traceId: z.string(), duration: z.number(), status: z.string(), label: z.string(), spans: z.array(SpanSchema) });
 const TracesSchema = z.object({ traces: z.array(TraceSchema) });
 
 const { data, isLoading } = useQuery({
-  queryKey: ['traces', props.svcId],
+  queryKey: ['traces', props.svcId, props.tenantId],
   queryFn: async () => {
-    const raw = tracesMockData[props.svcId] ?? tracesMockData['subscription'];
-    return TracesSchema.parse(raw);
+    const res = await api.get(
+      `/monitoring/api/v1/services/${encodeURIComponent(props.svcId)}/traces`,
+      { params: { tenant_id: props.tenantId } },
+    );
+    return TracesSchema.parse(res.data);
   },
+  enabled: !!props.tenantId,
 });
 
 type Filter = 'all' | 'error' | 'ok';
