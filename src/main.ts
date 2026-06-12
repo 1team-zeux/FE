@@ -6,7 +6,8 @@ import App from './App.vue'
 import router from './router'
 
 async function bootstrap() {
-  if (import.meta.env.DEV) {
+  const mswEnabled = import.meta.env.DEV && import.meta.env.VITE_MSW !== 'false'
+  if (mswEnabled) {
     const { worker } = await import('./services/mocks/browser')
     await worker.start({ onUnhandledRequest: 'bypass' })
   }

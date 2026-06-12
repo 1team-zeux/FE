@@ -807,7 +807,7 @@ variable "db_password" {
               tenant_id: 'demo-tenant',
               service_id: serviceId,
               status: 'PROPOSAL_SENT',
-              eligible_count: 2,
+              eligible_count: 4,
             })}\n\n`,
           ),
         )

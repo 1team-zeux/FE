@@ -10,17 +10,20 @@ import {
   FinOpsExecutiveReport,
   FinOpsMarkdownReport,
   FinOpsRunConsole,
+  FinOpsOptimizationReport,
   useFinOpsRunStream,
   downloadExecutiveReportMarkdown,
 } from '@/features/finops'
+import type { OptimizationProposal } from '@/features/finops/types/finops.schema'
 
 const route = useRoute()
 const router = useRouter()
 
 const serviceFilter = ref('')
-const detailTab = ref<'markdown' | 'report' | 'findings'>('markdown')
+const detailTab = ref<'optimization' | 'markdown' | 'report' | 'findings'>('optimization')
 const showConsole = ref(false)
-const reportReveal = ref(false)
+const reportReveal = ref(true)
+const adoptedProposal = ref<OptimizationProposal | null>(null)
 const selectedRunId = ref<string | undefined>(
   typeof route.params.runId === 'string' ? route.params.runId : undefined,
 )
@@ -44,14 +47,23 @@ watch(runs, (list) => {
 
 const { data: selectedRun, isLoading: detailLoading } = useFinOpsRunQuery(selectedRunId)
 
-watch(selectedRunId, (id) => {
+watch(selectedRunId, (id, prevId) => {
   if (id) {
     router.replace({ name: 'finops', params: { runId: id } })
   }
-  reportReveal.value = false
-  requestAnimationFrame(() => {
+  adoptedProposal.value = null
+  if (id && id !== prevId) {
+    reportReveal.value = false
+    requestAnimationFrame(() => {
+      reportReveal.value = true
+    })
+  }
+}, { immediate: true })
+
+watch(selectedRun, (run) => {
+  if (run && !isStreaming.value) {
     reportReveal.value = true
-  })
+  }
 })
 
 watch(isDone, async (done) => {
@@ -59,13 +71,13 @@ watch(isDone, async (done) => {
   await refetch()
   if (donePayload.value?.run_id) {
     selectedRunId.value = donePayload.value.run_id
-    detailTab.value = 'markdown'
+    detailTab.value = 'optimization'
   }
 })
 
 const selectRun = (runId: string) => {
   selectedRunId.value = runId
-  detailTab.value = 'markdown'
+  detailTab.value = 'optimization'
 }
 
 const onTriggerRun = () => {
@@ -76,6 +88,12 @@ const onTriggerRun = () => {
     serviceId: serviceFilter.value || 'api-gateway',
     force: true,
   })
+}
+
+const onAdoptProposal = (proposal: OptimizationProposal) => {
+  adoptedProposal.value = proposal
+  const el = document.getElementById('finops-approval-panel')
+  el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 const onPrint = () => window.print()
@@ -91,9 +109,11 @@ const onDownloadMarkdown = () => {
   <div class="py-8 px-8 print:py-4 print:px-4">
     <div class="mb-6 flex flex-wrap items-start justify-between gap-4 print:hidden">
       <div>
-        <div class="text-[11px] font-bold text-brand uppercase tracking-widest mb-1">FinOps Agent</div>
-        <h1 class="text-3xl font-bold text-text-primary tracking-tight">경영 보고서</h1>
-        <p class="text-gray-500 mt-1 text-sm">유휴·과잉 탐지 → SLA 가드 → 절감 추정 → 경영 권유 (MVP: 실행 없음)</p>
+        <div class="text-[11px] font-bold text-brand uppercase tracking-widest mb-1">⑦ FinOps Agent</div>
+        <h1 class="text-3xl font-bold text-text-primary tracking-tight">최적화·비용절감 리포트</h1>
+        <p class="text-gray-500 mt-1 text-sm max-w-2xl">
+          장애가 없는 날에도 Agent는 일합니다 — 실측 기반 절감 제안 + SLA 검증 + 월간 이행 증빙
+        </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <select
@@ -126,18 +146,18 @@ const onDownloadMarkdown = () => {
           :disabled="isStreaming"
           @click="onTriggerRun"
         >
-          {{ isStreaming ? '실행 중…' : 'Run 실행' }}
+          {{ isStreaming ? '분석 중…' : '상시 분석 실행' }}
         </button>
       </div>
     </div>
 
     <div v-if="isError" class="mb-4 p-4 rounded-lg bg-status-critical/5 border border-status-critical/20 text-status-critical text-sm print:hidden">
-      Run 목록 로드 실패 — MSW mock 또는 sla-agent-service 연결을 확인하세요.
+      Run 목록 로드 실패 — MSW mock 또는 sla-agent-service(:8090) /api/finops 연결을 확인하세요.
     </div>
 
     <div class="grid grid-cols-1 xl:grid-cols-5 gap-6 print:block">
       <div class="xl:col-span-2 print:hidden">
-        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Run 이력</div>
+        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">분석 이력 (상시 배치)</div>
         <FinOpsRunTable
           :runs="runs ?? []"
           :selected-run-id="selectedRunId"
@@ -154,26 +174,34 @@ const onDownloadMarkdown = () => {
 
         <div v-if="detailLoading && !isStreaming" class="h-48 bg-gray-100 animate-pulse rounded-lg print:hidden" />
         <template v-else-if="selectedRun">
-          <div class="flex gap-2 border-b border-border print:hidden">
+          <div class="flex gap-2 border-b border-border print:hidden overflow-x-auto">
             <button
               type="button"
-              class="px-4 py-2 text-sm font-bold border-b-2 -mb-px transition-colors"
+              class="px-4 py-2 text-sm font-bold border-b-2 -mb-px transition-colors whitespace-nowrap"
+              :class="detailTab === 'optimization' ? 'border-brand text-brand' : 'border-transparent text-gray-400'"
+              @click="detailTab = 'optimization'"
+            >
+              절감 리포트
+            </button>
+            <button
+              type="button"
+              class="px-4 py-2 text-sm font-bold border-b-2 -mb-px transition-colors whitespace-nowrap"
               :class="detailTab === 'markdown' ? 'border-brand text-brand' : 'border-transparent text-gray-400'"
               @click="detailTab = 'markdown'"
             >
-              마크다운 보고서
+              경영 Markdown
             </button>
             <button
               type="button"
-              class="px-4 py-2 text-sm font-bold border-b-2 -mb-px transition-colors"
+              class="px-4 py-2 text-sm font-bold border-b-2 -mb-px transition-colors whitespace-nowrap"
               :class="detailTab === 'report' ? 'border-brand text-brand' : 'border-transparent text-gray-400'"
               @click="detailTab = 'report'"
             >
-              대시보드
+              KPI 대시보드
             </button>
             <button
               type="button"
-              class="px-4 py-2 text-sm font-bold border-b-2 -mb-px transition-colors"
+              class="px-4 py-2 text-sm font-bold border-b-2 -mb-px transition-colors whitespace-nowrap"
               :class="detailTab === 'findings' ? 'border-brand text-brand' : 'border-transparent text-gray-400'"
               @click="detailTab = 'findings'"
             >
@@ -187,7 +215,13 @@ const onDownloadMarkdown = () => {
               reportReveal && !isStreaming ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2',
             ]"
           >
-            <FinOpsMarkdownReport v-if="detailTab === 'markdown' && !isStreaming" :run="selectedRun" />
+            <FinOpsOptimizationReport
+              v-if="detailTab === 'optimization' && !isStreaming"
+              :run="selectedRun"
+              @adopt="onAdoptProposal"
+            />
+
+            <FinOpsMarkdownReport v-else-if="detailTab === 'markdown' && !isStreaming" :run="selectedRun" />
 
             <FinOpsExecutiveReport v-else-if="detailTab === 'report' && !isStreaming" :run="selectedRun" />
 
@@ -197,16 +231,16 @@ const onDownloadMarkdown = () => {
             </div>
 
             <div v-else-if="isStreaming" class="p-8 text-center text-gray-400 text-sm">
-              파이프라인 실행 중 — 완료 후 마크다운 보고서가 표시됩니다.
+              FinOps 파이프라인 실행 중 — 완료 후 절감 리포트가 표시됩니다.
             </div>
           </div>
 
-          <div v-if="!isStreaming" class="print:hidden">
-            <FinOpsApprovalPanel :run="selectedRun" />
+          <div v-if="!isStreaming" id="finops-approval-panel" class="print:hidden">
+            <FinOpsApprovalPanel :run="selectedRun" :adopted-proposal="adoptedProposal" />
           </div>
         </template>
         <div v-else-if="!isStreaming" class="p-12 text-center text-gray-400 bg-bg-card border border-border rounded-lg print:hidden">
-          Run을 선택하거나 실행하세요
+          Run을 선택하거나 「상시 분석 실행」을 눌러 주세요
         </div>
       </div>
     </div>

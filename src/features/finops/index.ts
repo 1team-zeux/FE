@@ -11,3 +11,5 @@ export { default as FinOpsApprovalPanel } from './components/FinOpsApprovalPanel
 export { default as FinOpsExecutiveReport } from './components/FinOpsExecutiveReport.vue'
 export { default as FinOpsRunConsole } from './components/FinOpsRunConsole.vue'
 export { default as FinOpsMarkdownReport } from './components/FinOpsMarkdownReport.vue'
+export { default as FinOpsOptimizationReport } from './components/FinOpsOptimizationReport.vue'
+export * from './utils/optimizationReport'

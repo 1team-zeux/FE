@@ -10,7 +10,7 @@ export const FinOpsFindingSchema = z.object({
   recommended_action: z.string().optional(),
   guard_status: GuardStatusSchema.optional(),
   guard_reason: z.string().optional(),
-  monthly_waste_usd: z.number().optional(),
+  monthly_waste_usd: z.number().nullable().optional(),
   data_source: z.string().optional(),
 })
 
@@ -21,9 +21,9 @@ export const BacklogItemSchema = z.object({
   resource_id: z.string(),
   resource_type: z.string().optional(),
   recommended_action: z.string().optional(),
-  monthly_waste_usd: z.number().optional(),
-  confidence_score: z.number().optional(),
-  reason: z.string().optional(),
+  monthly_waste_usd: z.number().nullable().optional(),
+  confidence_score: z.number().nullable().optional(),
+  reason: z.string().nullable().optional(),
 })
 
 export const PatternRollupSchema = z.object({
@@ -35,6 +35,67 @@ export const PatternRollupSchema = z.object({
 export const PrioritySummarySchema = z.object({
   count: z.number(),
   waste_usd: z.number(),
+})
+
+export const OptimizationCategorySchema = z.enum([
+  'rightsizing',
+  'unused',
+  'scheduling',
+  'reserved',
+])
+
+export const OptimizationProposalSchema = z.object({
+  id: z.string(),
+  category: OptimizationCategorySchema,
+  service_name: z.string(),
+  title: z.string(),
+  monthly_savings_krw: z.number(),
+  monthly_savings_usd: z.number().optional(),
+  priority_band: PriorityBandSchema.optional(),
+  sla_target: z.string().optional(),
+  sla_impact: z.enum(['none', 'low', 'review']).optional(),
+  sla_impact_detail: z.string().optional(),
+  evidence_summary: z.string().optional(),
+  cpu_utilization_trend: z.array(z.number()).optional(),
+  event_spike_note: z.string().optional(),
+  resource_id: z.string().optional(),
+  recommended_action: z.string().optional(),
+  terraform_handoff: z.boolean().optional(),
+  iac_change_label: z.string().optional(),
+})
+
+export const TradeoffRowSchema = z.object({
+  label: z.string(),
+  monthly_cost_krw: z.number(),
+  availability_forecast: z.string(),
+  notes: z.string().optional(),
+  is_recommended: z.boolean().optional(),
+})
+
+export const SlaEvidenceServiceSchema = z.object({
+  service_name: z.string(),
+  availability_target: z.string(),
+  availability_actual: z.string(),
+  status: z.enum(['met', 'at_risk', 'breach']),
+})
+
+export const SlaEvidenceSchema = z.object({
+  period_label: z.string(),
+  services: z.array(SlaEvidenceServiceSchema),
+  error_budget_trend: z.array(
+    z.object({ label: z.string(), remaining_pct: z.number() }),
+  ),
+  incidents_summary: z.string(),
+  executive_summary: z.string(),
+  recipient: z.string().optional(),
+  send_status: z.enum(['draft', 'sent', 'pending']).optional(),
+})
+
+export const OptimizationReportSchema = z.object({
+  lead_message: z.string().optional(),
+  proposals: z.array(OptimizationProposalSchema),
+  tradeoff_rows: z.array(TradeoffRowSchema).optional(),
+  sla_evidence: SlaEvidenceSchema.optional(),
 })
 
 export const ExecutiveReportSchema = z.object({
@@ -92,6 +153,7 @@ export const ExecutiveReportSchema = z.object({
     })
     .nullable()
     .optional(),
+  optimization: OptimizationReportSchema.optional(),
 })
 
 export const FindingsSnapshotSchema = z.object({
@@ -158,3 +220,8 @@ export type FinOpsFinding = z.infer<typeof FinOpsFindingSchema>
 export type FindingsSnapshot = z.infer<typeof FindingsSnapshotSchema>
 export type ExecutiveReport = z.infer<typeof ExecutiveReportSchema>
 export type BacklogItem = z.infer<typeof BacklogItemSchema>
+export type OptimizationProposal = z.infer<typeof OptimizationProposalSchema>
+export type OptimizationCategory = z.infer<typeof OptimizationCategorySchema>
+export type OptimizationReport = z.infer<typeof OptimizationReportSchema>
+export type SlaEvidence = z.infer<typeof SlaEvidenceSchema>
+export type TradeoffRow = z.infer<typeof TradeoffRowSchema>

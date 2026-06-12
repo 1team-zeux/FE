@@ -16,7 +16,7 @@ export const useFinOpsRunsQuery = (filters?: MaybeRef<FinOpsRunsFilters | undefi
   return useQuery({
     queryKey: ['finops-runs', f],
     queryFn: async () => {
-      const { data } = await api.get('/finops/runs', {
+      const { data } = await api.get('/api/finops/runs', {
         params: {
           tenant_id: f.value?.tenantId,
           service_id: f.value?.serviceId,
