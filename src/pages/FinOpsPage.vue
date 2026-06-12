@@ -19,6 +19,7 @@ import type { OptimizationProposal } from '@/features/finops/types/finops.schema
 const route = useRoute()
 const router = useRouter()
 
+const tenantFilter = ref('')
 const serviceFilter = ref('')
 const detailTab = ref<'optimization' | 'markdown' | 'report' | 'findings'>('optimization')
 const showConsole = ref(false)
@@ -29,8 +30,16 @@ const selectedRunId = ref<string | undefined>(
 )
 
 const { data: runs, isLoading, isError, refetch } = useFinOpsRunsQuery(
-  computed(() => ({ serviceId: serviceFilter.value || undefined })),
+  computed(() => ({
+    tenantId: tenantFilter.value || undefined,
+    serviceId: serviceFilter.value || undefined,
+  })),
 )
+
+const tenantOptions = computed(() => {
+  const ids = [...new Set((runs.value ?? []).map((r) => r.tenant_id).filter(Boolean))]
+  return ids.sort((a, b) => a.localeCompare(b, 'ko'))
+})
 
 const { lines, isStreaming, isDone, donePayload, start: startStream, stop: stopStream } = useFinOpsRunStream()
 
@@ -117,12 +126,22 @@ const onDownloadMarkdown = () => {
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <select
+          v-model="tenantFilter"
+          class="text-[12px] border border-border rounded-md px-3 py-2 bg-bg-card text-text-primary font-bold cursor-pointer focus:outline-none focus:border-brand"
+        >
+          <option value="">모든 고객사</option>
+          <option v-for="tenantId in tenantOptions" :key="tenantId" :value="tenantId">
+            {{ tenantId }}
+          </option>
+        </select>
+        <select
           v-model="serviceFilter"
           class="text-[12px] border border-border rounded-md px-3 py-2 bg-bg-card text-text-primary font-bold cursor-pointer focus:outline-none focus:border-brand"
         >
           <option value="">모든 서비스</option>
           <option value="api-gateway">api-gateway</option>
           <option value="payment-api">payment-api</option>
+          <option value="order-service">order-service</option>
         </select>
         <button
           type="button"
@@ -155,9 +174,9 @@ const onDownloadMarkdown = () => {
       Run 목록 로드 실패 — MSW mock 또는 sla-agent-service(:8090) /api/finops 연결을 확인하세요.
     </div>
 
-    <div class="grid grid-cols-1 xl:grid-cols-5 gap-6 print:block">
-      <div class="xl:col-span-2 print:hidden">
-        <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">분석 이력 (상시 배치)</div>
+    <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 print:block">
+      <div class="xl:col-span-5 print:hidden">
+        <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">분석 이력 (상시 배치)</div>
         <FinOpsRunTable
           :runs="runs ?? []"
           :selected-run-id="selectedRunId"
@@ -166,7 +185,7 @@ const onDownloadMarkdown = () => {
         />
       </div>
 
-      <div class="xl:col-span-3 space-y-4">
+      <div class="xl:col-span-7 space-y-4">
         <div v-if="showConsole || isStreaming" class="print:hidden">
           <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Agent Console</div>
           <FinOpsRunConsole :lines="lines" :is-streaming="isStreaming" :is-done="isDone" />
