@@ -1,0 +1,62 @@
+name: FE CI
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  HARBOR_REGISTRY: amdp-registry.skala-ai.com
+  HARBOR_PROJECT: skala26a-ai1
+  IMAGE_NAME: 1team-frontend
+  GITOPS_REPO: 1team-zeux/zeux-gitops
+
+jobs:
+  build-push:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: meta
+        run: echo "tag=${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Login to Harbor
+        run: |
+          echo "${{ secrets.HARBOR_PASSWORD }}" | \
+          docker login ${{ env.HARBOR_REGISTRY }} \
+            -u "${{ secrets.HARBOR_USERNAME }}" --password-stdin
+
+      - name: Build & push
+        run: |
+          docker build \
+            -t ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }} \
+            .
+          docker push \
+            ${{ env.HARBOR_REGISTRY }}/${{ env.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+
+  update-gitops:
+    name: Update GitOps
+    runs-on: ubuntu-latest
+    needs: build-push
+    steps:
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Clone zeux-gitops & update frontend imageTag
+        env:
+          IMAGE_TAG: ${{ needs.build-push.outputs.image_tag }}
+        run: |
+          git clone https://x-access-token:${{ secrets.GITOPS_PAT }}@github.com/${{ env.GITOPS_REPO }}.git
+          cd zeux-gitops
+          yq e '.frontend.imageTag = "'"$IMAGE_TAG"'"' -i zeux-system/values.yaml
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.GITOPS_PAT }}@github.com/${{ env.GITOPS_REPO }}.git
+          git commit -am "ci: deploy frontend $IMAGE_TAG" || echo "no changes"
+          git push origin main
