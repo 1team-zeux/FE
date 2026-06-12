@@ -88,7 +88,7 @@ function backlogToProposal(item: BacklogItem, index: number): OptimizationPropos
     priority_band: item.priority_band,
     sla_impact: 'review',
     sla_impact_detail: 'Error Budget 여유 확인 필요',
-    evidence_summary: item.reason,
+    evidence_summary: item.reason ?? undefined,
     resource_id: item.resource_id,
     recommended_action: item.recommended_action,
     terraform_handoff: ['downsize', 'stop', 'schedule'].includes(action),
