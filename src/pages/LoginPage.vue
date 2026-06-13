@@ -40,71 +40,85 @@ function fillAdmin() {
 </script>
 
 <template>
-  <div class="min-h-screen flex relative overflow-hidden">
+  <div class="min-h-screen flex relative overflow-hidden bg-white">
 
-    <!-- 좌측 브랜딩 패널 (번개 모양 오른쪽 엣지) -->
-    <div
-      class="hidden lg:flex lg:w-[52%] shrink-0 flex-col items-center justify-center bg-[#2980B9] relative"
-      style="clip-path: polygon(0 0, 88% 0, 100% 22%, 78% 50%, 100% 78%, 88% 100%, 0 100%)"
-    >
-      <!-- 배경 장식 원 -->
-      <div class="absolute inset-0 overflow-hidden pointer-events-none">
-        <div class="absolute -top-16 -left-16 w-72 h-72 rounded-full bg-white/5" />
-        <div class="absolute -bottom-24 -right-8 w-56 h-56 rounded-full bg-white/5" />
-        <div class="absolute top-1/3 left-1/4 w-20 h-20 rounded-full bg-white/5" />
-      </div>
-
-      <div class="relative z-10 text-center text-white px-12 pr-20">
-        <!-- 로고 -->
-        <div class="flex items-center justify-center gap-3 mb-6">
-          <div class="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-xl">
-            <svg class="w-9 h-9 text-[#2980B9]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-            </svg>
-          </div>
-          <span class="text-5xl font-black tracking-tight">ZeuX</span>
+    <!-- 좌측 브랜딩 패널 — drop-shadow 래퍼가 clip-path 윤곽에 그림자 투영 -->
+    <div class="hidden lg:flex lg:w-[70%] shrink-0 relative panel-shadow-wrapper">
+      <div
+        class="flex-1 flex flex-col items-center justify-center bg-[#2980B9] relative"
+        style="clip-path: polygon(0 0, 91% 0, 100% 17%, 82% 38%, 96% 52%, 74% 68%, 100% 82%, 89% 100%, 0 100%)"
+      >
+        <!-- 배경 장식 원 + 부유 파티클 -->
+        <div class="absolute inset-0 overflow-hidden pointer-events-none">
+          <div class="absolute -top-16 -left-16 w-72 h-72 rounded-full bg-white/5" />
+          <div class="absolute -bottom-24 -right-8 w-56 h-56 rounded-full bg-white/5" />
+          <div class="absolute top-1/3 left-1/4 w-20 h-20 rounded-full bg-white/5" />
+          <span class="dot dot-1" />
+          <span class="dot dot-2" />
+          <span class="dot dot-3" />
+          <span class="dot dot-4" />
+          <span class="dot dot-5" />
+          <span class="dot dot-6" />
         </div>
 
-        <p class="text-xl font-semibold mb-2 opacity-95">Multi-Tenant AIOps Platform</p>
-        <p class="text-sm opacity-70 max-w-xs mx-auto leading-relaxed">
-          SLA 기반 자동화된 인프라 운영 및<br>AI 기반 장애 분석 플랫폼
-        </p>
+        <div class="relative z-10 text-center text-white px-12 pr-24">
+          <!-- 로고 -->
+          <div class="flex items-center justify-center gap-3 mb-6">
+            <div class="w-16 h-16 bg-white rounded-[18px] flex items-center justify-center px-3 bolt-glow">
+              <svg class="w-9 h-9 text-[#2980B9]" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M15 2.5L4.5 14h6.8l-0.8 2.2-1.2 5.3L20 10.5H13.5z"/>
+              </svg>
+            </div>
+            <span class="text-5xl font-black tracking-tight">ZeuX</span>
+          </div>
 
-        <div class="mt-10 grid grid-cols-3 gap-3 text-center">
-          <div class="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
-            <div class="text-2xl font-bold">99.9%</div>
-            <div class="text-xs opacity-70 mt-1">SLO 목표</div>
-          </div>
-          <div class="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
-            <div class="text-2xl font-bold">AI</div>
-            <div class="text-xs opacity-70 mt-1">자동 RCA</div>
-          </div>
-          <div class="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
-            <div class="text-2xl font-bold">IaC</div>
-            <div class="text-xs opacity-70 mt-1">자동 배포</div>
+          <p class="text-xl font-semibold mb-2 opacity-95">Multi-Tenant AIOps Platform</p>
+          <p class="text-sm opacity-70 max-w-xs mx-auto leading-relaxed">
+            SLA 기반 자동화된 인프라 운영 및<br>AI 기반 장애 분석 플랫폼
+          </p>
+
+          <div class="mt-10 grid grid-cols-3 gap-3 text-center">
+            <div class="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
+              <div class="text-2xl font-bold">99.9%</div>
+              <div class="text-xs opacity-70 mt-1">SLO 목표</div>
+            </div>
+            <div class="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
+              <div class="text-2xl font-bold">AI</div>
+              <div class="text-xs opacity-70 mt-1">자동 RCA</div>
+            </div>
+            <div class="bg-white/10 rounded-xl p-4 backdrop-blur-sm">
+              <div class="text-2xl font-bold">IaC</div>
+              <div class="text-xs opacity-70 mt-1">자동 배포</div>
+            </div>
           </div>
         </div>
       </div>
     </div>
 
     <!-- 우측 로그인 폼 -->
-    <div class="flex-1 flex items-center justify-center bg-gray-50 px-8">
+    <div class="flex-1 flex items-center justify-center px-8 bg-white">
       <div class="w-full max-w-md">
         <!-- 모바일 로고 -->
         <div class="lg:hidden flex items-center gap-2 mb-8">
-          <svg class="w-7 h-7 text-[#2980B9]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          <svg class="w-7 h-7 text-[#2980B9]" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M15 2.5L4.5 14h6.8l-0.8 2.2-1.2 5.3L20 10.5H13.5z"/>
           </svg>
           <span class="text-2xl font-black text-gray-900 tracking-tight">ZeuX</span>
         </div>
 
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
-          <h1 class="text-2xl font-bold text-gray-900 mb-1">로그인</h1>
-          <p class="text-sm text-gray-500 mb-8">관리자로부터 발급받은 계정으로 로그인하세요.</p>
+        <div class="bg-white rounded-2xl p-8 form-card">
+          <h1
+            class="text-2xl font-bold text-gray-900 mb-1"
+            style="animation: field-in 0.28s cubic-bezier(0.22,1,0.36,1) 0.04s both"
+          >로그인</h1>
+          <p
+            class="text-sm text-gray-500 mb-8"
+            style="animation: field-in 0.28s cubic-bezier(0.22,1,0.36,1) 0.08s both"
+          >관리자로부터 발급받은 계정으로 로그인하세요.</p>
 
           <form @submit.prevent="handleLogin" class="space-y-5">
             <!-- Email -->
-            <div>
+            <div style="animation: field-in 0.32s cubic-bezier(0.22,1,0.36,1) 0.12s both">
               <label class="block text-sm font-medium text-gray-700 mb-1.5">이메일</label>
               <div class="relative">
                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -124,7 +138,7 @@ function fillAdmin() {
             </div>
 
             <!-- Password -->
-            <div>
+            <div style="animation: field-in 0.32s cubic-bezier(0.22,1,0.36,1) 0.22s both">
               <label class="block text-sm font-medium text-gray-700 mb-1.5">비밀번호</label>
               <div class="relative">
                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -169,7 +183,8 @@ function fillAdmin() {
             <button
               type="submit"
               :disabled="loading"
-              class="w-full py-3 bg-[#2980B9] hover:bg-[#2471a3] text-white font-semibold rounded-xl transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              class="w-full py-3 bg-[#2980B9] hover:bg-[#2471a3] text-white font-semibold rounded-xl transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2 btn-login"
+              style="animation: field-in 0.32s cubic-bezier(0.22,1,0.36,1) 0.32s both"
             >
               <svg v-if="loading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
@@ -180,38 +195,119 @@ function fillAdmin() {
           </form>
         </div>
 
-        <!-- 개발용 Admin 계정 안내 -->
-        <div class="mt-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 px-4 py-3">
-          <div class="flex items-center justify-between gap-3">
-            <div class="flex items-center gap-2">
-              <svg class="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                  d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-              </svg>
-              <span class="text-xs font-semibold text-amber-700">개발용 Admin 계정</span>
-            </div>
-            <button
-              type="button"
-              @click="fillAdmin"
-              class="text-[10px] font-bold px-2.5 py-1 rounded-lg bg-amber-200 hover:bg-amber-300 text-amber-800 transition-colors shrink-0"
-            >
-              자동 입력
-            </button>
-          </div>
-          <div class="mt-2 grid grid-cols-2 gap-2">
-            <div class="bg-white/70 rounded-lg px-3 py-1.5">
-              <div class="text-[9px] text-amber-600 font-semibold uppercase tracking-wide">ID</div>
-              <code class="text-xs font-bold text-gray-800">admin</code>
-            </div>
-            <div class="bg-white/70 rounded-lg px-3 py-1.5">
-              <div class="text-[9px] text-amber-600 font-semibold uppercase tracking-wide">PW</div>
-              <code class="text-xs font-bold text-gray-800">qwer1234</code>
-            </div>
-          </div>
+        <!-- 개발 계정 ghost 링크 -->
+        <div
+          class="mt-3 text-center"
+          style="animation: field-in 0.32s cubic-bezier(0.22,1,0.36,1) 0.40s both"
+        >
+          <button
+            type="button"
+            @click="fillAdmin"
+            class="text-xs text-gray-400 hover:text-[#2980B9] transition-colors duration-200 hover:underline underline-offset-2"
+          >
+            개발용 계정으로 로그인
+          </button>
         </div>
 
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+/* 좌측 패널 drop-shadow — clip-path 윤곽을 따라 파란 그림자 투영 */
+.panel-shadow-wrapper {
+  filter: drop-shadow(8px 0 28px rgba(41, 128, 185, 0.30));
+}
+
+/* 폼 카드 — border 대신 blue-tinted shadow */
+.form-card {
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.07),
+    0 12px 40px -8px rgba(41, 128, 185, 0.15);
+}
+
+/* 부유 파티클 */
+.dot {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  animation: float-drift linear infinite;
+  pointer-events: none;
+}
+.dot-1 { width: 8px;  height: 8px;  top: 80%; left: 18%; animation-duration: 9s;  animation-delay: 0s;   }
+.dot-2 { width: 5px;  height: 5px;  top: 88%; left: 30%; animation-duration: 12s; animation-delay: -3s;  }
+.dot-3 { width: 10px; height: 10px; top: 92%; left: 12%; animation-duration: 14s; animation-delay: -7s;  }
+.dot-4 { width: 4px;  height: 4px;  top: 85%; left: 58%; animation-duration: 7s;  animation-delay: -2s;  }
+.dot-5 { width: 7px;  height: 7px;  top: 90%; left: 48%; animation-duration: 11s; animation-delay: -5s;  }
+.dot-6 { width: 9px;  height: 9px;  top: 86%; left: 36%; animation-duration: 16s; animation-delay: -9s;  }
+
+@keyframes float-drift {
+  0%   { transform: translate(0, 0);          opacity: 0;   }
+  8%   { opacity: 0.9; }
+  30%  { transform: translate(22px, -28vh);   opacity: 0.8; }
+  55%  { transform: translate(-18px, -52vh);  opacity: 0.6; }
+  80%  { transform: translate(28px, -78vh);   opacity: 0.3; }
+  100% { transform: translate(-10px, -100vh); opacity: 0;   }
+}
+
+/* 로고 박스 전기 glow 펄스 */
+.bolt-glow {
+  animation: bolt-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes bolt-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0  0   2px rgba(109, 213, 250, 0.15),
+      0 0  16px 4px rgba(41, 128, 185, 0.25);
+  }
+  40% {
+    box-shadow:
+      0 0  0   8px  rgba(109, 213, 250, 0.55),
+      0 0  40px 16px rgba(41, 128, 185, 0.70),
+      0 0  70px 24px rgba(109, 213, 250, 0.25);
+  }
+  50% {
+    box-shadow:
+      0 0  0   12px rgba(109, 213, 250, 0.35),
+      0 0  56px 20px rgba(41, 128, 185, 0.85),
+      0 0  90px 32px rgba(109, 213, 250, 0.30);
+  }
+  60% {
+    box-shadow:
+      0 0  0   6px  rgba(109, 213, 250, 0.40),
+      0 0  36px 12px rgba(41, 128, 185, 0.55),
+      0 0  60px 20px rgba(109, 213, 250, 0.18);
+  }
+}
+
+/* Submit 버튼 shine sweep */
+.btn-login {
+  position: relative;
+  overflow: hidden;
+}
+.btn-login::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.28) 50%,
+    transparent 60%
+  );
+  transform: skewX(-20deg);
+}
+.btn-login:not(:disabled):hover::before {
+  animation: shine-sweep 0.55s ease-in-out forwards;
+}
+
+@keyframes shine-sweep {
+  0%   { left: -75%; }
+  100% { left: 125%; }
+}
+</style>
