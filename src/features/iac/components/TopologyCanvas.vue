@@ -1,26 +1,8 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, computed } from 'vue'
-import ElkCtor from 'elkjs/lib/elk.bundled.js'
-import type { ELK as ELKInstance } from 'elkjs/lib/elk-api'
 import type { TopologyNode, TopologyEdge, TopologyGroup } from '../types/topology.schema'
-import ec2Url from '@/assets/aws-icons/ec2.svg?url'
-import rdsUrl from '@/assets/aws-icons/rds.svg?url'
-import elbUrl from '@/assets/aws-icons/elb.svg?url'
-import lambdaUrl from '@/assets/aws-icons/lambda.svg?url'
-import eksUrl from '@/assets/aws-icons/eks.svg?url'
-import ecsUrl from '@/assets/aws-icons/ecs.svg?url'
-import apigwUrl from '@/assets/aws-icons/apigw.svg?url'
-import cloudwatchUrl from '@/assets/aws-icons/cloudwatch.svg?url'
-import route53Url from '@/assets/aws-icons/route53.svg?url'
-import s3Url from '@/assets/aws-icons/s3.svg?url'
-import vpcUrl from '@/assets/aws-icons/vpc.svg?url'
-
-const ICONS: Record<string, string> = {
-  ec2: ec2Url, rds: rdsUrl, elb: elbUrl, lambda: lambdaUrl,
-  eks: eksUrl, ecs: ecsUrl, apigw: apigwUrl, cloudwatch: cloudwatchUrl,
-  route53: route53Url, s3: s3Url, vpc: vpcUrl, nat: elbUrl, igw: route53Url,
-  elasticache: rdsUrl, vpn: vpcUrl, kms: s3Url, eventbridge: lambdaUrl, 'external-api': apigwUrl,
-}
+import { gridLayout, computeGroupBoxes } from '../utils/elkLayout'
+import { NODE_ICONS as ICONS } from '../utils/awsIcons'
 const GROUP_STYLES: Record<string, { stroke: string; fill: string }> = {
   'vpc':            { stroke: '#F59E0B', fill: 'rgba(245,158,11,0.04)' },
   'public-subnet':  { stroke: '#3B82F6', fill: 'rgba(59,130,246,0.04)' },
@@ -46,90 +28,9 @@ const emit = defineEmits<{
   'nodeHover':    [string | null]
 }>()
 
-// ── ELK layout ───────────────────────────────────────────────────────────────
-
-interface ElkInput {
-  id: string
-  width?: number
-  height?: number
-  children?: ElkInput[]
-  edges?: Array<{ id: string; sources: string[]; targets: string[] }>
-  layoutOptions?: Record<string, string>
-}
-interface ElkResult extends ElkInput {
-  x?: number
-  y?: number
-  children?: ElkResult[]
-}
-type PositionedGroup = TopologyGroup & { x: number; y: number; width: number; height: number }
-
-const elk: ELKInstance = new ElkCtor()
-
-function buildElkGraph(
-  nodes: TopologyNode[],
-  edges: TopologyEdge[],
-  groups: TopologyGroup[],
-): ElkInput {
-  const elkGroups = new Map<string, ElkInput>()
-  for (const g of groups) {
-    elkGroups.set(g.groupId, {
-      id: g.groupId,
-      children: [],
-      layoutOptions: { 'elk.padding': '[top=40,left=16,bottom=16,right=16]', 'elk.spacing.nodeNode': '24' },
-    })
-  }
-  for (const g of groups) {
-    if (g.parentGroupId) elkGroups.get(g.parentGroupId)?.children?.push(elkGroups.get(g.groupId)!)
-  }
-
-  const rootChildren: ElkInput[] = []
-  for (const n of nodes) {
-    const elkNode: ElkInput = { id: n.nodeId, width: NW, height: NH }
-    if (n.parentGroupId && elkGroups.has(n.parentGroupId)) {
-      elkGroups.get(n.parentGroupId)!.children!.push(elkNode)
-    } else {
-      rootChildren.push(elkNode)
-    }
-  }
-  for (const g of groups) {
-    if (!g.parentGroupId) rootChildren.push(elkGroups.get(g.groupId)!)
-  }
-
-  return {
-    id: 'root',
-    layoutOptions: {
-      'elk.algorithm': 'layered',
-      'elk.direction': 'RIGHT',
-      'elk.spacing.nodeNode': '60',
-      'elk.layered.spacing.nodeNodeBetweenLayers': '80',
-      'elk.padding': '[top=20,left=20,bottom=20,right=20]',
-    },
-    children: rootChildren,
-    edges: edges.map(e => ({ id: e.edgeId, sources: [e.from], targets: [e.to] })),
-  }
-}
-
-function flattenElk(
-  node: ElkResult,
-  ox: number,
-  oy: number,
-  groupIds: Set<string>,
-  nodePos: Map<string, { x: number; y: number }>,
-  groupBoxes: Map<string, { x: number; y: number; width: number; height: number }>,
-): void {
-  const ax = ox + (node.x ?? 0)
-  const ay = oy + (node.y ?? 0)
-  if (node.id !== 'root') {
-    if (groupIds.has(node.id)) {
-      groupBoxes.set(node.id, { x: ax, y: ay, width: node.width ?? 0, height: node.height ?? 0 })
-    } else {
-      nodePos.set(node.id, { x: ax + NW / 2, y: ay + NH / 2 })
-    }
-  }
-  for (const child of node.children ?? []) flattenElk(child, ax, ay, groupIds, nodePos, groupBoxes)
-}
-
 // ── Local state ──────────────────────────────────────────────────────────────
+
+type PositionedGroup = TopologyGroup & { x: number; y: number; width: number; height: number }
 
 const localNodes = ref<(TopologyNode & { x: number; y: number })[]>([])
 const localEdges = ref<TopologyEdge[]>([...props.edges])
@@ -150,30 +51,22 @@ function recomputeOffset() {
   offsetY.value = VB_H / 2 - cy
 }
 
-async function runLayout() {
+function runLayout() {
   if (!props.nodes.length) return
-  try {
-    const graph = buildElkGraph(props.nodes, props.edges, props.groups)
-    const result = await elk.layout(graph as any) as ElkResult
-    const groupIds = new Set(props.groups.map(g => g.groupId))
-    const nodePos = new Map<string, { x: number; y: number }>()
-    const groupBoxes = new Map<string, { x: number; y: number; width: number; height: number }>()
-    flattenElk(result, 0, 0, groupIds, nodePos, groupBoxes)
-    localNodes.value = props.nodes.map(n => {
-      const pos = nodePos.get(n.nodeId)
-      return { ...n, x: pos?.x ?? 0, y: pos?.y ?? 0 }
-    })
-    localGroups.value = props.groups.map(g => {
-      const box = groupBoxes.get(g.groupId)
-      return { ...g, x: box?.x ?? 0, y: box?.y ?? 0, width: box?.width ?? 100, height: box?.height ?? 100 }
-    })
-  } catch (e) {
-    console.error('[ELK] layout failed', e)
-    localNodes.value = props.nodes.map(n => ({ ...n, x: n.x ?? 0, y: n.y ?? 0 }))
-    localGroups.value = props.groups.map(g => ({ ...g, x: g.x ?? 0, y: g.y ?? 0, width: g.width ?? 100, height: g.height ?? 100 }))
-  }
-  await nextTick()
-  recomputeOffset()
+  const nodePos = gridLayout(props.nodes)
+
+  localNodes.value = props.nodes.map(n => {
+    const pos = nodePos.get(n.nodeId)
+    return { ...n, x: pos?.x ?? 0, y: pos?.y ?? 0 }
+  })
+
+  const groupBoxes = computeGroupBoxes(nodePos, props.nodes, props.groups)
+  localGroups.value = props.groups.map(g => {
+    const box = groupBoxes.get(g.groupId)
+    return { ...g, x: box?.x ?? 0, y: box?.y ?? 0, width: box?.width ?? 100, height: box?.height ?? 100 }
+  })
+
+  nextTick(recomputeOffset)
 }
 
 watch(
@@ -275,9 +168,16 @@ function onDrop(e: DragEvent) {
   emit('update:nodes', localNodes.value)
 }
 
-function edgePath(from: { x: number; y: number }, to: { x: number; y: number }) {
-  const dx = Math.abs(to.x - from.x) * 0.5
-  return `M${from.x},${from.y} C${from.x + dx},${from.y} ${to.x - dx},${to.y} ${to.x},${to.y}`
+function edgePath(edge: TopologyEdge) {
+  const from = nodeMap.value.get(edge.from)
+  const to = nodeMap.value.get(edge.to)
+  if (!from || !to) return ''
+  const hw = NW / 2
+  const goRight = to.x >= from.x
+  const sx = goRight ? from.x + hw : from.x - hw
+  const ex = goRight ? to.x - hw : to.x + hw
+  const midX = (sx + ex) / 2
+  return `M${sx},${from.y} H${midX} V${to.y} H${ex}`
 }
 </script>
 
@@ -300,7 +200,7 @@ function edgePath(from: { x: number; y: number }, to: { x: number; y: number }) 
     </defs>
 
     <g :transform="`translate(${offsetX}, ${offsetY})`">
-      <!-- 그룹 (VPC / 서브넷) — ELK 계산 좌표 사용 -->
+      <!-- 그룹 (VPC / 서브넷) -->
       <g v-for="g in localGroups" :key="g.groupId">
         <rect :x="g.x" :y="g.y" :width="g.width" :height="g.height" rx="10"
           :fill="GROUP_STYLES[g.type]?.fill ?? 'transparent'"
@@ -316,10 +216,11 @@ function edgePath(from: { x: number; y: number }, to: { x: number; y: number }) 
       <g v-for="edge in localEdges" :key="edge.edgeId">
         <path
           v-if="nodeMap.get(edge.from) && nodeMap.get(edge.to)"
-          :d="edgePath(nodeMap.get(edge.from)!, nodeMap.get(edge.to)!)"
+          :d="edgePath(edge)"
           fill="none" stroke="#9CA3AF" stroke-width="1.5"
           :stroke-dasharray="edge.dashed ? '6 4' : 'none'"
           marker-end="url(#arr)"
+          stroke-linejoin="round"
         />
         <text v-if="edge.label && nodeMap.get(edge.from) && nodeMap.get(edge.to)"
           :x="(nodeMap.get(edge.from)!.x + nodeMap.get(edge.to)!.x) / 2"

@@ -16,6 +16,8 @@ export const TopologyNodeSchema = z.object({
   parentGroupId: z.string().optional(),
   catalogRule: z.string().optional(),
   applyCondition: z.string().optional(),
+  layer_id: z.string().optional(),
+  az: z.string().optional(),
 })
 export type TopologyNode = z.infer<typeof TopologyNodeSchema>
 

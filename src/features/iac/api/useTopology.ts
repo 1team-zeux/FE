@@ -82,7 +82,7 @@ export function useTopologySession(bundleId: Ref<string | null>) {
 
       pollCount++
       if (pollCount >= MAX_POLL_COUNT) {
-        store.setTopologyWorkflowId(null)
+        hasFailed.value = true
         return false
       }
       return 2000

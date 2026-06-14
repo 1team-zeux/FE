@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/vue-query';
 import { IncidentSchema } from '../types/incident.schema';
-import { rcaMockData } from '@/services/mocks/data';
+import { api } from '@/services/api';
 import { mapRcaApiToIncident } from '../utils/mapRcaApiResponse';
 
 export const useIncidentQuery = (svcId: string, tenantId?: string) => {
@@ -12,22 +12,12 @@ export const useIncidentQuery = (svcId: string, tenantId?: string) => {
         team_id: tenantId ? `${tenantId}-team` : 'demo-team',
       });
 
-      try {
-        const res = await fetch(
-          `/api/rca/services/${encodeURIComponent(svcId)}/results?${params.toString()}`,
-        );
-        if (res.ok) {
-          const data = await res.json();
-          if ((data.count ?? 0) > 0) {
-            return IncidentSchema.parse(mapRcaApiToIncident(data, svcId));
-          }
-        }
-      } catch {
-        // MSW / offline → mock fallback
+      const res = await api.get(`/rca/services/${encodeURIComponent(svcId)}/results?${params.toString()}`);
+      if (res.data && (res.data.count ?? 0) > 0) {
+        return IncidentSchema.parse(mapRcaApiToIncident(res.data, svcId));
       }
-
-      const mock = rcaMockData[svcId] ?? rcaMockData['subscription'];
-      return IncidentSchema.parse(mock);
+      
+      throw new Error('No incident data found');
     },
   });
 };
