@@ -16,7 +16,9 @@ export function useUploadSession() {
       const formData = new FormData()
       formData.append('slaFile', files.sla)
       formData.append('infraFile', files.infra)
-      const res = await api.post<UploadSessionResponse>('/upload-sessions', formData)
+      const res = await api.post<UploadSessionResponse>('/upload-sessions', formData, {
+        headers: { 'Content-Type': false },
+      })
       return { uploadSessionId: res.data.uploadSessionId, files }
     },
     onSuccess(data) {
