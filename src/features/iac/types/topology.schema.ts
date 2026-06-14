@@ -11,8 +11,8 @@ export const TopologyNodeSchema = z.object({
   nodeId: z.string(),
   type: NodeTypeSchema,
   label: z.string(),
-  x: z.number(),
-  y: z.number(),
+  x: z.number().optional(),
+  y: z.number().optional(),
   parentGroupId: z.string().optional(),
   catalogRule: z.string().optional(),
   applyCondition: z.string().optional(),
@@ -35,10 +35,11 @@ export const TopologyGroupSchema = z.object({
   groupId: z.string(),
   label: z.string(),
   type: GroupTypeSchema,
-  x: z.number(),
-  y: z.number(),
-  width: z.number(),
-  height: z.number(),
+  parentGroupId: z.string().optional(),
+  x: z.number().optional(),
+  y: z.number().optional(),
+  width: z.number().optional(),
+  height: z.number().optional(),
 })
 export type TopologyGroup = z.infer<typeof TopologyGroupSchema>
 
