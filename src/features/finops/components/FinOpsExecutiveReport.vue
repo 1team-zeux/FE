@@ -213,7 +213,7 @@ const priorityClass = (band?: string) =>
             <td class="px-4 py-3 font-bold">{{ item.recommended_action ?? '—' }}</td>
             <td class="px-4 py-3 font-bold text-brand">{{ formatUsd(item.monthly_waste_usd) }}</td>
             <td class="px-4 py-3">{{ item.confidence_score != null ? `${Math.round(item.confidence_score * 100)}%` : '—' }}</td>
-            <td class="px-4 py-3 text-[11px] text-gray-500 max-w-[200px] truncate" :title="item.reason">{{ item.reason ?? '—' }}</td>
+            <td class="px-4 py-3 text-[11px] text-gray-500 max-w-[200px] truncate" :title="item.reason ?? undefined">{{ item.reason ?? '—' }}</td>
           </tr>
         </tbody>
       </table>

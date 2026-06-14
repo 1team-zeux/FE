@@ -1,5 +1,14 @@
 # API Routing Reference
 
+## FinOps MSW ↔ 실백엔드 전환 (로컬 FE)
+
+| 모드 | 명령 |
+|------|------|
+| **MSW mock** (기본) | `npm run dev` |
+| **실백엔드** (`:8090`) | `VITE_MSW=false npm run dev` 또는 `FE/.env.development.local`에 `VITE_MSW=false` |
+
+---
+
 ## TL;DR — ECONNREFUSED 발생 시
 
 | 에러 경로 | 원인 서비스 | 포트 | 해결 |
@@ -8,6 +17,8 @@
 | `/auth/*` | auth-server | 8081 | `docker compose up -d` |
 | `/monitoring/*` | monitoring-api | 8091 | `docker compose -f monitoring-service/docker-compose.yml up -d` |
 | `/terraform/*` 등 | api-gateway | 8080 | `docker compose up -d` |
+| `/api/finops/*` | sla-agent-service | 8090 | `docker compose up -d` + MariaDB |
+| `/api/rca/*` | sla-agent-service | 8090 | zeux-db 기동 |
 
 ---
 
@@ -38,6 +49,8 @@ docker compose up -d
 | `/sla-bundles` | 8080 | api-gateway → sla-agent (IaC) |
 | `/topologies` | 8080 | api-gateway → sla-agent (IaC) |
 | `/upload-sessions` | 8080 | api-gateway → sla-agent (IaC) |
+| `/api/finops` | 8090 | sla-agent-service (FinOps Agent) |
+| `/api/rca` | 8090 | sla-agent-service (RCA read API) |
 
 > `/monitoring/api/v1/...` → Vite strips `/monitoring` → monitoring-api receives `/api/v1/...`
 
@@ -54,6 +67,19 @@ POST /api/v1/onboard
 GET  /api/v1/customers
 GET  /api/v1/customers/{code}/setup
 GET  /tenants
+GET  /api/rca/services/{service_id}/results
+GET  /api/rca/incidents/{incident_id}/results
+```
+
+### sla-agent-service — FinOps (`:8090`)
+```
+GET  /api/finops/runs
+GET  /api/finops/runs/{run_id}
+GET  /api/finops/runs/{run_id}/report.md
+GET  /api/finops/run/stream          (SSE)
+POST /api/finops/run
+POST /api/finops/runs/{run_id}/approve
+POST /api/finops/runs/{run_id}/reject
 ```
 
 ### auth-server (`:8081`)
@@ -109,9 +135,11 @@ FE 컨테이너 nginx가 직접 백엔드로 프록시 (api-gateway 미경유):
 /auth/        → auth-server:8081/auth/
 /api/v1/      → sla-agent-service:8090/api/v1/
 /tenants      → sla-agent-service:8090/tenants
+/api/finops/  → sla-agent-service:8090/api/finops/   (SSE: run/stream)
+/api/rca/     → sla-agent-service:8090/api/rca/
 /monitoring/  → monitoring-api:8091/         (prefix strip)
-/terraform/   → api-gateway:8080/terraform/
-/sla-bundles/ → api-gateway:8080/sla-bundles/
-/topologies/  → api-gateway:8080/topologies/
-/upload-sessions/ → api-gateway:8080/upload-sessions/
+/terraform/   → api-gateway:8080/terraform/          (IaC — 개발 중)
+/sla-bundles/ → api-gateway:8080/sla-bundles/        (IaC — 개발 중)
+/topologies/  → api-gateway:8080/topologies/         (IaC — 개발 중)
+/upload-sessions/ → api-gateway:8080/upload-sessions/ (IaC — 개발 중)
 ```

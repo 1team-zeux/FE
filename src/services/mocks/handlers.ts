@@ -6,7 +6,7 @@ import { buildExecutiveReportMarkdown } from '@/features/finops/utils/executiveR
 import { finopsMockRuns, getFinOpsMockRun } from './finops-data'
 import { FINOPS_STREAM_SCRIPT } from './finops-stream-script'
 
-const mockSlaBundleDraft: SLABundle = {
+const _mockSlaBundleDraft: SLABundle = {
   bundleId: 'bundle-mock-001',
   uploadSessionId: 'sess-mock-001',
   confirmedCount: 41,
@@ -807,7 +807,7 @@ variable "db_password" {
               tenant_id: 'demo-tenant',
               service_id: serviceId,
               status: 'PROPOSAL_SENT',
-              eligible_count: 2,
+              eligible_count: 4,
             })}\n\n`,
           ),
         )
