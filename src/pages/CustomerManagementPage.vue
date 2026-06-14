@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import { useCustomersQuery, type CustomerSummary } from '@/features/customer/api/useCustomersQuery'
 import { useOnboardMutation, type OnboardPayload } from '@/features/customer/api/useOnboardMutation'
+import { UploadZone } from '@/features/iac'
+import { parseOnboardFile } from '@/utils/parseOnboardFile'
 
 const router = useRouter()
 const { data: customers, isLoading } = useCustomersQuery()
@@ -16,10 +18,35 @@ const showCredPw = ref(false)
 
 // 위저드 상태
 const showWizard = ref(false)
-const step = ref(1)
+const step = ref(0)
 const totalSteps = 5
 const result = ref<{ curl_command: string; registration_token: string; loginEmail: string; loginPassword: string } | null>(null)
 const wizardError = ref('')
+
+// 파일 업로드 상태
+const showFileUpload = ref(false)
+const fileParseError = ref('')
+const isParsingFile = ref(false)
+
+async function loadFromFile(file: File) {
+  isParsingFile.value = true
+  fileParseError.value = ''
+  const parsed = await parseOnboardFile(file)
+  isParsingFile.value = false
+  if (!parsed.ok) {
+    fileParseError.value = parsed.error
+    return
+  }
+  const d = parsed.data
+  if (d.customer) Object.assign(form.value.customer, d.customer)
+  if (d.business_unit) Object.assign(form.value.business_unit, d.business_unit)
+  if (d.requirements) Object.assign(form.value.requirements!, d.requirements)
+  if (d.cost_constraints) Object.assign(form.value.cost_constraints!, d.cost_constraints)
+  if (d.services?.length) form.value.services = d.services
+  if (d.loginEmail) form.value.loginEmail = d.loginEmail
+  if (d.loginPassword) form.value.loginPassword = d.loginPassword
+  step.value = 1
+}
 
 // 폼 데이터
 const form = ref<OnboardPayload>({
@@ -33,9 +60,11 @@ const form = ref<OnboardPayload>({
 })
 
 function openWizard() {
-  step.value = 1
+  step.value = 0
   result.value = null
   wizardError.value = ''
+  showFileUpload.value = false
+  fileParseError.value = ''
   showWizard.value = true
 }
 
@@ -218,7 +247,8 @@ const showPassword = ref(false)
         <div class="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
             <h2 class="font-bold text-text-primary">고객사 온보딩</h2>
-            <p class="text-xs text-text-secondary mt-0.5">{{ step }} / {{ totalSteps }} 단계</p>
+            <p v-if="step > 0" class="text-xs text-text-secondary mt-0.5">{{ step }} / {{ totalSteps }} 단계</p>
+            <p v-else class="text-xs text-text-secondary mt-0.5">등록 방식 선택</p>
           </div>
           <button @click="showWizard = false" class="text-text-muted hover:text-text-primary">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -228,7 +258,7 @@ const showPassword = ref(false)
         </div>
 
         <!-- Progress bar -->
-        <div class="h-1 bg-gray-100">
+        <div v-if="step > 0" class="h-1 bg-gray-100">
           <div
             class="h-full bg-[#2980B9] transition-all duration-300"
             :style="{ width: `${(step / totalSteps) * 100}%` }"
@@ -312,6 +342,61 @@ const showPassword = ref(false)
 
         <!-- 위저드 폼 -->
         <div v-else class="flex-1 overflow-y-auto px-6 py-5">
+
+          <!-- Step 0: 등록 방식 선택 -->
+          <div v-if="step === 0">
+            <div v-if="!showFileUpload" class="grid grid-cols-2 gap-4 mt-2">
+              <button
+                @click="showFileUpload = true"
+                class="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-border rounded-2xl hover:border-[#2980B9] hover:bg-[#2980B9]/5 transition-colors text-left"
+              >
+                <div class="w-10 h-10 rounded-xl bg-[#2980B9]/10 flex items-center justify-center">
+                  <svg class="w-5 h-5 text-[#2980B9]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                  </svg>
+                </div>
+                <div>
+                  <p class="font-semibold text-sm text-text-primary">파일로 등록</p>
+                  <p class="text-xs text-text-muted mt-0.5">YAML/JSON 파일 업로드</p>
+                </div>
+              </button>
+              <button
+                @click="step = 1"
+                class="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-border rounded-2xl hover:border-[#2980B9] hover:bg-[#2980B9]/5 transition-colors text-left"
+              >
+                <div class="w-10 h-10 rounded-xl bg-[#2980B9]/10 flex items-center justify-center">
+                  <svg class="w-5 h-5 text-[#2980B9]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  </svg>
+                </div>
+                <div>
+                  <p class="font-semibold text-sm text-text-primary">직접 입력</p>
+                  <p class="text-xs text-text-muted mt-0.5">단계별 폼으로 직접 작성</p>
+                </div>
+              </button>
+            </div>
+
+            <div v-else class="space-y-3 mt-2">
+              <button
+                @click="showFileUpload = false; fileParseError = ''"
+                class="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+                뒤로
+              </button>
+              <UploadZone
+                label="고객사 등록 파일"
+                accept=".yaml,.yml,.json"
+                :allowed-extensions="['.yaml', '.yml', '.json']"
+                description="customer, business_unit, requirements, services 섹션을 포함한 YAML/JSON 파일"
+                @select="loadFromFile"
+              />
+              <p v-if="fileParseError" class="text-xs text-red-500">{{ fileParseError }}</p>
+              <p v-if="isParsingFile" class="text-xs text-text-muted">파일 파싱 중...</p>
+            </div>
+          </div>
 
           <!-- Step 1: 고객사 기본정보 + 로그인 계정 -->
           <div v-if="step === 1" class="space-y-4">
@@ -538,14 +623,14 @@ const showPassword = ref(false)
           <div v-else />
 
           <button
-            v-if="step < totalSteps"
+            v-if="step > 0 && step < totalSteps"
             @click="step++"
             class="px-4 py-2 text-sm font-semibold bg-[#2980B9] text-white rounded-xl hover:bg-[#2471a3] transition-colors"
           >
             다음
           </button>
           <button
-            v-else
+            v-else-if="step === totalSteps"
             @click="submitWizard"
             :disabled="isPending"
             class="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-[#2980B9] text-white rounded-xl hover:bg-[#2471a3] transition-colors disabled:opacity-60"
