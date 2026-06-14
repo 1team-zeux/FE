@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
 import ElkCtor from 'elkjs/lib/elk.bundled.js'
 import type { ELK as ELKInstance } from 'elkjs/lib/elk-api'
 import type { TopologyNode, TopologyEdge, TopologyGroup } from '../types/topology.schema'
@@ -134,6 +134,7 @@ function flattenElk(
 const localNodes = ref<(TopologyNode & { x: number; y: number })[]>([])
 const localEdges = ref<TopologyEdge[]>([...props.edges])
 const localGroups = ref<PositionedGroup[]>([])
+const nodeMap = computed(() => new Map(localNodes.value.map(n => [n.nodeId, n])))
 const offsetX = ref(0)
 const offsetY = ref(0)
 
@@ -314,22 +315,22 @@ function edgePath(from: { x: number; y: number }, to: { x: number; y: number }) 
       <!-- 엣지 -->
       <g v-for="edge in localEdges" :key="edge.edgeId">
         <path
-          v-if="localNodes.find(n => n.nodeId === edge.from) && localNodes.find(n => n.nodeId === edge.to)"
-          :d="edgePath(localNodes.find(n => n.nodeId === edge.from)!, localNodes.find(n => n.nodeId === edge.to)!)"
+          v-if="nodeMap.get(edge.from) && nodeMap.get(edge.to)"
+          :d="edgePath(nodeMap.get(edge.from)!, nodeMap.get(edge.to)!)"
           fill="none" stroke="#9CA3AF" stroke-width="1.5"
           :stroke-dasharray="edge.dashed ? '6 4' : 'none'"
           marker-end="url(#arr)"
         />
-        <text v-if="edge.label && localNodes.find(n => n.nodeId === edge.from) && localNodes.find(n => n.nodeId === edge.to)"
-          :x="(localNodes.find(n => n.nodeId === edge.from)!.x + localNodes.find(n => n.nodeId === edge.to)!.x) / 2"
-          :y="(localNodes.find(n => n.nodeId === edge.from)!.y + localNodes.find(n => n.nodeId === edge.to)!.y) / 2 - 6"
+        <text v-if="edge.label && nodeMap.get(edge.from) && nodeMap.get(edge.to)"
+          :x="(nodeMap.get(edge.from)!.x + nodeMap.get(edge.to)!.x) / 2"
+          :y="(nodeMap.get(edge.from)!.y + nodeMap.get(edge.to)!.y) / 2 - 6"
           font-size="9" fill="#9CA3AF" text-anchor="middle">{{ edge.label }}</text>
       </g>
 
       <!-- 연결 드래그 임시선 -->
       <line v-if="connecting"
-        :x1="localNodes.find(n => n.nodeId === connecting!.fromId)?.x ?? 0"
-        :y1="localNodes.find(n => n.nodeId === connecting!.fromId)?.y ?? 0"
+        :x1="nodeMap.get(connecting!.fromId)?.x ?? 0"
+        :y1="nodeMap.get(connecting!.fromId)?.y ?? 0"
         :x2="connectCursor.x" :y2="connectCursor.y"
         stroke="#2980B9" stroke-width="1.5" stroke-dasharray="5 3" />
 
