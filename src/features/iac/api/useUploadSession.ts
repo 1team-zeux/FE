@@ -20,7 +20,7 @@ export function useUploadSession() {
       formData.append('slaFile', files.sla)
       formData.append('infraFile', files.infra)
       const res = await api.post<UploadSessionResponse>('/upload-sessions', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: { 'Content-Type': false },
       })
       
       // 2. Set files and session ID
