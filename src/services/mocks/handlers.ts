@@ -190,14 +190,6 @@ export const handlers = [
   // upload-sessions / sla-bundles → 실제 BE (http://localhost:8090) 로 bypass
   // vite proxy: /api → http://localhost:8090 (rewrite strips /api prefix)
 
-  http.get('*/api/topologies/:bundleId', () => {
-    return HttpResponse.json({ topologies: mockTopologies })
-  }),
-
-  http.post('*/api/topologies/:id/approve', ({ params }) => {
-    return HttpResponse.json({ topologyId: params.id, approved: true })
-  }),
-
   http.post('*/api/terraform/generate', async ({ request }) => {
     const body = await request.json() as { topologyId: string }
     const { topologyId } = body

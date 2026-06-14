@@ -141,7 +141,12 @@ function scrollToFirstUnconfirmed() {
 async function handleNext() {
   if (!bundleData.value) return
   saveBundle(bundleData.value.bundleId, {
-    onSuccess: () => router.push('/iac/3')
+    onSuccess: (data) => {
+      if (bundleDraft.value) {
+        iacStore.setBundleDraft({ ...bundleDraft.value, bundleId: data.bundleId })
+      }
+      router.push('/iac/3')
+    },
   })
 }
 

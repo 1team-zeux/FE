@@ -13,6 +13,7 @@ export interface ChatbotTrigger {
 export const useIacStore = defineStore('iac', () => {
   const uploadSessionId = ref<string | null>(null)
   const bundleDraft = ref<SLABundle | null>(null)
+  const topologyWorkflowId = ref<string | null>(null)
   const selectedTopologyId = ref<string | null>(null)
   const deployStatus = ref<DeployStatus>('idle')
   const chatbotTriggers = ref<ChatbotTrigger[]>([])
@@ -31,6 +32,10 @@ export const useIacStore = defineStore('iac', () => {
 
   function setBundleDraft(bundle: SLABundle) {
     bundleDraft.value = bundle
+  }
+
+  function setTopologyWorkflowId(id: string | null) {
+    topologyWorkflowId.value = id
   }
 
   function setSelectedTopology(id: string) {
@@ -75,6 +80,7 @@ export const useIacStore = defineStore('iac', () => {
   function reset() {
     uploadSessionId.value = null
     bundleDraft.value = null
+    topologyWorkflowId.value = null
     selectedTopologyId.value = null
     deployStatus.value = 'idle'
     chatbotTriggers.value = []
@@ -87,6 +93,7 @@ export const useIacStore = defineStore('iac', () => {
   return {
     uploadSessionId,
     bundleDraft,
+    topologyWorkflowId,
     selectedTopologyId,
     deployStatus,
     chatbotTriggers,
@@ -96,6 +103,7 @@ export const useIacStore = defineStore('iac', () => {
     activeDocumentId,
     setUploadSession,
     setBundleDraft,
+    setTopologyWorkflowId,
     setSelectedTopology,
     setDeployStatus,
     addChatbotTrigger,

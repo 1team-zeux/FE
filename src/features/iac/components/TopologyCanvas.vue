@@ -17,6 +17,11 @@ const ICONS: Record<string, string> = {
   ec2: ec2Url, rds: rdsUrl, elb: elbUrl, lambda: lambdaUrl,
   eks: eksUrl, ecs: ecsUrl, apigw: apigwUrl, cloudwatch: cloudwatchUrl,
   route53: route53Url, s3: s3Url, vpc: vpcUrl, nat: elbUrl, igw: route53Url,
+  elasticache: rdsUrl,
+  vpn: vpcUrl,
+  kms: s3Url,
+  eventbridge: lambdaUrl,
+  'external-api': apigwUrl,
 }
 const GROUP_STYLES: Record<string, { stroke: string; fill: string }> = {
   'vpc':            { stroke: '#F59E0B', fill: 'rgba(245,158,11,0.04)' },

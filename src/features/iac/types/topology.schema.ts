@@ -3,6 +3,7 @@ import { z } from 'zod'
 export const NodeTypeSchema = z.enum([
   'vpc', 'subnet', 'ec2', 'rds', 'elb', 'nat', 'igw',
   'lambda', 'ecs', 'eks', 'cloudwatch', 'route53', 'apigw', 's3',
+  'elasticache', 'vpn', 'kms', 'eventbridge', 'external-api',
 ])
 export type NodeType = z.infer<typeof NodeTypeSchema>
 
