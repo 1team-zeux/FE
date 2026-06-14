@@ -94,6 +94,7 @@ export const BundleFieldSchema = z.object({
   source: SourceTypeSchema.optional(),
   reviewStatus: ReviewStatusSchema.optional(),
   evidence: EvidenceSchema.optional(),
+  suggestions: z.array(AiSuggestionSchema).optional(),
 }).passthrough()
 export type BundleField = z.infer<typeof BundleFieldSchema>
 

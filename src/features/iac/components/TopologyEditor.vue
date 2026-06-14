@@ -3,23 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import type { TopologyDraft, TopologyNode, TopologyEdge } from '../types/topology.schema'
 import TopologyCanvas from './TopologyCanvas.vue'
 import ResourcePalette from './ResourcePalette.vue'
-import ec2Url from '@/assets/aws-icons/ec2.svg?url'
-import rdsUrl from '@/assets/aws-icons/rds.svg?url'
-import elbUrl from '@/assets/aws-icons/elb.svg?url'
-import lambdaUrl from '@/assets/aws-icons/lambda.svg?url'
-import eksUrl from '@/assets/aws-icons/eks.svg?url'
-import ecsUrl from '@/assets/aws-icons/ecs.svg?url'
-import apigwUrl from '@/assets/aws-icons/apigw.svg?url'
-import cloudwatchUrl from '@/assets/aws-icons/cloudwatch.svg?url'
-import route53Url from '@/assets/aws-icons/route53.svg?url'
-import s3Url from '@/assets/aws-icons/s3.svg?url'
-import vpcUrl from '@/assets/aws-icons/vpc.svg?url'
-
-const ICONS: Record<string, string> = {
-  ec2: ec2Url, rds: rdsUrl, elb: elbUrl, lambda: lambdaUrl,
-  eks: eksUrl, ecs: ecsUrl, apigw: apigwUrl, cloudwatch: cloudwatchUrl,
-  route53: route53Url, s3: s3Url, vpc: vpcUrl, nat: elbUrl, igw: route53Url,
-}
+import { NODE_ICONS as ICONS } from '../utils/awsIcons'
 
 const props = defineProps<{ topology: TopologyDraft }>()
 
@@ -79,16 +63,6 @@ onUnmounted(() => {
 const selectedNodeId = ref<string | null>(null)
 
 const rationaleCardRefs = ref<Record<string, HTMLElement>>({})
-
-function onNodeSelect(nodeId: string | null) {
-  selectedNodeId.value = nodeId
-  if (!nodeId) return
-  nextTick(() => {
-    const card = rationaleCardRefs.value[nodeId]
-    card?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-  })
-}
-
 
 function onCanvasNodeHover(nodeId: string | null) {
   selectedNodeId.value = nodeId

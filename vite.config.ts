@@ -30,9 +30,9 @@ export default defineConfig(({ mode }) => {
           rewrite: (path) => path.replace(/^\/monitoring/, ''),
         },
         '/terraform':      { target: GATEWAY_URL, changeOrigin: true },
-        '/sla-bundles':    { target: GATEWAY_URL, changeOrigin: true },
+        '/sla-bundles':    { target: SLA_URL,     changeOrigin: true },
         '/topologies':     { target: GATEWAY_URL, changeOrigin: true },
-        '/upload-sessions':{ target: GATEWAY_URL, changeOrigin: true },
+        '/upload-sessions':{ target: SLA_URL,     changeOrigin: true },
       },
     },
   }
