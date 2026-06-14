@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
+import ElkCtor from 'elkjs/lib/elk.bundled.js'
+import type { ELK as ELKInstance } from 'elkjs/lib/elk-api'
 import type { TopologyNode, TopologyEdge, TopologyGroup } from '../types/topology.schema'
 import ec2Url from '@/assets/aws-icons/ec2.svg?url'
 import rdsUrl from '@/assets/aws-icons/rds.svg?url'
@@ -17,11 +19,7 @@ const ICONS: Record<string, string> = {
   ec2: ec2Url, rds: rdsUrl, elb: elbUrl, lambda: lambdaUrl,
   eks: eksUrl, ecs: ecsUrl, apigw: apigwUrl, cloudwatch: cloudwatchUrl,
   route53: route53Url, s3: s3Url, vpc: vpcUrl, nat: elbUrl, igw: route53Url,
-  elasticache: rdsUrl,
-  vpn: vpcUrl,
-  kms: s3Url,
-  eventbridge: lambdaUrl,
-  'external-api': apigwUrl,
+  elasticache: rdsUrl, vpn: vpcUrl, kms: s3Url, eventbridge: lambdaUrl, 'external-api': apigwUrl,
 }
 const GROUP_STYLES: Record<string, { stroke: string; fill: string }> = {
   'vpc':            { stroke: '#F59E0B', fill: 'rgba(245,158,11,0.04)' },
@@ -32,7 +30,6 @@ const GROUP_STYLES: Record<string, { stroke: string; fill: string }> = {
 }
 
 const NW = 72, NH = 72
-// 콘텐츠를 배치하는 논리 캔버스 크기
 const VB_W = 3000, VB_H = 2000
 
 const props = defineProps<{
@@ -49,12 +46,94 @@ const emit = defineEmits<{
   'nodeHover':    [string | null]
 }>()
 
-const localNodes = ref<TopologyNode[]>([...props.nodes])
-const localEdges = ref<TopologyEdge[]>([...props.edges])
-watch(() => props.nodes, (v) => { localNodes.value = [...v] })
-watch(() => props.edges, (v) => { localEdges.value = [...v] })
+// ── ELK layout ───────────────────────────────────────────────────────────────
 
-// 노드·그룹 bounding box를 계산해서 콘텐츠를 SVG 중앙으로 이동하는 offset
+interface ElkInput {
+  id: string
+  width?: number
+  height?: number
+  children?: ElkInput[]
+  edges?: Array<{ id: string; sources: string[]; targets: string[] }>
+  layoutOptions?: Record<string, string>
+}
+interface ElkResult extends ElkInput {
+  x?: number
+  y?: number
+  children?: ElkResult[]
+}
+type PositionedGroup = TopologyGroup & { x: number; y: number; width: number; height: number }
+
+const elk: ELKInstance = new ElkCtor()
+
+function buildElkGraph(
+  nodes: TopologyNode[],
+  edges: TopologyEdge[],
+  groups: TopologyGroup[],
+): ElkInput {
+  const elkGroups = new Map<string, ElkInput>()
+  for (const g of groups) {
+    elkGroups.set(g.groupId, {
+      id: g.groupId,
+      children: [],
+      layoutOptions: { 'elk.padding': '[top=40,left=16,bottom=16,right=16]', 'elk.spacing.nodeNode': '24' },
+    })
+  }
+  for (const g of groups) {
+    if (g.parentGroupId) elkGroups.get(g.parentGroupId)?.children?.push(elkGroups.get(g.groupId)!)
+  }
+
+  const rootChildren: ElkInput[] = []
+  for (const n of nodes) {
+    const elkNode: ElkInput = { id: n.nodeId, width: NW, height: NH }
+    if (n.parentGroupId && elkGroups.has(n.parentGroupId)) {
+      elkGroups.get(n.parentGroupId)!.children!.push(elkNode)
+    } else {
+      rootChildren.push(elkNode)
+    }
+  }
+  for (const g of groups) {
+    if (!g.parentGroupId) rootChildren.push(elkGroups.get(g.groupId)!)
+  }
+
+  return {
+    id: 'root',
+    layoutOptions: {
+      'elk.algorithm': 'layered',
+      'elk.direction': 'RIGHT',
+      'elk.spacing.nodeNode': '60',
+      'elk.layered.spacing.nodeNodeBetweenLayers': '80',
+      'elk.padding': '[top=20,left=20,bottom=20,right=20]',
+    },
+    children: rootChildren,
+    edges: edges.map(e => ({ id: e.edgeId, sources: [e.from], targets: [e.to] })),
+  }
+}
+
+function flattenElk(
+  node: ElkResult,
+  ox: number,
+  oy: number,
+  groupIds: Set<string>,
+  nodePos: Map<string, { x: number; y: number }>,
+  groupBoxes: Map<string, { x: number; y: number; width: number; height: number }>,
+): void {
+  const ax = ox + (node.x ?? 0)
+  const ay = oy + (node.y ?? 0)
+  if (node.id !== 'root') {
+    if (groupIds.has(node.id)) {
+      groupBoxes.set(node.id, { x: ax, y: ay, width: node.width ?? 0, height: node.height ?? 0 })
+    } else {
+      nodePos.set(node.id, { x: ax + NW / 2, y: ay + NH / 2 })
+    }
+  }
+  for (const child of node.children ?? []) flattenElk(child, ax, ay, groupIds, nodePos, groupBoxes)
+}
+
+// ── Local state ──────────────────────────────────────────────────────────────
+
+const localNodes = ref<(TopologyNode & { x: number; y: number })[]>([])
+const localEdges = ref<TopologyEdge[]>([...props.edges])
+const localGroups = ref<PositionedGroup[]>([])
 const offsetX = ref(0)
 const offsetY = ref(0)
 
@@ -62,7 +141,7 @@ function recomputeOffset() {
   const allX: number[] = []
   const allY: number[] = []
   localNodes.value.forEach(n => { allX.push(n.x); allY.push(n.y) })
-  props.groups.forEach(g => { allX.push(g.x, g.x + g.width); allY.push(g.y, g.y + g.height) })
+  localGroups.value.forEach(g => { allX.push(g.x, g.x + g.width); allY.push(g.y, g.y + g.height) })
   if (!allX.length) return
   const cx = (Math.min(...allX) + Math.max(...allX)) / 2
   const cy = (Math.min(...allY) + Math.max(...allY)) / 2
@@ -70,24 +149,49 @@ function recomputeOffset() {
   offsetY.value = VB_H / 2 - cy
 }
 
-// 노드 ID 집합이 변할 때만 재계산 (드래그로 이동할 때는 재계산 안 함)
+async function runLayout() {
+  if (!props.nodes.length) return
+  try {
+    const graph = buildElkGraph(props.nodes, props.edges, props.groups)
+    const result = await elk.layout(graph as any) as ElkResult
+    const groupIds = new Set(props.groups.map(g => g.groupId))
+    const nodePos = new Map<string, { x: number; y: number }>()
+    const groupBoxes = new Map<string, { x: number; y: number; width: number; height: number }>()
+    flattenElk(result, 0, 0, groupIds, nodePos, groupBoxes)
+    localNodes.value = props.nodes.map(n => {
+      const pos = nodePos.get(n.nodeId)
+      return { ...n, x: pos?.x ?? 0, y: pos?.y ?? 0 }
+    })
+    localGroups.value = props.groups.map(g => {
+      const box = groupBoxes.get(g.groupId)
+      return { ...g, x: box?.x ?? 0, y: box?.y ?? 0, width: box?.width ?? 100, height: box?.height ?? 100 }
+    })
+  } catch (e) {
+    console.error('[ELK] layout failed', e)
+    localNodes.value = props.nodes.map(n => ({ ...n, x: n.x ?? 0, y: n.y ?? 0 }))
+    localGroups.value = props.groups.map(g => ({ ...g, x: g.x ?? 0, y: g.y ?? 0, width: g.width ?? 100, height: g.height ?? 100 }))
+  }
+  await nextTick()
+  recomputeOffset()
+}
+
 watch(
-  () => localNodes.value.map(n => n.nodeId).join(',') + props.groups.map(g => g.groupId).join(','),
-  recomputeOffset,
+  () => props.nodes.map(n => n.nodeId).join(',') + '|' + props.groups.map(g => g.groupId).join(','),
+  () => runLayout(),
   { immediate: true },
 )
+watch(() => props.edges, (v) => { localEdges.value = [...v] })
+
+// ── Interaction ──────────────────────────────────────────────────────────────
 
 const svgEl = ref<SVGSVGElement | null>(null)
 const hovered = ref<string | null>(null)
 const selected = ref<string | null>(null)
-
 const drag = ref<{ nodeId: string; ox: number; oy: number } | null>(null)
 const hasMoved = ref(false)
-
 const connecting = ref<{ fromId: string } | null>(null)
 const connectCursor = ref({ x: 0, y: 0 })
 
-// offset을 감안해서 SVG 내부 좌표 → 콘텐츠 좌표로 변환
 function svgPt(e: PointerEvent | DragEvent) {
   const svg = svgEl.value!
   const r = svg.getBoundingClientRect()
@@ -170,7 +274,7 @@ function onDrop(e: DragEvent) {
   emit('update:nodes', localNodes.value)
 }
 
-function edgePath(from: TopologyNode, to: TopologyNode) {
+function edgePath(from: { x: number; y: number }, to: { x: number; y: number }) {
   const dx = Math.abs(to.x - from.x) * 0.5
   return `M${from.x},${from.y} C${from.x + dx},${from.y} ${to.x - dx},${to.y} ${to.x},${to.y}`
 }
@@ -194,10 +298,9 @@ function edgePath(from: TopologyNode, to: TopologyNode) {
       </marker>
     </defs>
 
-    <!-- 콘텐츠 전체를 중앙으로 이동 -->
     <g :transform="`translate(${offsetX}, ${offsetY})`">
-      <!-- 그룹 (VPC / 서브넷) -->
-      <g v-for="g in groups" :key="g.groupId">
+      <!-- 그룹 (VPC / 서브넷) — ELK 계산 좌표 사용 -->
+      <g v-for="g in localGroups" :key="g.groupId">
         <rect :x="g.x" :y="g.y" :width="g.width" :height="g.height" rx="10"
           :fill="GROUP_STYLES[g.type]?.fill ?? 'transparent'"
           :stroke="GROUP_STYLES[g.type]?.stroke ?? '#9CA3AF'"
@@ -247,13 +350,11 @@ function edgePath(from: TopologyNode, to: TopologyNode) {
         <text v-else x="36" y="36" text-anchor="middle" font-size="10" fill="#6B7280">{{ node.type }}</text>
         <text x="36" y="64" text-anchor="middle" font-size="9" fill="#6B7280" font-family="monospace">{{ node.label }}</text>
 
-        <!-- 포트 (hover 시) -->
         <circle v-if="hovered === node.nodeId && !drag"
           :cx="NW" :cy="NH / 2" r="5"
           fill="#2980B9" class="cursor-crosshair"
           @pointerdown.stop="onPortDown(node.nodeId, $event)" />
 
-        <!-- 삭제 버튼 (hover·선택 시) -->
         <g v-if="hovered === node.nodeId || selected === node.nodeId"
            class="cursor-pointer"
            @pointerdown.stop
