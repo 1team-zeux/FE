@@ -140,8 +140,8 @@ function onCanvasNodeHover(nodeId: string | null) {
           :class="selectedNodeId === node.nodeId
             ? 'border-brand bg-brand/5 shadow-md -translate-y-0.5'
             : 'border-border bg-bg-card hover:border-brand/50 hover:shadow-md hover:-translate-y-0.5 hover:bg-brand/5'"
-          @mouseenter="onNodeSelect(node.nodeId)"
-          @mouseleave="onNodeSelect(null)"
+          @mouseenter="onCanvasNodeHover(node.nodeId)"
+          @mouseleave="onCanvasNodeHover(null)"
         >
           <!-- 노드 헤더 -->
           <div class="flex items-center gap-2 mb-2">
