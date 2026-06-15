@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   useFinOpsRunsQuery,
@@ -11,6 +11,9 @@ import {
   FinOpsMarkdownReport,
   FinOpsRunConsole,
   FinOpsOptimizationReport,
+  FinOpsPolicyRationale,
+  FinOpsLlmNotice,
+  FinOpsRcaBanner,
   useFinOpsRunStream,
   downloadExecutiveReportMarkdown,
 } from '@/features/finops'
@@ -112,6 +115,12 @@ const onDownloadMarkdown = () => {
     downloadExecutiveReportMarkdown(selectedRun.value)
   }
 }
+const onViewRcaDetail = () => {
+  detailTab.value = 'report'
+  nextTick(() => {
+    document.getElementById('finops-rca-detail')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  })
+}
 </script>
 
 <template>
@@ -123,6 +132,9 @@ const onDownloadMarkdown = () => {
         <p class="text-gray-500 mt-1 text-sm max-w-2xl">
           장애가 없는 날에도 Agent는 일합니다 — 실측 기반 절감 제안 + SLA 검증 + 월간 이행 증빙
         </p>
+        <div class="mt-2">
+          <FinOpsLlmNotice />
+        </div>
       </div>
       <div class="flex flex-wrap items-center gap-2">
         <select
@@ -175,7 +187,7 @@ const onDownloadMarkdown = () => {
     </div>
 
     <div class="grid grid-cols-1 xl:grid-cols-12 gap-6 print:block">
-      <div class="xl:col-span-5 print:hidden">
+      <div class="xl:col-span-5 min-w-0 print:hidden">
         <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-3">분석 이력 (상시 배치)</div>
         <FinOpsRunTable
           :runs="runs ?? []"
@@ -185,7 +197,7 @@ const onDownloadMarkdown = () => {
         />
       </div>
 
-      <div class="xl:col-span-7 space-y-4">
+      <div class="xl:col-span-7 min-w-0 space-y-4">
         <div v-if="showConsole || isStreaming" class="print:hidden">
           <div class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Agent Console</div>
           <FinOpsRunConsole :lines="lines" :is-streaming="isStreaming" :is-done="isDone" />
@@ -193,6 +205,7 @@ const onDownloadMarkdown = () => {
 
         <div v-if="detailLoading && !isStreaming" class="h-48 bg-gray-100 animate-pulse rounded-lg print:hidden" />
         <template v-else-if="selectedRun">
+          <FinOpsRcaBanner :run="selectedRun" class="print:hidden" @view-detail="onViewRcaDetail" />
           <div class="flex gap-2 border-b border-border print:hidden overflow-x-auto">
             <button
               type="button"
@@ -263,5 +276,7 @@ const onDownloadMarkdown = () => {
         </div>
       </div>
     </div>
+
+    <FinOpsPolicyRationale />
   </div>
 </template>
