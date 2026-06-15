@@ -15,7 +15,7 @@ const props = withDefaults(
     model: TopologyVizModel | null
     title?: string
     height?: number
-    mode?: 'as-is' | 'to-be'
+    mode?: 'as-is' | 'to-be' | 'diff'
   }>(),
   { mode: 'as-is' },
 )
@@ -112,7 +112,13 @@ function resetView() {
       <span class="text-[10px] font-bold text-text-primary uppercase tracking-wider">{{ title }}</span>
       <div class="flex flex-wrap items-center gap-2">
         <div class="flex flex-wrap gap-2 text-[9px] text-gray-400 mr-1">
-          <template v-if="mode === 'as-is'">
+          <template v-if="mode === 'diff'">
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded border-2 border-brand" />대상</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-amber-500/30 border border-amber-500/50" />변경·영향</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-red-500/20 border border-red-500/40" />제거</span>
+            <span class="flex items-center gap-1"><span class="w-3 border-t border-dashed border-red-400" />단절</span>
+          </template>
+          <template v-else-if="mode === 'as-is'">
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded border-2 border-brand" />대상</span>
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-amber-500/30 border border-amber-500/50" />영향</span>
             <span class="flex items-center gap-1"><span class="w-2 h-2 rounded bg-red-500/20 border border-red-500/40" />제거 예정</span>

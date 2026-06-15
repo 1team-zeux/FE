@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import type { FinOpsRun, FinOpsFinding, OptimizationCategory, OptimizationProposal } from '../types/finops.schema'
 import {
   CATEGORY_LABELS,
@@ -12,8 +12,18 @@ import {
   sortBySavings,
   totalSavingsKrw,
 } from '../utils/optimizationReport'
-import FinOpsEvidencePanel from './FinOpsEvidencePanel.vue'
-import FinOpsTopologySection from './FinOpsTopologySection.vue'
+import { useFinOpsFindingInspector } from '../composables/useFinOpsFindingInspector'
+import {
+  inspectorPanelFromQuery,
+  topologyLayerFromQuery,
+  topologyViewFromQuery,
+  topologyViewToQuery,
+  type InspectorPanel,
+  type TopologyLayer,
+  type TopologyView,
+} from '../utils/findingInspector'
+import FinOpsFindingSummary from './FinOpsFindingSummary.vue'
+import FinOpsFindingInspector from './FinOpsFindingInspector.vue'
 
 const props = defineProps<{
   run: FinOpsRun
@@ -24,9 +34,16 @@ const emit = defineEmits<{
 }>()
 
 const router = useRouter()
+const route = useRoute()
 const activeCategory = ref<OptimizationCategory | 'all'>('all')
 const selectedId = ref<string | null>(null)
 const showTerraformPeek = ref(false)
+const topoLayer = ref<TopologyLayer>('resource')
+const topoView = ref<TopologyView>('diff')
+const syncingFromRoute = ref(false)
+
+const { open: inspectorOpen, panel: inspectorPanel, openPanel, close: closeInspector } =
+  useFinOpsFindingInspector()
 
 const report = computed(() => resolveOptimizationReport(props.run))
 const allProposals = computed(() => sortBySavings(report.value.proposals))
@@ -39,7 +56,7 @@ const selected = computed(() =>
   filtered.value.find((p) => p.id === selectedId.value) ?? filtered.value[0] ?? null,
 )
 
-const selectedFinding = computed(() => {
+const selectedFinding = computed((): FinOpsFinding | null => {
   if (!selected.value?.resource_id) return null
   const list = props.run.findings_snapshot?.findings ?? []
   const fromSnap = list.find((f) => f.resource_id === selected.value!.resource_id)
@@ -65,8 +82,100 @@ const categories = computed(() => {
   return counts
 })
 
+watch(
+  () => selected.value?.id,
+  () => {
+    if (!selected.value) closeInspector()
+  },
+)
+
+function buildInspectorQuery() {
+  const query = { ...route.query }
+  if (inspectorOpen.value) {
+    query.panel = inspectorPanel.value
+    if (selectedId.value) query.proposal = selectedId.value
+    if (inspectorPanel.value === 'topology') {
+      query.layer = topoLayer.value
+      query.view = topologyViewToQuery(topoView.value)
+    } else {
+      delete query.layer
+      delete query.view
+    }
+  } else {
+    delete query.panel
+    delete query.layer
+    delete query.view
+    delete query.proposal
+  }
+  return query
+}
+
+function syncInspectorToRoute() {
+  if (syncingFromRoute.value) return
+  const next = buildInspectorQuery()
+  const same =
+    String(next.panel ?? '') === String(route.query.panel ?? '') &&
+    String(next.layer ?? '') === String(route.query.layer ?? '') &&
+    String(next.view ?? '') === String(route.query.view ?? '') &&
+    String(next.proposal ?? '') === String(route.query.proposal ?? '')
+  if (!same) {
+    router.replace({ query: next })
+  }
+}
+
+function applyInspectorFromRoute() {
+  const proposalId = typeof route.query.proposal === 'string' ? route.query.proposal : null
+  if (proposalId && allProposals.value.some((p) => p.id === proposalId)) {
+    selectedId.value = proposalId
+  }
+
+  const panel = inspectorPanelFromQuery(
+    typeof route.query.panel === 'string' ? route.query.panel : null,
+  )
+  if (!panel) return
+
+  syncingFromRoute.value = true
+  const layer = topologyLayerFromQuery(
+    typeof route.query.layer === 'string' ? route.query.layer : null,
+  )
+  if (layer) topoLayer.value = layer
+  const view = topologyViewFromQuery(
+    typeof route.query.view === 'string' ? route.query.view : null,
+  )
+  if (view) topoView.value = view
+  openPanel(panel)
+  syncingFromRoute.value = false
+}
+
+watch(
+  [inspectorOpen, inspectorPanel, topoLayer, topoView, selectedId],
+  syncInspectorToRoute,
+)
+
+watch(
+  () => [route.query.panel, route.query.layer, route.query.view, route.query.proposal],
+  applyInspectorFromRoute,
+  { immediate: true },
+)
+
+function setInspectorPanel(panel: InspectorPanel) {
+  inspectorPanel.value = panel
+}
+
+function setTopoLayer(layer: TopologyLayer) {
+  topoLayer.value = layer
+}
+
+function setTopoView(view: TopologyView) {
+  topoView.value = view
+}
+
 function selectProposal(p: OptimizationProposal) {
   selectedId.value = p.id
+}
+
+function onOpenPanel(panel: InspectorPanel) {
+  openPanel(panel)
 }
 
 function onAdopt() {
@@ -90,7 +199,6 @@ const priorityClass = (band?: string) =>
 
 <template>
   <article class="finops-opt-report space-y-6">
-    <!-- Beat 1: Hero + category tabs -->
     <header class="bg-gradient-to-br from-brand/8 via-bg-card to-bg-card border border-brand/25 rounded-2xl p-6">
       <p class="text-[10px] font-bold text-brand uppercase tracking-widest mb-1">⑦ 최적화·비용절감 리포트</p>
       <h2 class="text-2xl font-bold text-text-primary leading-tight">
@@ -126,12 +234,11 @@ const priorityClass = (band?: string) =>
         </div>
       </div>
       <p class="text-[10px] text-gray-400 mt-4 border-t border-border/60 pt-3">
-        ②~⑥ 실측 축적 → ⑦ 절감 제안 → 채택 시 ③ Terraform 검증 / 증빙은 SLA Owner 발송
+        제안 선택 → 요약 확인 → 필요 시 관측·토폴로지·정책 드릴다운(우측 패널)
       </p>
     </header>
 
     <div class="grid grid-cols-1 lg:grid-cols-5 gap-5">
-      <!-- Proposal cards -->
       <section class="lg:col-span-2 space-y-2">
         <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider px-1">
           절감 제안 (예상 절감액 순)
@@ -175,111 +282,25 @@ const priorityClass = (band?: string) =>
         <p v-if="!filtered.length" class="text-sm text-gray-400 text-center py-8">해당 분류에 제안 없음</p>
       </section>
 
-      <!-- Beat 2: Detail panel -->
-      <section v-if="selected" class="lg:col-span-3 bg-bg-card border border-border rounded-2xl p-6 space-y-5">
-        <div>
-          <span class="text-[10px] font-bold text-brand uppercase tracking-widest">제안 상세</span>
-          <h3 class="text-xl font-bold text-text-primary mt-1">
-            {{ selected.service_name }}: {{ selected.title }}
-          </h3>
-          <p class="text-2xl font-bold text-brand mt-2">{{ formatKrwCompact(selected.monthly_savings_krw) }} 절감</p>
-        </div>
-
-        <FinOpsEvidencePanel
-          v-if="selectedFinding || selected.evidence_summary || selected.cpu_utilization_trend?.length"
-          :finding="selectedFinding ?? {
-            resource_id: selected.resource_id ?? selected.service_name,
-            reason: selected.evidence_summary,
-            metric_series: selected.cpu_utilization_trend,
-            metric_series_timestamps: selected.metric_series_timestamps,
-            metric_series_source: selected.metric_series_source,
-            metric_label: selected.metric_label,
-            metric_threshold: selected.metric_threshold,
-            promql: selected.promql,
-            grafana_url: selected.grafana_url,
-            loki_url: selected.loki_url,
-            logql: selected.logql,
-            log_samples: selected.log_samples,
-            confidence_score: selected.confidence_score,
-            utilization_source: selected.utilization_source,
-            evidence: selected.evidence,
-            utilization: selected.utilization,
-            guard_reason: selected.sla_impact_detail,
-          }"
+      <section v-if="selected" class="lg:col-span-3">
+        <FinOpsFindingSummary
+          :run="run"
+          :proposal="selected"
+          :finding="selectedFinding"
           :evaluation-days="evaluationDays"
+          @open-panel="onOpenPanel"
+          @adopt="onAdopt"
         />
-
-        <FinOpsTopologySection :finding="selectedFinding" />
-
-        <div class="rounded-xl border p-4" :class="slaImpactClass(selected.sla_impact)">
-          <div class="text-[10px] font-bold uppercase mb-1">SLA 영향 검증</div>
-          <p class="text-sm font-medium leading-relaxed">
-            <template v-if="selected.sla_target">목표 {{ selected.sla_target }} · </template>
-            {{ selected.sla_impact_detail }}
-          </p>
-          <p class="text-[10px] mt-2 opacity-80">
-            "영향 없음"은 단정이 아니라 목표 대비 Error Budget 여유 계산 결과입니다.
-          </p>
-        </div>
-
-        <!-- Beat 3: Tradeoff (inline for selected context) -->
-        <div v-if="report.tradeoff_rows?.length">
-          <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">SLA–비용 트레이드오프</h4>
-          <table class="w-full text-sm border border-border rounded-lg overflow-hidden">
-            <thead class="bg-bg-muted text-[10px] uppercase text-gray-400">
-              <tr>
-                <th class="text-left px-3 py-2 font-bold">시나리오</th>
-                <th class="text-right px-3 py-2 font-bold">월 비용</th>
-                <th class="text-left px-3 py-2 font-bold">가용성 예상</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="row in report.tradeoff_rows"
-                :key="row.label"
-                class="border-t border-border"
-                :class="row.is_recommended ? 'bg-brand/5' : ''"
-              >
-                <td class="px-3 py-2.5 font-medium">
-                  {{ row.label }}
-                  <span v-if="row.is_recommended" class="ml-1 text-[9px] text-brand font-bold">권장</span>
-                </td>
-                <td class="px-3 py-2.5 text-right font-bold">₩{{ row.monthly_cost_krw.toLocaleString('ko-KR') }}</td>
-                <td class="px-3 py-2.5 text-gray-600 text-[12px]">{{ row.availability_forecast }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <!-- Beat 4: Adopt + Terraform handoff -->
-        <div class="flex flex-wrap items-center gap-3 pt-2 border-t border-border">
-          <button
-            type="button"
-            class="px-5 py-2.5 rounded-lg bg-brand text-white text-sm font-bold hover:brightness-110"
-            @click="onAdopt"
-          >
-            운영자 검토 → 채택
-          </button>
-          <span
-            v-if="selected.terraform_handoff"
-            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-brand/50 text-[11px] font-bold text-brand"
-          >
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-            </svg>
-            ③ Terraform 흐름 핸드오프
-            <span v-if="selected.iac_change_label" class="font-normal text-gray-500">· {{ selected.iac_change_label }}</span>
-          </span>
-        </div>
 
         <Transition name="fade">
           <div
             v-if="showTerraformPeek"
-            class="rounded-xl border-2 border-brand/40 bg-brand/5 p-4 text-sm"
+            class="mt-4 rounded-xl border-2 border-brand/40 bg-brand/5 p-4 text-sm"
           >
             <p class="font-bold text-brand">③ Plan 검증 — 비용 차원 (Infracost)</p>
             <p class="mt-1 text-gray-600">
-              {{ selected.title }} 적용 시 예상 <strong class="text-brand">월 -{{ formatKrwCompact(selected.monthly_savings_krw) }}</strong>
+              {{ selected.title }} 적용 시 예상
+              <strong class="text-brand">월 -{{ formatKrwCompact(selected.monthly_savings_krw) }}</strong>
               · SLA 영향 차원 재검증 중…
             </p>
             <p class="text-[11px] text-gray-400 mt-2">IaC Deploy(③) 화면으로 이동합니다</p>
@@ -288,7 +309,23 @@ const priorityClass = (band?: string) =>
       </section>
     </div>
 
-    <!-- Beat 5: SLA evidence -->
+    <FinOpsFindingInspector
+      v-if="selected"
+      :open="inspectorOpen"
+      :panel="inspectorPanel"
+      :run="run"
+      :proposal="selected"
+      :finding="selectedFinding"
+      :evaluation-days="evaluationDays"
+      :tradeoff-rows="report.tradeoff_rows"
+      :topo-layer="topoLayer"
+      :topo-view="topoView"
+      @close="closeInspector"
+      @update:panel="setInspectorPanel"
+      @update:topo-layer="setTopoLayer"
+      @update:topo-view="setTopoView"
+    />
+
     <section
       v-if="report.sla_evidence"
       class="bg-bg-card border border-border rounded-2xl p-6 space-y-5"

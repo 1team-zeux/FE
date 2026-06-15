@@ -216,6 +216,14 @@ export function buildResourceGraphAsIsViz(
   }
 }
 
+/** as-is 캔버스에 제거·변경·단절 엣지를 overlay (비교 뷰) */
+export function buildResourceGraphDiffViz(
+  ctx: TopologyContext,
+  targetResourceId?: string,
+): TopologyVizModel | null {
+  return buildResourceGraphAsIsViz(ctx, targetResourceId)
+}
+
 export function buildResourceGraphToBeViz(
   ctx: TopologyContext,
   targetResourceId?: string,
@@ -319,6 +327,40 @@ export function buildDesignDiagramAsIsViz(
     groups,
     width: b.width ?? 520,
     height: b.height ?? 280,
+  }
+}
+
+/** 설계 다이어그램 — 제안 반영 diff overlay */
+export function buildDesignDiagramDiffViz(
+  ctx: TopologyContext,
+  targetResourceId?: string,
+): TopologyVizModel | null {
+  const asIs = buildDesignDiagramAsIsViz(ctx, targetResourceId)
+  const impact = ctx.design_proposal_impact
+  if (!asIs) return null
+  if (!impact) return asIs
+
+  const matched = new Set((impact.matched_design_nodes ?? []).map((n) => n.nodeId))
+  const structural = impact.action === 'stop' || impact.action === 'delete'
+  const broken = new Set(
+    (impact.broken_edges ?? []).map((e) => `${e.from}->${e.to}`),
+  )
+
+  const nodes: TopologyVizNode[] = asIs.nodes.map((n) => {
+    if (structural && matched.has(n.id)) return { ...n, state: 'removed' }
+    if (matched.has(n.id)) return { ...n, state: 'modified' }
+    return { ...n, state: n.state === 'target' ? 'target' : 'normal' }
+  })
+
+  const vizEdges: TopologyVizEdge[] = asIs.edges.map((e) => ({
+    ...e,
+    broken: e.broken || broken.has(`${e.from}->${e.to}`),
+  }))
+
+  return {
+    ...asIs,
+    nodes,
+    edges: vizEdges,
   }
 }
 
