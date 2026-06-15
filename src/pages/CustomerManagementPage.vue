@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import { useCustomersQuery, type CustomerSummary } from '@/features/customer/api/useCustomersQuery'
 import { useOnboardMutation, type OnboardPayload } from '@/features/customer/api/useOnboardMutation'
 import { UploadZone } from '@/features/iac'
-import { parseOnboardFile } from '@/utils/parseOnboardFile'
+import { api } from '@/services/api'
 
 const router = useRouter()
 const { data: customers, isLoading } = useCustomersQuery()
@@ -27,25 +27,67 @@ const wizardError = ref('')
 const showFileUpload = ref(false)
 const fileParseError = ref('')
 const isParsingFile = ref(false)
+const slaFile = ref<File | null>(null)
+const infraFile = ref<File | null>(null)
 
-async function loadFromFile(file: File) {
+// 누락 필드 검증
+const parsedFromDocs = ref(false)
+const attemptedNext = ref(false)
+
+const stepRequiredFields = computed(() => ({
+  1: [
+    { value: form.value.customer.customer_name, label: '고객사명' },
+    { value: form.value.customer.customer_code, label: '고객사 코드' },
+    { value: form.value.loginEmail,             label: '로그인 이메일' },
+    { value: form.value.loginPassword,          label: '초기 비밀번호' },
+  ],
+  2: [{ value: form.value.business_unit.bu_name, label: '사업부명' }],
+  3: [] as { value: string; label: string }[],
+  4: [] as { value: string; label: string }[],
+  5: form.value.services.map((s, i) => ({ value: s.service_name, label: `서비스 ${i + 1} 이름` })),
+}))
+
+const missingInStep = (n: number) =>
+  ((stepRequiredFields.value as Record<number, { value: string; label: string }[]>)[n] ?? []).filter(f => !f.value)
+
+const showFieldError = (value: string | null | undefined) =>
+  !value && (parsedFromDocs.value || attemptedNext.value)
+
+const canProceed = computed(() => missingInStep(step.value).length === 0)
+
+function nextStep() {
+  attemptedNext.value = true
+  if (!canProceed.value) return
+  step.value++
+  attemptedNext.value = false
+}
+
+async function parseDocFiles() {
+  if (!slaFile.value || !infraFile.value) return
   isParsingFile.value = true
   fileParseError.value = ''
-  const parsed = await parseOnboardFile(file)
-  isParsingFile.value = false
-  if (!parsed.ok) {
-    fileParseError.value = parsed.error
-    return
+  try {
+    const fd = new FormData()
+    fd.append('sla_doc', slaFile.value)
+    fd.append('infra_doc', infraFile.value)
+    const { data } = await api.post('/api/v1/onboard/parse-docs', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    if (data.customer) Object.assign(form.value.customer, data.customer)
+    if (data.business_unit) Object.assign(form.value.business_unit, data.business_unit)
+    if (data.requirements) Object.assign(form.value.requirements!, data.requirements)
+    if (data.cost_constraints) Object.assign(form.value.cost_constraints!, data.cost_constraints)
+    if (data.services?.length) form.value.services = data.services
+    // manager_email → contact_email 단일 필드로 통합
+    if (!form.value.customer.contact_email && data.business_unit?.manager_email)
+      form.value.customer.contact_email = data.business_unit.manager_email
+    parsedFromDocs.value = true
+    step.value = 1
+  } catch (e: any) {
+    fileParseError.value = e.response?.data?.detail ?? e.message ?? '문서 분석에 실패했습니다.'
+  } finally {
+    isParsingFile.value = false
   }
-  const d = parsed.data
-  if (d.customer) Object.assign(form.value.customer, d.customer)
-  if (d.business_unit) Object.assign(form.value.business_unit, d.business_unit)
-  if (d.requirements) Object.assign(form.value.requirements!, d.requirements)
-  if (d.cost_constraints) Object.assign(form.value.cost_constraints!, d.cost_constraints)
-  if (d.services?.length) form.value.services = d.services
-  if (d.loginEmail) form.value.loginEmail = d.loginEmail
-  if (d.loginPassword) form.value.loginPassword = d.loginPassword
-  step.value = 1
 }
 
 // 폼 데이터
@@ -65,6 +107,8 @@ function openWizard() {
   wizardError.value = ''
   showFileUpload.value = false
   fileParseError.value = ''
+  parsedFromDocs.value = false
+  attemptedNext.value = false
   showWizard.value = true
 }
 
@@ -78,6 +122,9 @@ function removeService(i: number) {
 
 async function submitWizard() {
   wizardError.value = ''
+  // contact_email → manager_email 동기화 (단일 입력 필드 통합)
+  if (form.value.business_unit && form.value.customer.contact_email)
+    form.value.business_unit.manager_email = form.value.customer.contact_email
   try {
     const res = await onboard(form.value)
     result.value = { curl_command: res.curl_command, registration_token: res.registration_token, loginEmail: form.value.loginEmail, loginPassword: form.value.loginPassword }
@@ -247,7 +294,12 @@ const showPassword = ref(false)
         <div class="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
             <h2 class="font-bold text-text-primary">고객사 온보딩</h2>
-            <p v-if="step > 0" class="text-xs text-text-secondary mt-0.5">{{ step }} / {{ totalSteps }} 단계</p>
+            <p v-if="step > 0" class="text-xs text-text-secondary mt-0.5">
+              {{ step }} / {{ totalSteps }} 단계
+              <span v-if="parsedFromDocs && missingInStep(step).length" class="ml-1.5 text-amber-500 font-medium">
+                ⚠ {{ missingInStep(step).length }}개 누락
+              </span>
+            </p>
             <p v-else class="text-xs text-text-secondary mt-0.5">등록 방식 선택</p>
           </div>
           <button @click="showWizard = false" class="text-text-muted hover:text-text-primary">
@@ -376,9 +428,9 @@ const showPassword = ref(false)
               </button>
             </div>
 
-            <div v-else class="space-y-3 mt-2">
+            <div v-else class="space-y-4 mt-2">
               <button
-                @click="showFileUpload = false; fileParseError = ''"
+                @click="showFileUpload = false; fileParseError = ''; slaFile = null; infraFile = null"
                 class="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary"
               >
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -387,14 +439,31 @@ const showPassword = ref(false)
                 뒤로
               </button>
               <UploadZone
-                label="고객사 등록 파일"
-                accept=".yaml,.yml,.json"
-                :allowed-extensions="['.yaml', '.yml', '.json']"
-                description="customer, business_unit, requirements, services 섹션을 포함한 YAML/JSON 파일"
-                @select="loadFromFile"
+                label="SLA 계약서"
+                accept=".md,.txt,.pdf"
+                :allowed-extensions="['.md', '.txt', '.pdf']"
+                description="고객사와 체결한 SLA 계약서 (Markdown / txt / PDF)"
+                @select="slaFile = $event"
+              />
+              <UploadZone
+                label="인프라 요구사항"
+                accept=".md,.txt,.pdf"
+                :allowed-extensions="['.md', '.txt', '.pdf']"
+                description="고객사 인프라 구성 요구사항 문서 (Markdown / txt / PDF)"
+                @select="infraFile = $event"
               />
               <p v-if="fileParseError" class="text-xs text-red-500">{{ fileParseError }}</p>
-              <p v-if="isParsingFile" class="text-xs text-text-muted">파일 파싱 중...</p>
+              <button
+                :disabled="!slaFile || !infraFile || isParsingFile"
+                @click="parseDocFiles"
+                class="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold bg-[#2980B9] text-white rounded-xl hover:bg-[#2471a3] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <svg v-if="isParsingFile" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                {{ isParsingFile ? '문서 분석 중...' : '문서 분석 후 등록' }}
+              </button>
             </div>
           </div>
 
@@ -404,15 +473,17 @@ const showPassword = ref(false)
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="label">고객사명 *</label>
-                <input v-model="form.customer.customer_name" class="input" placeholder="SKT Digital" />
+                <input v-model="form.customer.customer_name" class="input" :class="showFieldError(form.customer.customer_name) ? 'border-red-400 focus:border-red-400 focus:ring-red-300/30' : ''" placeholder="SKT Digital" />
+                <p v-if="showFieldError(form.customer.customer_name)" class="text-red-500 text-xs mt-1">입력 필요</p>
               </div>
               <div>
                 <label class="label">고객사 코드 *</label>
-                <input v-model="form.customer.customer_code" class="input" placeholder="skt-digital" />
+                <input v-model="form.customer.customer_code" class="input" :class="showFieldError(form.customer.customer_code) ? 'border-red-400 focus:border-red-400 focus:ring-red-300/30' : ''" placeholder="skt-digital" />
+                <p v-if="showFieldError(form.customer.customer_code)" class="text-red-500 text-xs mt-1">입력 필요</p>
               </div>
             </div>
             <div>
-              <label class="label">담당자 이메일</label>
+              <label class="label">담당자 이메일 <span class="text-text-muted font-normal">(고객사 · BU 공통)</span></label>
               <input v-model="form.customer.contact_email" type="email" class="input" placeholder="ops@company.com" />
             </div>
             <div class="border-t border-border pt-4 mt-4">
@@ -420,11 +491,13 @@ const showPassword = ref(false)
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="label">로그인 이메일 *</label>
-                  <input v-model="form.loginEmail" type="email" class="input" placeholder="login@company.com" />
+                  <input v-model="form.loginEmail" type="email" class="input" :class="showFieldError(form.loginEmail) ? 'border-red-400 focus:border-red-400 focus:ring-red-300/30' : ''" placeholder="login@company.com" />
+                  <p v-if="showFieldError(form.loginEmail)" class="text-red-500 text-xs mt-1">입력 필요</p>
                 </div>
                 <div>
                   <label class="label">초기 비밀번호 *</label>
-                  <input v-model="form.loginPassword" type="password" class="input" placeholder="••••••••" />
+                  <input v-model="form.loginPassword" type="password" class="input" :class="showFieldError(form.loginPassword) ? 'border-red-400 focus:border-red-400 focus:ring-red-300/30' : ''" placeholder="••••••••" />
+                  <p v-if="showFieldError(form.loginPassword)" class="text-red-500 text-xs mt-1">입력 필요</p>
                 </div>
               </div>
             </div>
@@ -436,7 +509,8 @@ const showPassword = ref(false)
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="label">BU 이름 *</label>
-                <input v-model="form.business_unit.bu_name" class="input" placeholder="API Platform" />
+                <input v-model="form.business_unit.bu_name" class="input" :class="showFieldError(form.business_unit.bu_name) ? 'border-red-400 focus:border-red-400 focus:ring-red-300/30' : ''" placeholder="API Platform" />
+                <p v-if="showFieldError(form.business_unit.bu_name)" class="text-red-500 text-xs mt-1">입력 필요</p>
               </div>
               <div>
                 <label class="label">BU 코드</label>
@@ -457,10 +531,6 @@ const showPassword = ref(false)
                   <option>Professional</option>
                   <option>Enterprise</option>
                 </select>
-              </div>
-              <div>
-                <label class="label">담당자 이메일</label>
-                <input v-model="form.business_unit.manager_email" type="email" class="input" />
               </div>
               <div>
                 <label class="label">계약 시작일</label>
@@ -564,7 +634,8 @@ const showPassword = ref(false)
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="label">서비스명 *</label>
-                  <input v-model="svc.service_name" class="input" placeholder="auth-api" />
+                  <input v-model="svc.service_name" class="input" :class="showFieldError(svc.service_name) ? 'border-red-400 focus:border-red-400 focus:ring-red-300/30' : ''" placeholder="auth-api" />
+                  <p v-if="showFieldError(svc.service_name)" class="text-red-500 text-xs mt-1">입력 필요</p>
                 </div>
                 <div>
                   <label class="label">서비스 타입</label>
@@ -615,7 +686,7 @@ const showPassword = ref(false)
         <div v-if="!result" class="flex items-center justify-between px-6 py-4 border-t border-border">
           <button
             v-if="step > 1"
-            @click="step--"
+            @click="step--; attemptedNext = false"
             class="px-4 py-2 text-sm font-medium text-text-secondary border border-border rounded-xl hover:bg-gray-50 transition-colors"
           >
             이전
@@ -624,8 +695,9 @@ const showPassword = ref(false)
 
           <button
             v-if="step > 0 && step < totalSteps"
-            @click="step++"
-            class="px-4 py-2 text-sm font-semibold bg-[#2980B9] text-white rounded-xl hover:bg-[#2471a3] transition-colors"
+            @click="nextStep"
+            :disabled="!canProceed && (parsedFromDocs || attemptedNext)"
+            class="px-4 py-2 text-sm font-semibold bg-[#2980B9] text-white rounded-xl hover:bg-[#2471a3] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             다음
           </button>
