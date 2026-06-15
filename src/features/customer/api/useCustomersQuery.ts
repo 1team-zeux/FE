@@ -16,6 +16,8 @@ export interface CustomerSummary {
   contact_email: string | null
   login_email: string | null
   created_at: string | null
+  agent_active: boolean
+  container_count: number
   business_units: BusinessUnitSummary[]
 }
 

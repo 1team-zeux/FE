@@ -71,7 +71,8 @@ async function doOnboard(payload: OnboardPayload): Promise<OnboardResult> {
       // 고객사는 이미 등록됨 — auth 계정만 생성하면 됨
       onboardResult = { customer_id: 0, bu_id: 0, service_ids: [], registration_token: '', curl_command: '' }
     } else {
-      throw err
+      const detail = err.response?.data?.detail ?? err.message ?? '온보딩 API 오류'
+      throw new Error(detail)
     }
   }
 
