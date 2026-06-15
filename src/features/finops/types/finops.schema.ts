@@ -3,15 +3,183 @@ import { z } from 'zod'
 export const GuardStatusSchema = z.enum(['eligible', 'defer', 'blocked'])
 export const PriorityBandSchema = z.enum(['P0', 'P1', 'P2'])
 
+export const LogSampleSchema = z.object({
+  timestamp: z.string(),
+  level: z.string(),
+  message: z.string(),
+})
+
+export const TopologyChangeEventSchema = z.object({
+  occurred_at: z.string(),
+  change_type: z.string(),
+  summary: z.string(),
+  resource_id: z.string().nullable().optional(),
+  service_id: z.string().optional(),
+  source: z.string().optional(),
+})
+
+export const TopologyDependencySchema = z.object({
+  service_id: z.string(),
+  dependency_type: z.string().optional(),
+  criticality: z.number().optional(),
+})
+
+export const TopologyGraphNodeSchema = z.object({
+  id: z.string(),
+  label: z.string().optional(),
+  resource_type: z.string().optional(),
+  status: z.string().optional(),
+  change: z.string().optional(),
+})
+
+export const TopologyGraphEdgeSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  dependency_type: z.string().optional(),
+  reason: z.string().optional(),
+})
+
+export const TopologyResourceGraphSchema = z.object({
+  source: z.string().optional(),
+  nodes: z.array(TopologyGraphNodeSchema).optional(),
+  edges: z.array(TopologyGraphEdgeSchema).optional(),
+  node_count: z.number().optional(),
+  edge_count: z.number().optional(),
+})
+
+export const TopologyProposalImpactSchema = z.object({
+  action: z.string(),
+  target_resource_id: z.string(),
+  as_is: z.object({
+    node_count: z.number(),
+    edge_count: z.number(),
+  }),
+  to_be: z.object({
+    node_count: z.number(),
+    edge_count: z.number(),
+  }),
+  removed_nodes: z.array(TopologyGraphNodeSchema).optional(),
+  modified_nodes: z.array(TopologyGraphNodeSchema).optional(),
+  broken_edges: z.array(TopologyGraphEdgeSchema).optional(),
+  dependent_callers: z.array(z.string()).optional(),
+  affected_peers: z
+    .array(
+      z.object({
+        resource_id: z.string(),
+        resource_type: z.string().nullable().optional(),
+        dependency_type: z.string().optional(),
+      }),
+    )
+    .optional(),
+  impact_level: z.enum(['low', 'medium', 'high']),
+  summary: z.string(),
+  graph_source: z.string().optional(),
+})
+
+export const TopologyDesignNodeSchema = z.object({
+  nodeId: z.string(),
+  type: z.string().optional(),
+  label: z.string().optional(),
+  groupId: z.string().nullable().optional(),
+})
+
+export const TopologyDesignEdgeSchema = z.object({
+  edgeId: z.string().optional(),
+  from: z.string(),
+  to: z.string(),
+  dashed: z.boolean().optional(),
+  reason: z.string().optional(),
+})
+
+export const TopologyDesignDiagramSchema = z.object({
+  topology_id: z.string().optional(),
+  concept: z.string().optional(),
+  display_name: z.string().optional(),
+  bundle_id: z.string().nullable().optional(),
+  source: z.string().optional(),
+  groups: z
+    .array(
+      z.object({
+        groupId: z.string().optional(),
+        label: z.string().optional(),
+        type: z.string().optional(),
+        parentGroupId: z.string().optional(),
+      }),
+    )
+    .optional(),
+  nodes: z.array(TopologyDesignNodeSchema).optional(),
+  edges: z.array(TopologyDesignEdgeSchema).optional(),
+})
+
+export const TopologyDesignProposalImpactSchema = z.object({
+  action: z.string(),
+  target_resource_id: z.string(),
+  matched_design_nodes: z.array(
+    z.object({
+      nodeId: z.string(),
+      type: z.string().optional(),
+      label: z.string().optional(),
+      match_reason: z.string().optional(),
+    }),
+  ),
+  broken_edges: z.array(TopologyDesignEdgeSchema).optional(),
+  affected_design_nodes: z.array(TopologyDesignNodeSchema).optional(),
+  impact_level: z.enum(['low', 'medium', 'high']),
+  summary: z.string(),
+  diagram_source: z.string().optional(),
+})
+
+export const TopologyContextSchema = z.object({
+  change_events: z.array(TopologyChangeEventSchema).optional(),
+  dependencies: z
+    .object({
+      upstream: z.array(TopologyDependencySchema).optional(),
+      downstream: z.array(TopologyDependencySchema).optional(),
+    })
+    .optional(),
+  recent_change_within_hours: z.number().nullable().optional(),
+  finops_impact: z.enum(['defer_recommended', 'review', 'none']).optional(),
+  rca_link: z
+    .object({
+      cause_type: z.string().optional(),
+      incident_id: z.string().optional(),
+    })
+    .optional(),
+  source: z.string().optional(),
+  resource_graph: TopologyResourceGraphSchema.optional(),
+  proposal_impact: TopologyProposalImpactSchema.optional(),
+  design_diagram: TopologyDesignDiagramSchema.optional(),
+  design_proposal_impact: TopologyDesignProposalImpactSchema.optional(),
+})
+
 export const FinOpsFindingSchema = z.object({
   finding_id: z.string().optional(),
   resource_id: z.string(),
+  resource_type: z.string().optional(),
   pattern_id: z.string().optional(),
   recommended_action: z.string().optional(),
   guard_status: GuardStatusSchema.optional(),
   guard_reason: z.string().optional(),
   monthly_waste_usd: z.number().nullable().optional(),
   data_source: z.string().optional(),
+  reason: z.string().nullable().optional(),
+  evidence: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])).optional(),
+  confidence_score: z.number().nullable().optional(),
+  utilization_source: z.string().optional(),
+  utilization: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])).optional(),
+  metric_series: z.array(z.number()).optional(),
+  metric_series_timestamps: z.array(z.string()).optional(),
+  metric_series_source: z.enum(['prometheus', 'synthetic']).optional(),
+  metric_label: z.string().optional(),
+  metric_threshold: z.number().optional(),
+  promql: z.string().optional(),
+  promql_metric: z.string().optional(),
+  grafana_url: z.string().optional(),
+  loki_url: z.string().optional(),
+  logql: z.string().optional(),
+  log_samples: z.array(LogSampleSchema).optional(),
+  observability_service_id: z.string().optional(),
+  topology_context: TopologyContextSchema.optional().catch(undefined),
 })
 
 export const BacklogItemSchema = z.object({
@@ -57,11 +225,25 @@ export const OptimizationProposalSchema = z.object({
   sla_impact_detail: z.string().optional(),
   evidence_summary: z.string().optional(),
   cpu_utilization_trend: z.array(z.number()).optional(),
+  metric_series_timestamps: z.array(z.string()).optional(),
+  metric_series_source: z.enum(['prometheus', 'synthetic']).optional(),
+  metric_label: z.string().optional(),
+  metric_threshold: z.number().optional(),
+  promql: z.string().optional(),
+  grafana_url: z.string().optional(),
+  loki_url: z.string().optional(),
+  logql: z.string().optional(),
+  log_samples: z.array(LogSampleSchema).optional(),
+  confidence_score: z.number().nullable().optional(),
+  utilization_source: z.string().optional(),
+  evidence: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])).optional(),
+  utilization: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])).optional(),
   event_spike_note: z.string().optional(),
   resource_id: z.string().optional(),
   recommended_action: z.string().optional(),
   terraform_handoff: z.boolean().optional(),
   iac_change_label: z.string().optional(),
+  topology_context: TopologyContextSchema.optional(),
 })
 
 export const TradeoffRowSchema = z.object({
@@ -177,6 +359,9 @@ export const DataQualitySummarySchema = z.object({
   sla_bundle_freshness: z.string().optional(),
   eb_available: z.boolean().optional(),
   rca_linked: z.boolean().optional(),
+  rca_source: z.string().optional(),
+  rca_incident_id: z.string().optional(),
+  rca_hint_count: z.number().optional(),
   warnings: z.array(z.string()).optional(),
 })
 
@@ -217,6 +402,9 @@ export const FinOpsRunDetailResponseSchema = z.object({
 
 export type FinOpsRun = z.infer<typeof FinOpsRunSchema>
 export type FinOpsFinding = z.infer<typeof FinOpsFindingSchema>
+export type TopologyContext = z.infer<typeof TopologyContextSchema>
+export type TopologyProposalImpact = z.infer<typeof TopologyProposalImpactSchema>
+export type TopologyDesignProposalImpact = z.infer<typeof TopologyDesignProposalImpactSchema>
 export type FindingsSnapshot = z.infer<typeof FindingsSnapshotSchema>
 export type ExecutiveReport = z.infer<typeof ExecutiveReportSchema>
 export type BacklogItem = z.infer<typeof BacklogItemSchema>

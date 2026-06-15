@@ -68,7 +68,7 @@ const approvalClass = (status?: string | null) => ({
       v-for="group in tenantGroups"
       v-else
       :key="group.tenantId"
-      class="bg-bg-card border border-border rounded-xl overflow-hidden shadow-sm"
+      class="bg-bg-card border border-border rounded-xl shadow-sm"
     >
       <button
         type="button"
@@ -86,9 +86,9 @@ const approvalClass = (status?: string | null) => ({
         </svg>
         <div class="min-w-0 flex-1">
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider">고객사</span>
-            <span class="font-bold text-text-primary text-base">{{ group.tenantLabel }}</span>
-            <span class="text-[11px] font-mono text-gray-400">{{ group.tenantId }}</span>
+            <span class="text-[11px] font-bold text-gray-400 uppercase tracking-wider shrink-0">고객사</span>
+            <span class="font-bold text-text-primary text-base truncate">{{ group.tenantLabel }}</span>
+            <span class="text-[11px] font-mono text-gray-400 truncate">{{ group.tenantId }}</span>
           </div>
           <div class="text-xs text-gray-500 mt-1">
             {{ group.runs.length }}개 서비스 · findings {{ group.totalFindings }} · eligible {{ group.totalEligible }}
@@ -100,51 +100,47 @@ const approvalClass = (status?: string | null) => ({
         </div>
       </button>
 
-      <div v-show="isExpanded(group.tenantId)">
-        <table class="w-full text-[15px]">
-          <thead class="bg-bg-muted/40 border-b border-border">
-            <tr class="text-left text-[11px] uppercase tracking-wider text-gray-400">
-              <th class="px-5 py-3.5 font-bold pl-12">서비스</th>
-              <th class="px-5 py-3.5 font-bold">상태</th>
-              <th class="px-5 py-3.5 font-bold">Findings</th>
-              <th class="px-5 py-3.5 font-bold">절감/월</th>
-              <th class="px-5 py-3.5 font-bold">승인</th>
-              <th class="px-5 py-3.5 font-bold">완료</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="run in group.runs"
-              :key="run.run_id"
-              class="border-b border-border last:border-0 cursor-pointer transition-colors hover:bg-brand-subtle/40"
-              :class="selectedRunId === run.run_id ? 'bg-brand-subtle/60' : ''"
-              @click="$emit('select', run.run_id)"
-            >
-              <td class="px-5 py-4 pl-12">
-                <div class="font-bold text-text-primary text-[15px]">{{ run.service_name ?? run.service_id }}</div>
-                <div class="text-[11px] text-gray-400 font-mono mt-0.5">{{ run.run_id.slice(0, 8) }}…</div>
-              </td>
-              <td class="px-5 py-4">
-                <span class="px-2.5 py-1 rounded border text-[11px] font-bold" :class="statusClass(run.status)">
+      <div v-show="isExpanded(group.tenantId)" class="divide-y divide-border">
+        <button
+          v-for="run in group.runs"
+          :key="run.run_id"
+          type="button"
+          class="w-full text-left px-5 py-3.5 pl-10 transition-colors hover:bg-brand-subtle/40"
+          :class="selectedRunId === run.run_id ? 'bg-brand-subtle/60' : ''"
+          @click="$emit('select', run.run_id)"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0 flex-1">
+              <div class="font-bold text-text-primary text-sm truncate">
+                {{ run.service_name ?? run.service_id }}
+              </div>
+              <div class="text-[10px] text-gray-400 font-mono mt-0.5 truncate">
+                {{ run.run_id.slice(0, 8) }}… · {{ run.schedule_window ?? '—' }}
+              </div>
+              <div class="flex flex-wrap items-center gap-2 mt-2">
+                <span class="px-2 py-0.5 rounded border text-[10px] font-bold" :class="statusClass(run.status)">
                   {{ run.status }}
                 </span>
-              </td>
-              <td class="px-5 py-4">
-                <span class="font-bold">{{ run.findings_count ?? 0 }}</span>
-                <span class="text-gray-400 text-sm"> / eligible {{ run.eligible_count ?? 0 }}</span>
-              </td>
-              <td class="px-5 py-4 font-bold text-brand">
+                <span class="text-[11px] text-gray-500">
+                  findings <strong class="text-text-primary">{{ run.findings_count ?? 0 }}</strong>
+                  / eligible {{ run.eligible_count ?? 0 }}
+                </span>
+                <span class="text-[10px] font-bold" :class="approvalClass(run.approval_status)">
+                  {{ run.approval_status ?? '—' }}
+                </span>
+              </div>
+            </div>
+            <div class="shrink-0 text-right">
+              <div class="text-[10px] text-gray-400 uppercase font-bold">절감/월</div>
+              <div class="text-sm font-bold text-brand">
                 ${{ run.findings_snapshot?.total_monthly_waste_usd?.toFixed(2) ?? '—' }}
-              </td>
-              <td class="px-5 py-4 text-xs font-bold" :class="approvalClass(run.approval_status)">
-                {{ run.approval_status ?? '—' }}
-              </td>
-              <td class="px-5 py-4 text-xs text-gray-400">
-                {{ run.finished_at ? new Date(run.finished_at).toLocaleString('ko-KR') : '—' }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </div>
+              <div class="text-[10px] text-gray-400 mt-1 max-w-[88px] truncate" :title="run.finished_at ?? ''">
+                {{ run.finished_at ? new Date(run.finished_at).toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—' }}
+              </div>
+            </div>
+          </div>
+        </button>
       </div>
     </section>
   </div>

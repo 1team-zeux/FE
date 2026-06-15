@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { FinOpsRun } from '../types/finops.schema'
+import FinOpsRcaDetail from './FinOpsRcaDetail.vue'
 import {
   formatDate,
   formatKrw,
@@ -22,7 +23,6 @@ const patterns = computed(() => exec.value.pattern_rollup ?? [])
 const blockedDefer = computed(() => exec.value.blocked_defer ?? [])
 const sla = computed(() => exec.value.sla_context)
 const scope = computed(() => exec.value.scope)
-const rca = computed(() => exec.value.rca_summary)
 
 const p0Count = computed(() => priority.value?.P0.count ?? 0)
 const budgetVsSavings = computed(() => {
@@ -118,6 +118,9 @@ const priorityClass = (band?: string) =>
         <div class="text-[10px] text-gray-400">≈ {{ formatKrw(budgetVsSavings.wasteKrw) }}</div>
       </div>
     </section>
+
+    <!-- RCA 연동 상세 (탭 위 한 줄 요약 → 여기서 펼침) -->
+    <FinOpsRcaDetail v-if="dq?.rca_linked" :run="run" />
 
     <!-- Context + funnel -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -217,22 +220,6 @@ const priorityClass = (band?: string) =>
           </tr>
         </tbody>
       </table>
-    </section>
-
-    <!-- RCA -->
-    <section v-if="rca" class="bg-bg-card border border-border rounded-xl p-5">
-      <h3 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">RCA 연동</h3>
-      <p class="text-sm text-gray-500 mb-3">FinOps 판단에 RCA 힌트 {{ rca.hint_count }}건 반영</p>
-      <ul class="text-sm space-y-1 list-disc list-inside text-gray-600">
-        <li v-for="(h, i) in rca.hints" :key="i">
-          <b>{{ h.cause_type }}</b>
-          <span v-if="h.confidence != null"> ({{ Math.round(h.confidence * 100) }}%)</span>
-          — {{ h.rationale }}
-        </li>
-      </ul>
-      <p v-if="rca.rules_applied?.length" class="text-[11px] text-gray-400 mt-2">
-        적용 규칙: {{ rca.rules_applied.join(', ') }}
-      </p>
     </section>
 
     <!-- Blocked / defer appendix -->
