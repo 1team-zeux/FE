@@ -18,7 +18,7 @@ export type SourceType = z.infer<typeof SourceTypeSchema>
 export const ReviewStatusSchema = z.enum(['pending', 'approved', 'modified', 'rejected', 'not_applicable'])
 export type ReviewStatus = z.infer<typeof ReviewStatusSchema>
 
-export const ServiceTypeSchema = z.enum(['web', 'api', 'batch'])
+export const ServiceTypeSchema = z.string().nullable().optional()
 export type ServiceType = z.infer<typeof ServiceTypeSchema>
 
 export const SLACategorySchema = z.enum(['availability', 'latency', 'rto', 'rpo'])
@@ -65,9 +65,9 @@ export const SLAItemSchema = z.object({
   label: z.string(),
   targetValue: z.union([z.string(), z.number(), z.null()]),
   unit: z.string().optional(),
-  measurementFilter: z.string().optional(),
-  measurementWindow: z.string().optional(),
-  exclusionConditions: z.string().optional(),
+  measurementFilter: z.string().nullish(),
+  measurementWindow: z.string().nullish(),
+  exclusionConditions: z.string().nullish(),
   phaseScope: PhaseScopeSchema.optional(),
   confidence: ConfidenceLevelSchema,
   source: SourceTypeSchema.optional(),
@@ -75,7 +75,7 @@ export const SLAItemSchema = z.object({
   activationStatus: ActivationStatusSchema.optional(),
   evidence: EvidenceSchema.optional(),
   required: z.boolean(),
-  description: z.string().optional(),
+  description: z.string().nullish(),
   suggestions: z.array(AiSuggestionSchema).optional(),
 }).passthrough()
 export type SLAItem = z.infer<typeof SLAItemSchema>
