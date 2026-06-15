@@ -29,15 +29,13 @@ export interface InfraStatus {
 }
 
 export function useInfraQuery(customerCode: Ref<string>) {
-  const { data, ...rest } = useQuery({
+  return useQuery<InfraStatus>({
     queryKey: computed(() => ['infra', customerCode.value]),
     queryFn: async (): Promise<InfraStatus> => {
       const res = await api.get<InfraStatus>(`/api/v1/customers/${customerCode.value}/infra`)
       return res.data
     },
     enabled: computed(() => !!customerCode.value),
-    refetchInterval: computed(() => (data.value?.agent_active ? false : 5000)),
+    refetchInterval: (query) => (query.state.data?.agent_active ? false : 5000),
   })
-
-  return { data, ...rest }
 }
