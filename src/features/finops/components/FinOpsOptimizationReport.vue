@@ -12,6 +12,7 @@ import {
   sortBySavings,
   totalSavingsKrw,
 } from '../utils/optimizationReport'
+import FinOpsEvidencePanel from './FinOpsEvidencePanel.vue'
 
 const props = defineProps<{
   run: FinOpsRun
@@ -37,6 +38,16 @@ const selected = computed(() =>
   filtered.value.find((p) => p.id === selectedId.value) ?? filtered.value[0] ?? null,
 )
 
+const selectedFinding = computed(() => {
+  if (!selected.value?.resource_id) return null
+  const list = props.run.findings_snapshot?.findings ?? []
+  return list.find((f) => f.resource_id === selected.value!.resource_id) ?? null
+})
+
+const evaluationDays = computed(
+  () => props.run.findings_snapshot?.executive_report?.scope?.evaluation_days ?? 7,
+)
+
 const categories = computed(() => {
   const counts: Record<string, number> = { all: allProposals.value.length }
   for (const p of allProposals.value) {
@@ -47,20 +58,6 @@ const categories = computed(() => {
 
 function selectProposal(p: OptimizationProposal) {
   selectedId.value = p.id
-}
-
-function sparklinePoints(values: number[]): string {
-  if (!values.length) return ''
-  const w = 200
-  const h = 48
-  const max = Math.max(...values, 1)
-  return values
-    .map((v, i) => {
-      const x = (i / (values.length - 1)) * w
-      const y = h - (v / max) * (h - 8) - 4
-      return `${x},${y}`
-    })
-    .join(' ')
 }
 
 function onAdopt() {
@@ -179,24 +176,29 @@ const priorityClass = (band?: string) =>
           <p class="text-2xl font-bold text-brand mt-2">{{ formatKrwCompact(selected.monthly_savings_krw) }} 절감</p>
         </div>
 
-        <div v-if="selected.cpu_utilization_trend?.length" class="rounded-xl bg-bg-muted/60 border border-border p-4">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-[10px] font-bold text-gray-400 uppercase">실측 CPU 사용률 (14일)</span>
-            <span v-if="selected.event_spike_note" class="text-[10px] text-amber-600 font-medium">
-              {{ selected.event_spike_note }}
-            </span>
-          </div>
-          <svg viewBox="0 0 200 48" class="w-full h-12" preserveAspectRatio="none">
-            <polyline
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              class="text-brand"
-              :points="sparklinePoints(selected.cpu_utilization_trend)"
-            />
-          </svg>
-          <p class="text-[11px] text-gray-500 mt-2">{{ selected.evidence_summary }}</p>
-        </div>
+        <FinOpsEvidencePanel
+          v-if="selectedFinding || selected.evidence_summary || selected.cpu_utilization_trend?.length"
+          :finding="selectedFinding ?? {
+            resource_id: selected.resource_id ?? selected.service_name,
+            reason: selected.evidence_summary,
+            metric_series: selected.cpu_utilization_trend,
+            metric_series_timestamps: selected.metric_series_timestamps,
+            metric_series_source: selected.metric_series_source,
+            metric_label: selected.metric_label,
+            metric_threshold: selected.metric_threshold,
+            promql: selected.promql,
+            grafana_url: selected.grafana_url,
+            loki_url: selected.loki_url,
+            logql: selected.logql,
+            log_samples: selected.log_samples,
+            confidence_score: selected.confidence_score,
+            utilization_source: selected.utilization_source,
+            evidence: selected.evidence,
+            utilization: selected.utilization,
+            guard_reason: selected.sla_impact_detail,
+          }"
+          :evaluation-days="evaluationDays"
+        />
 
         <div class="rounded-xl border p-4" :class="slaImpactClass(selected.sla_impact)">
           <div class="text-[10px] font-bold uppercase mb-1">SLA 영향 검증</div>

@@ -3,15 +3,39 @@ import { z } from 'zod'
 export const GuardStatusSchema = z.enum(['eligible', 'defer', 'blocked'])
 export const PriorityBandSchema = z.enum(['P0', 'P1', 'P2'])
 
+export const LogSampleSchema = z.object({
+  timestamp: z.string(),
+  level: z.string(),
+  message: z.string(),
+})
+
 export const FinOpsFindingSchema = z.object({
   finding_id: z.string().optional(),
   resource_id: z.string(),
+  resource_type: z.string().optional(),
   pattern_id: z.string().optional(),
   recommended_action: z.string().optional(),
   guard_status: GuardStatusSchema.optional(),
   guard_reason: z.string().optional(),
   monthly_waste_usd: z.number().nullable().optional(),
   data_source: z.string().optional(),
+  reason: z.string().nullable().optional(),
+  evidence: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])).optional(),
+  confidence_score: z.number().nullable().optional(),
+  utilization_source: z.string().optional(),
+  utilization: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])).optional(),
+  metric_series: z.array(z.number()).optional(),
+  metric_series_timestamps: z.array(z.string()).optional(),
+  metric_series_source: z.enum(['prometheus', 'synthetic']).optional(),
+  metric_label: z.string().optional(),
+  metric_threshold: z.number().optional(),
+  promql: z.string().optional(),
+  promql_metric: z.string().optional(),
+  grafana_url: z.string().optional(),
+  loki_url: z.string().optional(),
+  logql: z.string().optional(),
+  log_samples: z.array(LogSampleSchema).optional(),
+  observability_service_id: z.string().optional(),
 })
 
 export const BacklogItemSchema = z.object({
@@ -57,6 +81,19 @@ export const OptimizationProposalSchema = z.object({
   sla_impact_detail: z.string().optional(),
   evidence_summary: z.string().optional(),
   cpu_utilization_trend: z.array(z.number()).optional(),
+  metric_series_timestamps: z.array(z.string()).optional(),
+  metric_series_source: z.enum(['prometheus', 'synthetic']).optional(),
+  metric_label: z.string().optional(),
+  metric_threshold: z.number().optional(),
+  promql: z.string().optional(),
+  grafana_url: z.string().optional(),
+  loki_url: z.string().optional(),
+  logql: z.string().optional(),
+  log_samples: z.array(LogSampleSchema).optional(),
+  confidence_score: z.number().nullable().optional(),
+  utilization_source: z.string().optional(),
+  evidence: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])).optional(),
+  utilization: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])).optional(),
   event_spike_note: z.string().optional(),
   resource_id: z.string().optional(),
   recommended_action: z.string().optional(),
@@ -177,6 +214,9 @@ export const DataQualitySummarySchema = z.object({
   sla_bundle_freshness: z.string().optional(),
   eb_available: z.boolean().optional(),
   rca_linked: z.boolean().optional(),
+  rca_source: z.string().optional(),
+  rca_incident_id: z.string().optional(),
+  rca_hint_count: z.number().optional(),
   warnings: z.array(z.string()).optional(),
 })
 
