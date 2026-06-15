@@ -204,6 +204,15 @@ export const TOPOLOGY_RULES: PolicyRuleRow[] = [
     sourceUrl: 'https://www.finops.org/framework/phases/',
     sourceNote: 'zeux.resource_dependencies 기반 what-if — 제안 전후 그래프 대조.',
   },
+  {
+    ruleId: 'TOP-003',
+    category: 'topology',
+    name: 'Topology Agent design diagram overlay',
+    condition: 'approved topology diagram + resource type match',
+    outcome: 'design_proposal_impact on matched nodes/edges',
+    sourceRef: 'ZeuX Topology Recommendation Agent — approved diagram',
+    sourceNote: 'SLA bundle_id → approved_topologies.topology_json.diagram what-if.',
+  },
 ]
 
 export const RCA_RULES: PolicyRuleRow[] = [

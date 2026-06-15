@@ -76,6 +76,50 @@ export const TopologyProposalImpactSchema = z.object({
   graph_source: z.string().optional(),
 })
 
+export const TopologyDesignNodeSchema = z.object({
+  nodeId: z.string(),
+  type: z.string().optional(),
+  label: z.string().optional(),
+  groupId: z.string().nullable().optional(),
+})
+
+export const TopologyDesignEdgeSchema = z.object({
+  edgeId: z.string().optional(),
+  from: z.string(),
+  to: z.string(),
+  dashed: z.boolean().optional(),
+  reason: z.string().optional(),
+})
+
+export const TopologyDesignDiagramSchema = z.object({
+  topology_id: z.string().optional(),
+  concept: z.string().optional(),
+  display_name: z.string().optional(),
+  bundle_id: z.string().nullable().optional(),
+  source: z.string().optional(),
+  groups: z.array(z.record(z.string(), z.union([z.string(), z.boolean(), z.null()]))).optional(),
+  nodes: z.array(TopologyDesignNodeSchema).optional(),
+  edges: z.array(TopologyDesignEdgeSchema).optional(),
+})
+
+export const TopologyDesignProposalImpactSchema = z.object({
+  action: z.string(),
+  target_resource_id: z.string(),
+  matched_design_nodes: z.array(
+    z.object({
+      nodeId: z.string(),
+      type: z.string().optional(),
+      label: z.string().optional(),
+      match_reason: z.string().optional(),
+    }),
+  ),
+  broken_edges: z.array(TopologyDesignEdgeSchema).optional(),
+  affected_design_nodes: z.array(TopologyDesignNodeSchema).optional(),
+  impact_level: z.enum(['low', 'medium', 'high']),
+  summary: z.string(),
+  diagram_source: z.string().optional(),
+})
+
 export const TopologyContextSchema = z.object({
   change_events: z.array(TopologyChangeEventSchema).optional(),
   dependencies: z
@@ -95,6 +139,8 @@ export const TopologyContextSchema = z.object({
   source: z.string().optional(),
   resource_graph: TopologyResourceGraphSchema.optional(),
   proposal_impact: TopologyProposalImpactSchema.optional(),
+  design_diagram: TopologyDesignDiagramSchema.optional(),
+  design_proposal_impact: TopologyDesignProposalImpactSchema.optional(),
 })
 
 export const FinOpsFindingSchema = z.object({

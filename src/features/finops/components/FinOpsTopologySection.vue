@@ -32,6 +32,7 @@ const toggleLabel = computed(() => {
   if (!topo.value.hasCore) return '토폴로지·변경 맥락 — 데이터 없음'
   const parts: string[] = []
   if (topo.value.proposalImpact) parts.push('제안 diff')
+  if (topo.value.designProposalImpact) parts.push('설계 diff')
   if ((topo.value.resourceGraph.nodes?.length ?? 0) > 0) {
     parts.push(`리소스 ${topo.value.resourceGraph.node_count ?? topo.value.resourceGraph.nodes?.length}`)
   }
@@ -164,6 +165,90 @@ const impact = computed(() => topo.value.proposalImpact)
 
         <p v-if="impact.graph_source" class="text-[9px] text-gray-400">
           그래프 출처: {{ impact.graph_source }} · resource_dependencies
+        </p>
+      </div>
+
+      <!-- Phase 3: Topology Agent design diagram -->
+      <div
+        v-if="topo.designProposalImpact || (topo.designDiagram.nodes?.length ?? 0) > 0"
+        class="rounded-lg border border-border bg-bg-card p-3 space-y-3"
+      >
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+            설계 다이어그램 (Topology Agent)
+          </h4>
+          <span v-if="topo.designDiagram.display_name" class="text-[10px] text-gray-400">
+            {{ topo.designDiagram.display_name }}
+          </span>
+        </div>
+
+        <div v-if="topo.designProposalImpact" class="space-y-2">
+          <div class="flex flex-wrap items-center gap-2">
+            <span
+              class="px-2 py-0.5 rounded border text-[9px] font-bold"
+              :class="impactLevelClass(topo.designProposalImpact.impact_level)"
+            >
+              설계 영향 {{ impactLevelLabel(topo.designProposalImpact.impact_level) }}
+            </span>
+          </div>
+          <p class="text-xs text-text-primary">{{ topo.designProposalImpact.summary }}</p>
+          <div v-if="topo.designProposalImpact.matched_design_nodes?.length" class="space-y-1">
+            <p class="text-[10px] font-bold text-brand uppercase">매칭 컴포넌트</p>
+            <ul class="space-y-1">
+              <li
+                v-for="n in topo.designProposalImpact.matched_design_nodes"
+                :key="n.nodeId"
+                class="text-xs font-mono px-2 py-1 rounded border border-brand/30 bg-brand/5"
+              >
+                {{ n.label || n.nodeId }}
+                <span class="text-gray-400"> · {{ n.type }}</span>
+              </li>
+            </ul>
+          </div>
+          <div v-if="topo.designProposalImpact.broken_edges?.length" class="space-y-1">
+            <p class="text-[10px] font-bold text-gray-500 uppercase">설계 상 끊기는 연결</p>
+            <ul class="space-y-1">
+              <li
+                v-for="(e, i) in topo.designProposalImpact.broken_edges"
+                :key="`de-${i}`"
+                class="text-[10px] font-mono text-gray-500"
+              >
+                {{ e.from }} → {{ e.to }}
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div v-if="(topo.designDiagram.nodes?.length ?? 0) > 0" class="space-y-2">
+          <p class="text-[10px] font-bold text-gray-400 uppercase">as-is 컴포넌트</p>
+          <ul class="flex flex-wrap gap-1.5">
+            <li
+              v-for="n in topo.designDiagram.nodes"
+              :key="n.nodeId"
+              class="text-[10px] px-2 py-1 rounded border border-border"
+              :class="
+                topo.designProposalImpact?.matched_design_nodes?.some((m) => m.nodeId === n.nodeId)
+                  ? 'border-brand text-brand bg-brand/5'
+                  : 'bg-bg-muted'
+              "
+            >
+              {{ n.label || n.nodeId }}
+              <span class="text-gray-400">({{ n.type }})</span>
+            </li>
+          </ul>
+          <ul v-if="topo.designDiagram.edges?.length" class="space-y-0.5">
+            <li
+              v-for="(e, i) in topo.designDiagram.edges"
+              :key="`dg-${i}`"
+              class="text-[10px] font-mono text-gray-400"
+            >
+              {{ e.from }} → {{ e.to }}
+            </li>
+          </ul>
+        </div>
+        <p v-if="topo.designDiagram.source" class="text-[9px] text-gray-400">
+          출처: {{ topo.designDiagram.source }}
+          <span v-if="topo.designDiagram.bundle_id"> · bundle {{ topo.designDiagram.bundle_id }}</span>
         </p>
       </div>
 

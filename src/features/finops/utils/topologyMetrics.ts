@@ -11,6 +11,8 @@ export interface TopologyCoreView {
   source?: string
   resourceGraph: NonNullable<TopologyContext['resource_graph']>
   proposalImpact?: TopologyProposalImpact
+  designDiagram: NonNullable<TopologyContext['design_diagram']>
+  designProposalImpact?: TopologyContext['design_proposal_impact']
   hasGraphDiff: boolean
 }
 
@@ -84,6 +86,8 @@ export function resolveTopologyCore(
     rcaLink: undefined,
     resourceGraph: { nodes: [], edges: [] },
     proposalImpact: undefined,
+    designDiagram: { nodes: [], edges: [] },
+    designProposalImpact: undefined,
     hasGraphDiff: false,
   }
   if (!ctx) return empty
@@ -93,13 +97,18 @@ export function resolveTopologyCore(
   const downstream = ctx.dependencies?.downstream ?? []
   const resourceGraph = ctx.resource_graph ?? { nodes: [], edges: [] }
   const proposalImpact = ctx.proposal_impact
+  const designDiagram = ctx.design_diagram ?? { nodes: [], edges: [] }
+  const designProposalImpact = ctx.design_proposal_impact
   const hasGraph = (resourceGraph.nodes?.length ?? 0) > 0
+  const hasDesign = (designDiagram.nodes?.length ?? 0) > 0
   const hasCore =
     changeEvents.length > 0
     || upstream.length > 0
     || downstream.length > 0
     || hasGraph
+    || hasDesign
     || Boolean(proposalImpact)
+    || Boolean(designProposalImpact)
 
   return {
     hasCore,
@@ -112,7 +121,9 @@ export function resolveTopologyCore(
     source: ctx.source,
     resourceGraph,
     proposalImpact,
-    hasGraphDiff: Boolean(proposalImpact),
+    designDiagram,
+    designProposalImpact,
+    hasGraphDiff: Boolean(proposalImpact || designProposalImpact),
   }
 }
 
