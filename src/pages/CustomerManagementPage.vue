@@ -90,7 +90,7 @@ async function parseDocFiles() {
 const form = ref<OnboardPayload>({
   customer: { customer_name: '', customer_code: '', contact_email: '' },
   business_unit: { bu_name: '', bu_code: '', application_name: '', manager_email: '', business_domain: '', subscription_tier: 'Standard', contract_start_date: '', contract_end_date: '' },
-  services: [{ service_name: '', service_type: 'java', service_tier: 'standard', criticality_score: 5, environment: 'production', sla_target_availability: 99.9, sla_target_latency_ms: 500 }],
+  services: [{ service_name: '', service_type: 'api', service_tier: 'standard', criticality_score: 5, environment: 'production', sla_target_availability: 99.9, sla_target_latency_ms: 500 }],
   loginEmail: '',
   loginPassword: '',
 })
@@ -107,7 +107,7 @@ function openWizard() {
 }
 
 function addService() {
-  form.value.services.push({ service_name: '', service_type: 'java', service_tier: 'standard', criticality_score: 5, environment: 'production', sla_target_availability: 99.9, sla_target_latency_ms: 500 })
+  form.value.services.push({ service_name: '', service_type: 'api', service_tier: 'standard', criticality_score: 5, environment: 'production', sla_target_availability: 99.9, sla_target_latency_ms: 500 })
 }
 
 function removeService(i: number) {
@@ -523,7 +523,16 @@ const showPassword = ref(false)
               </div>
               <div>
                 <label class="label">비즈니스 도메인</label>
-                <input v-model="form.business_unit.business_domain" class="input" placeholder="Telecom" />
+                <select v-model="form.business_unit.business_domain" class="input">
+                  <option value="">선택</option>
+                  <option value="ECOMMERCE">이커머스</option>
+                  <option value="PAYMENT">결제/핀테크</option>
+                  <option value="LOGISTICS">물류</option>
+                  <option value="CUSTOMER_SUPPORT">고객지원</option>
+                  <option value="MEDIA">미디어</option>
+                  <option value="HEALTHCARE">헬스케어</option>
+                  <option value="FINANCE">금융</option>
+                </select>
               </div>
               <div>
                 <label class="label">구독 티어</label>
@@ -573,10 +582,11 @@ const showPassword = ref(false)
                 <div>
                   <label class="label">서비스 타입</label>
                   <select v-model="svc.service_type" class="input">
-                    <option>java</option>
-                    <option>python</option>
-                    <option>node</option>
-                    <option>all</option>
+                    <option value="web">Web</option>
+                    <option value="api">API</option>
+                    <option value="batch">Batch</option>
+                    <option value="db">DB</option>
+                    <option value="etc">기타</option>
                   </select>
                 </div>
                 <div>
