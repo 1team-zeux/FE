@@ -13,7 +13,7 @@ export const useFinOpsRunMutation = () => {
 
   return useMutation({
     mutationFn: async (input: TriggerFinOpsRunInput) => {
-      const { data } = await api.post('/finops/run', null, {
+      const { data } = await api.post('/api/finops/run', null, {
         params: {
           tenant_id: input.tenantId ?? 'demo-tenant',
           team_id: input.teamId ?? 'demo-team',

@@ -13,11 +13,16 @@ export interface ChatbotTrigger {
 export const useIacStore = defineStore('iac', () => {
   const uploadSessionId = ref<string | null>(null)
   const bundleDraft = ref<SLABundle | null>(null)
+  const topologyWorkflowId = ref<string | null>(null)
   const selectedTopologyId = ref<string | null>(null)
   const deployStatus = ref<DeployStatus>('idle')
   const chatbotTriggers = ref<ChatbotTrigger[]>([])
   const chatbotOpen = ref(false)
   const pdfFiles = ref<{ sla: File | null; infra: File | null }>({ sla: null, infra: null })
+
+  // Active state for PDF viewer interaction
+  const activeFieldId = ref<string | null>(null)
+  const activeDocumentId = ref<'doc1_contract' | 'doc2_infra'>('doc1_contract')
 
   const chatbotBadgeCount = computed(() => chatbotTriggers.value.length)
 
@@ -27,6 +32,10 @@ export const useIacStore = defineStore('iac', () => {
 
   function setBundleDraft(bundle: SLABundle) {
     bundleDraft.value = bundle
+  }
+
+  function setTopologyWorkflowId(id: string | null) {
+    topologyWorkflowId.value = id
   }
 
   function setSelectedTopology(id: string) {
@@ -57,26 +66,44 @@ export const useIacStore = defineStore('iac', () => {
     pdfFiles.value = files
   }
 
+  function setActiveField(fieldId: string | null, documentId?: 'doc1_contract' | 'doc2_infra') {
+    activeFieldId.value = fieldId
+    if (documentId) {
+      activeDocumentId.value = documentId
+    }
+  }
+
+  function setActiveDocument(documentId: 'doc1_contract' | 'doc2_infra') {
+    activeDocumentId.value = documentId
+  }
+
   function reset() {
     uploadSessionId.value = null
     bundleDraft.value = null
+    topologyWorkflowId.value = null
     selectedTopologyId.value = null
     deployStatus.value = 'idle'
     chatbotTriggers.value = []
     chatbotOpen.value = false
     pdfFiles.value = { sla: null, infra: null }
+    activeFieldId.value = null
+    activeDocumentId.value = 'doc1_contract'
   }
 
   return {
     uploadSessionId,
     bundleDraft,
+    topologyWorkflowId,
     selectedTopologyId,
     deployStatus,
     chatbotTriggers,
     chatbotOpen,
     chatbotBadgeCount,
+    activeFieldId,
+    activeDocumentId,
     setUploadSession,
     setBundleDraft,
+    setTopologyWorkflowId,
     setSelectedTopology,
     setDeployStatus,
     addChatbotTrigger,
@@ -85,6 +112,8 @@ export const useIacStore = defineStore('iac', () => {
     openChatbot,
     pdfFiles,
     setPdfFiles,
+    setActiveField,
+    setActiveDocument,
     reset,
   }
 })

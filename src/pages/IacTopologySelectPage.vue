@@ -2,22 +2,26 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
-import { useIacStore, useTopologyCandidates, useApproveTopology, TopologyEditor } from '@/features/iac'
+import { useIacStore, useTopologySession, useSelectTopology, TopologyEditor } from '@/features/iac'
 
 const store = useIacStore()
 const router = useRouter()
 const { bundleDraft } = storeToRefs(store)
 const bundleId = computed(() => bundleDraft.value?.bundleId ?? null)
 
-const { data: topologies, isLoading } = useTopologyCandidates(bundleId)
-const { mutate: approve, isPending: isApproving } = useApproveTopology()
+if (!bundleId.value) {
+  router.replace('/iac/2')
+}
+
+const { topologies, isLoading, hasFailed, retrySession } = useTopologySession(bundleId)
+const { mutate: select, isPending: isApproving } = useSelectTopology()
 
 const activeIndex = ref(0)
 const activeTopology = computed(() => topologies.value?.[activeIndex.value])
 
 function handleApprove() {
   if (!activeTopology.value) return
-  approve(activeTopology.value.topologyId, {
+  select(activeTopology.value.topologyId, {
     onSuccess() { router.push('/iac/4') },
   })
 }
@@ -26,7 +30,18 @@ function handleApprove() {
 <template>
   <div class="flex flex-col h-full">
     <div v-if="isLoading" class="flex-1 flex items-center justify-center">
-      <div class="w-10 h-10 border-4 border-brand border-t-transparent rounded-full animate-spin" />
+      <div class="flex flex-col items-center gap-3">
+        <div class="w-10 h-10 border-4 border-brand border-t-transparent rounded-full animate-spin" />
+        <p class="text-sm text-text-secondary">AI가 토폴로지를 생성하고 있습니다...</p>
+      </div>
+    </div>
+
+    <div v-else-if="hasFailed" class="flex-1 flex items-center justify-center">
+      <div class="flex flex-col items-center gap-4 text-center">
+        <p class="text-base font-semibold text-text-primary">토폴로지 생성에 실패했습니다</p>
+        <p class="text-sm text-text-secondary">번들 데이터를 확인하거나 다시 시도해 주세요.</p>
+        <button @click="retrySession" class="btn-brand px-6">다시 시도</button>
+      </div>
     </div>
 
     <template v-else-if="topologies?.length">
@@ -61,6 +76,13 @@ function handleApprove() {
             </span>
             <span v-if="i === activeIndex" class="absolute bottom-0 left-0 right-0 h-0.5 bg-brand rounded-t-sm" />
           </button>
+        </div>
+      </div>
+
+      <!-- 동일 차원 안내 -->
+      <div v-if="activeTopology?.conceptNote" class="px-8 pt-2 shrink-0">
+        <div class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 leading-relaxed">
+          {{ activeTopology.conceptNote }}
         </div>
       </div>
 

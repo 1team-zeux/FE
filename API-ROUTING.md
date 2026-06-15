@@ -1,5 +1,17 @@
 # API Routing Reference
 
+## 로컬 FE 실백엔드 연결
+
+| 항목 | 값 |
+|------|------|
+| auth-server | `http://localhost:8081` |
+| sla-agent-service | `http://localhost:8090` |
+| monitoring-api | `http://localhost:8091` |
+
+`.env.development.local.example`를 복사해 `.env.development.local`로 두고 `npm run dev`를 실행하면 됩니다.
+
+---
+
 ## TL;DR — ECONNREFUSED 발생 시
 
 | 에러 경로 | 원인 서비스 | 포트 | 해결 |
@@ -7,8 +19,11 @@
 | `/api/v1/*` | sla-agent-service | 8090 | `docker compose -f server/docker-compose.local.yml up -d --build` |
 | `/auth/*` | auth-server | 8081 | `docker compose -f server/docker-compose.local.yml up -d --build` |
 | `/monitoring/*` | monitoring-api | 8091 | `docker compose -f server/docker-compose.local.yml up -d --build` |
-| `/terraform/*`, `/topologies/*` | sla-agent-service legacy compatibility | 8090 | `docker compose -f server/docker-compose.local.yml up -d --build` |
+| `/terraform/*`, `/api/terraform/*` | sla-agent-service legacy compatibility | 8090 | `docker compose -f server/docker-compose.local.yml up -d --build` |
+| `/topologies/*`, `/api/topologies/*` | sla-agent-service legacy compatibility | 8090 | `docker compose -f server/docker-compose.local.yml up -d --build` |
 | `/upload-sessions`, `/sla-bundles*` | sla-agent-service | 8090 | `docker compose -f server/docker-compose.local.yml up -d --build` |
+| `/api/finops/*` | sla-agent-service | 8090 | `docker compose -f server/docker-compose.local.yml up -d --build` + DB |
+| `/api/rca/*` | sla-agent-service | 8090 | `docker compose -f server/docker-compose.local.yml up -d --build` + zeux-db |
 
 ---
 
@@ -42,6 +57,8 @@ npm run dev
 | `/topologies` | 8090 | sla-agent-service local compatibility |
 | `/api/topologies` | 8090 | sla-agent-service local compatibility |
 | `/upload-sessions` | 8090 | sla-agent-service |
+| `/api/finops` | 8090 | sla-agent-service (FinOps Agent) |
+| `/api/rca` | 8090 | sla-agent-service (RCA read API) |
 
 > `/monitoring/api/v1/...` → Vite strips `/monitoring` → monitoring-api receives `/api/v1/...`
 
@@ -62,6 +79,25 @@ POST /upload-sessions
 GET  /sla-bundles/draft/{session_id}
 PATCH /sla-bundles/draft/{bundle_id}/fields
 POST /sla-bundles
+GET  /api/rca/services/{service_id}/results
+GET  /api/rca/incidents/{incident_id}/results
+```
+
+### sla-agent-service — FinOps (`:8090`)
+```
+GET  /api/finops/runs
+GET  /api/finops/runs/{run_id}
+GET  /api/finops/runs/{run_id}/report.md
+GET  /api/finops/run/stream          (SSE)
+POST /api/finops/run
+POST /api/finops/runs/{run_id}/approve
+POST /api/finops/runs/{run_id}/reject
+```
+
+### sla-agent-service — RCA (`:8090`)
+```
+GET  /api/rca/services/{service_id}/results
+GET  /api/rca/incidents/{incident_id}/results
 ```
 
 ### auth-server (`:8081`)
@@ -116,6 +152,8 @@ FE 컨테이너 nginx가 직접 백엔드로 프록시:
 /auth/        → auth-server:8081/auth/
 /api/v1/      → sla-agent-service:8090/api/v1/
 /tenants      → sla-agent-service:8090/tenants
+/api/finops/  → sla-agent-service:8090/api/finops/   (SSE: run/stream)
+/api/rca/     → sla-agent-service:8090/api/rca/
 /monitoring/  → monitoring-api:8091/         (prefix strip)
 /terraform/   → sla-agent-service:8090/terraform/
 /api/terraform/ → sla-agent-service:8090/api/terraform/

@@ -17,12 +17,6 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('zeux_token')
-      localStorage.removeItem('zeux_user')
-      window.location.href = '/login'
-      return Promise.reject(err)
-    }
     const message = err.response?.data?.message ?? err.response?.data?.detail ?? err.message
     const error = new Error(message) as any
     error.status = err.response?.status

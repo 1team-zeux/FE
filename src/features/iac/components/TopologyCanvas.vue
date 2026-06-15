@@ -1,23 +1,8 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick, computed } from 'vue'
 import type { TopologyNode, TopologyEdge, TopologyGroup } from '../types/topology.schema'
-import ec2Url from '@/assets/aws-icons/ec2.svg?url'
-import rdsUrl from '@/assets/aws-icons/rds.svg?url'
-import elbUrl from '@/assets/aws-icons/elb.svg?url'
-import lambdaUrl from '@/assets/aws-icons/lambda.svg?url'
-import eksUrl from '@/assets/aws-icons/eks.svg?url'
-import ecsUrl from '@/assets/aws-icons/ecs.svg?url'
-import apigwUrl from '@/assets/aws-icons/apigw.svg?url'
-import cloudwatchUrl from '@/assets/aws-icons/cloudwatch.svg?url'
-import route53Url from '@/assets/aws-icons/route53.svg?url'
-import s3Url from '@/assets/aws-icons/s3.svg?url'
-import vpcUrl from '@/assets/aws-icons/vpc.svg?url'
-
-const ICONS: Record<string, string> = {
-  ec2: ec2Url, rds: rdsUrl, elb: elbUrl, lambda: lambdaUrl,
-  eks: eksUrl, ecs: ecsUrl, apigw: apigwUrl, cloudwatch: cloudwatchUrl,
-  route53: route53Url, s3: s3Url, vpc: vpcUrl, nat: elbUrl, igw: route53Url,
-}
+import { gridLayout, computeGroupBoxes } from '../utils/elkLayout'
+import { NODE_ICONS as ICONS } from '../utils/awsIcons'
 const GROUP_STYLES: Record<string, { stroke: string; fill: string }> = {
   'vpc':            { stroke: '#F59E0B', fill: 'rgba(245,158,11,0.04)' },
   'public-subnet':  { stroke: '#3B82F6', fill: 'rgba(59,130,246,0.04)' },
@@ -27,7 +12,6 @@ const GROUP_STYLES: Record<string, { stroke: string; fill: string }> = {
 }
 
 const NW = 72, NH = 72
-// 콘텐츠를 배치하는 논리 캔버스 크기
 const VB_W = 3000, VB_H = 2000
 
 const props = defineProps<{
@@ -44,12 +28,14 @@ const emit = defineEmits<{
   'nodeHover':    [string | null]
 }>()
 
-const localNodes = ref<TopologyNode[]>([...props.nodes])
-const localEdges = ref<TopologyEdge[]>([...props.edges])
-watch(() => props.nodes, (v) => { localNodes.value = [...v] })
-watch(() => props.edges, (v) => { localEdges.value = [...v] })
+// ── Local state ──────────────────────────────────────────────────────────────
 
-// 노드·그룹 bounding box를 계산해서 콘텐츠를 SVG 중앙으로 이동하는 offset
+type PositionedGroup = TopologyGroup & { x: number; y: number; width: number; height: number }
+
+const localNodes = ref<(TopologyNode & { x: number; y: number })[]>([])
+const localEdges = ref<TopologyEdge[]>([...props.edges])
+const localGroups = ref<PositionedGroup[]>([])
+const nodeMap = computed(() => new Map(localNodes.value.map(n => [n.nodeId, n])))
 const offsetX = ref(0)
 const offsetY = ref(0)
 
@@ -57,7 +43,7 @@ function recomputeOffset() {
   const allX: number[] = []
   const allY: number[] = []
   localNodes.value.forEach(n => { allX.push(n.x); allY.push(n.y) })
-  props.groups.forEach(g => { allX.push(g.x, g.x + g.width); allY.push(g.y, g.y + g.height) })
+  localGroups.value.forEach(g => { allX.push(g.x, g.x + g.width); allY.push(g.y, g.y + g.height) })
   if (!allX.length) return
   const cx = (Math.min(...allX) + Math.max(...allX)) / 2
   const cy = (Math.min(...allY) + Math.max(...allY)) / 2
@@ -65,24 +51,41 @@ function recomputeOffset() {
   offsetY.value = VB_H / 2 - cy
 }
 
-// 노드 ID 집합이 변할 때만 재계산 (드래그로 이동할 때는 재계산 안 함)
+function runLayout() {
+  if (!props.nodes.length) return
+  const nodePos = gridLayout(props.nodes)
+
+  localNodes.value = props.nodes.map(n => {
+    const pos = nodePos.get(n.nodeId)
+    return { ...n, x: pos?.x ?? 0, y: pos?.y ?? 0 }
+  })
+
+  const groupBoxes = computeGroupBoxes(nodePos, props.nodes, props.groups)
+  localGroups.value = props.groups.map(g => {
+    const box = groupBoxes.get(g.groupId)
+    return { ...g, x: box?.x ?? 0, y: box?.y ?? 0, width: box?.width ?? 100, height: box?.height ?? 100 }
+  })
+
+  nextTick(recomputeOffset)
+}
+
 watch(
-  () => localNodes.value.map(n => n.nodeId).join(',') + props.groups.map(g => g.groupId).join(','),
-  recomputeOffset,
+  () => props.nodes.map(n => n.nodeId).join(',') + '|' + props.groups.map(g => g.groupId).join(','),
+  () => runLayout(),
   { immediate: true },
 )
+watch(() => props.edges, (v) => { localEdges.value = [...v] })
+
+// ── Interaction ──────────────────────────────────────────────────────────────
 
 const svgEl = ref<SVGSVGElement | null>(null)
 const hovered = ref<string | null>(null)
 const selected = ref<string | null>(null)
-
 const drag = ref<{ nodeId: string; ox: number; oy: number } | null>(null)
 const hasMoved = ref(false)
-
 const connecting = ref<{ fromId: string } | null>(null)
 const connectCursor = ref({ x: 0, y: 0 })
 
-// offset을 감안해서 SVG 내부 좌표 → 콘텐츠 좌표로 변환
 function svgPt(e: PointerEvent | DragEvent) {
   const svg = svgEl.value!
   const r = svg.getBoundingClientRect()
@@ -165,9 +168,16 @@ function onDrop(e: DragEvent) {
   emit('update:nodes', localNodes.value)
 }
 
-function edgePath(from: TopologyNode, to: TopologyNode) {
-  const dx = Math.abs(to.x - from.x) * 0.5
-  return `M${from.x},${from.y} C${from.x + dx},${from.y} ${to.x - dx},${to.y} ${to.x},${to.y}`
+function edgePath(edge: TopologyEdge) {
+  const from = nodeMap.value.get(edge.from)
+  const to = nodeMap.value.get(edge.to)
+  if (!from || !to) return ''
+  const hw = NW / 2
+  const goRight = to.x >= from.x
+  const sx = goRight ? from.x + hw : from.x - hw
+  const ex = goRight ? to.x - hw : to.x + hw
+  const midX = (sx + ex) / 2
+  return `M${sx},${from.y} H${midX} V${to.y} H${ex}`
 }
 </script>
 
@@ -189,10 +199,9 @@ function edgePath(from: TopologyNode, to: TopologyNode) {
       </marker>
     </defs>
 
-    <!-- 콘텐츠 전체를 중앙으로 이동 -->
     <g :transform="`translate(${offsetX}, ${offsetY})`">
       <!-- 그룹 (VPC / 서브넷) -->
-      <g v-for="g in groups" :key="g.groupId">
+      <g v-for="g in localGroups" :key="g.groupId">
         <rect :x="g.x" :y="g.y" :width="g.width" :height="g.height" rx="10"
           :fill="GROUP_STYLES[g.type]?.fill ?? 'transparent'"
           :stroke="GROUP_STYLES[g.type]?.stroke ?? '#9CA3AF'"
@@ -206,22 +215,23 @@ function edgePath(from: TopologyNode, to: TopologyNode) {
       <!-- 엣지 -->
       <g v-for="edge in localEdges" :key="edge.edgeId">
         <path
-          v-if="localNodes.find(n => n.nodeId === edge.from) && localNodes.find(n => n.nodeId === edge.to)"
-          :d="edgePath(localNodes.find(n => n.nodeId === edge.from)!, localNodes.find(n => n.nodeId === edge.to)!)"
+          v-if="nodeMap.get(edge.from) && nodeMap.get(edge.to)"
+          :d="edgePath(edge)"
           fill="none" stroke="#9CA3AF" stroke-width="1.5"
           :stroke-dasharray="edge.dashed ? '6 4' : 'none'"
           marker-end="url(#arr)"
+          stroke-linejoin="round"
         />
-        <text v-if="edge.label && localNodes.find(n => n.nodeId === edge.from) && localNodes.find(n => n.nodeId === edge.to)"
-          :x="(localNodes.find(n => n.nodeId === edge.from)!.x + localNodes.find(n => n.nodeId === edge.to)!.x) / 2"
-          :y="(localNodes.find(n => n.nodeId === edge.from)!.y + localNodes.find(n => n.nodeId === edge.to)!.y) / 2 - 6"
+        <text v-if="edge.label && nodeMap.get(edge.from) && nodeMap.get(edge.to)"
+          :x="(nodeMap.get(edge.from)!.x + nodeMap.get(edge.to)!.x) / 2"
+          :y="(nodeMap.get(edge.from)!.y + nodeMap.get(edge.to)!.y) / 2 - 6"
           font-size="9" fill="#9CA3AF" text-anchor="middle">{{ edge.label }}</text>
       </g>
 
       <!-- 연결 드래그 임시선 -->
       <line v-if="connecting"
-        :x1="localNodes.find(n => n.nodeId === connecting!.fromId)?.x ?? 0"
-        :y1="localNodes.find(n => n.nodeId === connecting!.fromId)?.y ?? 0"
+        :x1="nodeMap.get(connecting!.fromId)?.x ?? 0"
+        :y1="nodeMap.get(connecting!.fromId)?.y ?? 0"
         :x2="connectCursor.x" :y2="connectCursor.y"
         stroke="#2980B9" stroke-width="1.5" stroke-dasharray="5 3" />
 
@@ -242,13 +252,11 @@ function edgePath(from: TopologyNode, to: TopologyNode) {
         <text v-else x="36" y="36" text-anchor="middle" font-size="10" fill="#6B7280">{{ node.type }}</text>
         <text x="36" y="64" text-anchor="middle" font-size="9" fill="#6B7280" font-family="monospace">{{ node.label }}</text>
 
-        <!-- 포트 (hover 시) -->
         <circle v-if="hovered === node.nodeId && !drag"
           :cx="NW" :cy="NH / 2" r="5"
           fill="#2980B9" class="cursor-crosshair"
           @pointerdown.stop="onPortDown(node.nodeId, $event)" />
 
-        <!-- 삭제 버튼 (hover·선택 시) -->
         <g v-if="hovered === node.nodeId || selected === node.nodeId"
            class="cursor-pointer"
            @pointerdown.stop

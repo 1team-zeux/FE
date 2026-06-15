@@ -95,7 +95,7 @@ export function useTerraformApply() {
       detail: '대기 중',
     }))
 
-    eventSource = new EventSource(`/api/terraform/apply/stream?planId=${planId}`)
+    eventSource = new EventSource(`/terraform/apply/stream?planId=${planId}`)
 
     eventSource.onmessage = (e: MessageEvent) => {
       const data = JSON.parse(e.data) as ResourceStatus

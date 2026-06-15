@@ -15,7 +15,7 @@ export const useFinOpsApprovalMutation = () => {
   return useMutation({
     mutationFn: async ({ runId, action, reviewer, comment }: FinOpsApprovalInput) => {
       const path = action === 'approve' ? 'approve' : 'reject'
-      const { data } = await api.post(`/finops/runs/${runId}/${path}`, {
+      const { data } = await api.post(`/api/finops/runs/${runId}/${path}`, {
         reviewer: reviewer ?? null,
         comment: comment ?? null,
       })

@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useQueryClient } from '@tanstack/vue-query'
 import { useCustomersQuery, type CustomerSummary } from '@/features/customer/api/useCustomersQuery'
 import { useOnboardMutation, type OnboardPayload } from '@/features/customer/api/useOnboardMutation'
+import { UploadZone } from '@/features/iac'
+import { api } from '@/services/api'
 
 const router = useRouter()
 const { data: customers, isLoading } = useCustomersQuery()
@@ -16,31 +18,96 @@ const showCredPw = ref(false)
 
 // 위저드 상태
 const showWizard = ref(false)
-const step = ref(1)
-const totalSteps = 5
+const step = ref(0)
+const totalSteps = 3
 const result = ref<{ curl_command: string; registration_token: string; loginEmail: string; loginPassword: string } | null>(null)
 const wizardError = ref('')
+
+// 파일 업로드 상태
+const showFileUpload = ref(false)
+const fileParseError = ref('')
+const isParsingFile = ref(false)
+const slaFile = ref<File | null>(null)
+const infraFile = ref<File | null>(null)
+
+// 누락 필드 검증
+const parsedFromDocs = ref(false)
+const attemptedNext = ref(false)
+
+const stepRequiredFields = computed(() => ({
+  1: [
+    { value: form.value.customer.customer_name, label: '고객사명' },
+    { value: form.value.customer.customer_code, label: '고객사 코드' },
+    { value: form.value.loginEmail,             label: '로그인 이메일' },
+    { value: form.value.loginPassword,          label: '초기 비밀번호' },
+  ],
+  2: [{ value: form.value.business_unit.bu_name, label: '사업부명' }],
+  3: form.value.services.map((s, i) => ({ value: s.service_name, label: `서비스 ${i + 1} 이름` })),
+}))
+
+const missingInStep = (n: number) =>
+  ((stepRequiredFields.value as Record<number, { value: string; label: string }[]>)[n] ?? []).filter(f => !f.value)
+
+const showFieldError = (value: string | null | undefined) =>
+  !value && (parsedFromDocs.value || attemptedNext.value)
+
+const canProceed = computed(() => missingInStep(step.value).length === 0)
+
+function nextStep() {
+  attemptedNext.value = true
+  if (!canProceed.value) return
+  step.value++
+  attemptedNext.value = false
+}
+
+async function parseDocFiles() {
+  if (!slaFile.value || !infraFile.value) return
+  isParsingFile.value = true
+  fileParseError.value = ''
+  try {
+    const fd = new FormData()
+    fd.append('sla_doc', slaFile.value)
+    fd.append('infra_doc', infraFile.value)
+    const { data } = await api.post('/api/v1/onboard/parse-docs', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+    if (data.customer) Object.assign(form.value.customer, data.customer)
+    if (data.business_unit) Object.assign(form.value.business_unit, data.business_unit)
+    if (data.services?.length) form.value.services = data.services
+    // manager_email → contact_email 단일 필드로 통합
+    if (!form.value.customer.contact_email && data.business_unit?.manager_email)
+      form.value.customer.contact_email = data.business_unit.manager_email
+    parsedFromDocs.value = true
+    step.value = 1
+  } catch (e: any) {
+    fileParseError.value = e.response?.data?.detail ?? e.message ?? '문서 분석에 실패했습니다.'
+  } finally {
+    isParsingFile.value = false
+  }
+}
 
 // 폼 데이터
 const form = ref<OnboardPayload>({
   customer: { customer_name: '', customer_code: '', contact_email: '' },
   business_unit: { bu_name: '', bu_code: '', application_name: '', manager_email: '', business_domain: '', subscription_tier: 'Standard', contract_start_date: '', contract_end_date: '' },
-  requirements: { csp: 'AWS', primary_region: 'ap-northeast-2', multi_az_required: false, db_required: false, data_type: '', backup_required: false },
-  cost_constraints: { monthly_budget: undefined, cost_priority: 'Balanced', auto_scaling_required: true, max_compute_instance_count: undefined, max_storage_size_gb: undefined },
-  services: [{ service_name: '', service_type: 'java', service_tier: 'standard', criticality_score: 5, environment: 'production', sla_target_availability: 99.9, sla_target_latency_ms: 500 }],
+  services: [{ service_name: '', service_type: 'api', service_tier: 'standard', criticality_score: 5, environment: 'production', sla_target_availability: 99.9, sla_target_latency_ms: 500 }],
   loginEmail: '',
   loginPassword: '',
 })
 
 function openWizard() {
-  step.value = 1
+  step.value = 0
   result.value = null
   wizardError.value = ''
+  showFileUpload.value = false
+  fileParseError.value = ''
+  parsedFromDocs.value = false
+  attemptedNext.value = false
   showWizard.value = true
 }
 
 function addService() {
-  form.value.services.push({ service_name: '', service_type: 'java', service_tier: 'standard', criticality_score: 5, environment: 'production', sla_target_availability: 99.9, sla_target_latency_ms: 500 })
+  form.value.services.push({ service_name: '', service_type: 'api', service_tier: 'standard', criticality_score: 5, environment: 'production', sla_target_availability: 99.9, sla_target_latency_ms: 500 })
 }
 
 function removeService(i: number) {
@@ -49,6 +116,9 @@ function removeService(i: number) {
 
 async function submitWizard() {
   wizardError.value = ''
+  // contact_email → manager_email 동기화 (단일 입력 필드 통합)
+  if (form.value.business_unit && form.value.customer.contact_email)
+    form.value.business_unit.manager_email = form.value.customer.contact_email
   try {
     const res = await onboard(form.value)
     result.value = { curl_command: res.curl_command, registration_token: res.registration_token, loginEmail: form.value.loginEmail, loginPassword: form.value.loginPassword }
@@ -117,7 +187,14 @@ const showPassword = ref(false)
             <div class="text-xs text-text-muted mt-0.5 font-mono">{{ cust.customer_code }}</div>
           </div>
           <div class="flex items-center gap-2 shrink-0 ml-2">
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700">Active</span>
+            <span
+              v-if="cust.agent_active"
+              class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700"
+            >에이전트 활성 · {{ cust.container_count }}개</span>
+            <span
+              v-else
+              class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500"
+            >대기</span>
             <button
               class="text-[10px] text-[#2980B9] hover:underline font-medium"
               @click.stop="selectedCust = cust; showCredPw = false"
@@ -218,7 +295,13 @@ const showPassword = ref(false)
         <div class="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
             <h2 class="font-bold text-text-primary">고객사 온보딩</h2>
-            <p class="text-xs text-text-secondary mt-0.5">{{ step }} / {{ totalSteps }} 단계</p>
+            <p v-if="step > 0" class="text-xs text-text-secondary mt-0.5">
+              {{ step }} / {{ totalSteps }} 단계
+              <span v-if="parsedFromDocs && missingInStep(step).length" class="ml-1.5 text-amber-500 font-medium">
+                ⚠ {{ missingInStep(step).length }}개 누락
+              </span>
+            </p>
+            <p v-else class="text-xs text-text-secondary mt-0.5">등록 방식 선택</p>
           </div>
           <button @click="showWizard = false" class="text-text-muted hover:text-text-primary">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -228,7 +311,7 @@ const showPassword = ref(false)
         </div>
 
         <!-- Progress bar -->
-        <div class="h-1 bg-gray-100">
+        <div v-if="step > 0" class="h-1 bg-gray-100">
           <div
             class="h-full bg-[#2980B9] transition-all duration-300"
             :style="{ width: `${(step / totalSteps) * 100}%` }"
@@ -313,21 +396,95 @@ const showPassword = ref(false)
         <!-- 위저드 폼 -->
         <div v-else class="flex-1 overflow-y-auto px-6 py-5">
 
+          <!-- Step 0: 등록 방식 선택 -->
+          <div v-if="step === 0">
+            <div v-if="!showFileUpload" class="grid grid-cols-2 gap-4 mt-2">
+              <button
+                @click="showFileUpload = true"
+                class="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-border rounded-2xl hover:border-[#2980B9] hover:bg-[#2980B9]/5 transition-colors text-left"
+              >
+                <div class="w-10 h-10 rounded-xl bg-[#2980B9]/10 flex items-center justify-center">
+                  <svg class="w-5 h-5 text-[#2980B9]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+                  </svg>
+                </div>
+                <div>
+                  <p class="font-semibold text-sm text-text-primary">파일로 등록</p>
+                  <p class="text-xs text-text-muted mt-0.5">YAML/JSON 파일 업로드</p>
+                </div>
+              </button>
+              <button
+                @click="step = 1"
+                class="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-border rounded-2xl hover:border-[#2980B9] hover:bg-[#2980B9]/5 transition-colors text-left"
+              >
+                <div class="w-10 h-10 rounded-xl bg-[#2980B9]/10 flex items-center justify-center">
+                  <svg class="w-5 h-5 text-[#2980B9]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  </svg>
+                </div>
+                <div>
+                  <p class="font-semibold text-sm text-text-primary">직접 입력</p>
+                  <p class="text-xs text-text-muted mt-0.5">단계별 폼으로 직접 작성</p>
+                </div>
+              </button>
+            </div>
+
+            <div v-else class="space-y-4 mt-2">
+              <button
+                @click="showFileUpload = false; fileParseError = ''; slaFile = null; infraFile = null"
+                class="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+                </svg>
+                뒤로
+              </button>
+              <UploadZone
+                label="SLA 계약서"
+                accept=".md,.txt,.pdf"
+                :allowed-extensions="['.md', '.txt', '.pdf']"
+                description="고객사와 체결한 SLA 계약서 (Markdown / txt / PDF)"
+                @select="slaFile = $event"
+              />
+              <UploadZone
+                label="인프라 요구사항"
+                accept=".md,.txt,.pdf"
+                :allowed-extensions="['.md', '.txt', '.pdf']"
+                description="고객사 인프라 구성 요구사항 문서 (Markdown / txt / PDF)"
+                @select="infraFile = $event"
+              />
+              <p v-if="fileParseError" class="text-xs text-red-500">{{ fileParseError }}</p>
+              <button
+                :disabled="!slaFile || !infraFile || isParsingFile"
+                @click="parseDocFiles"
+                class="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold bg-[#2980B9] text-white rounded-xl hover:bg-[#2471a3] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <svg v-if="isParsingFile" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                {{ isParsingFile ? '문서 분석 중...' : '문서 분석 후 등록' }}
+              </button>
+            </div>
+          </div>
+
           <!-- Step 1: 고객사 기본정보 + 로그인 계정 -->
           <div v-if="step === 1" class="space-y-4">
             <h3 class="font-semibold text-text-primary mb-4">고객사 기본 정보</h3>
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="label">고객사명 *</label>
-                <input v-model="form.customer.customer_name" class="input" placeholder="SKT Digital" />
+                <input v-model="form.customer.customer_name" class="input" :class="showFieldError(form.customer.customer_name) ? 'border-red-400 focus:border-red-400 focus:ring-red-300/30' : ''" placeholder="SKT Digital" />
+                <p v-if="showFieldError(form.customer.customer_name)" class="text-red-500 text-xs mt-1">입력 필요</p>
               </div>
               <div>
                 <label class="label">고객사 코드 *</label>
-                <input v-model="form.customer.customer_code" class="input" placeholder="skt-digital" />
+                <input v-model="form.customer.customer_code" class="input" :class="showFieldError(form.customer.customer_code) ? 'border-red-400 focus:border-red-400 focus:ring-red-300/30' : ''" placeholder="skt-digital" />
+                <p v-if="showFieldError(form.customer.customer_code)" class="text-red-500 text-xs mt-1">입력 필요</p>
               </div>
             </div>
             <div>
-              <label class="label">담당자 이메일</label>
+              <label class="label">담당자 이메일 <span class="text-text-muted font-normal">(고객사 · BU 공통)</span></label>
               <input v-model="form.customer.contact_email" type="email" class="input" placeholder="ops@company.com" />
             </div>
             <div class="border-t border-border pt-4 mt-4">
@@ -335,11 +492,13 @@ const showPassword = ref(false)
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="label">로그인 이메일 *</label>
-                  <input v-model="form.loginEmail" type="email" class="input" placeholder="login@company.com" />
+                  <input v-model="form.loginEmail" type="email" class="input" :class="showFieldError(form.loginEmail) ? 'border-red-400 focus:border-red-400 focus:ring-red-300/30' : ''" placeholder="login@company.com" />
+                  <p v-if="showFieldError(form.loginEmail)" class="text-red-500 text-xs mt-1">입력 필요</p>
                 </div>
                 <div>
                   <label class="label">초기 비밀번호 *</label>
-                  <input v-model="form.loginPassword" type="password" class="input" placeholder="••••••••" />
+                  <input v-model="form.loginPassword" type="password" class="input" :class="showFieldError(form.loginPassword) ? 'border-red-400 focus:border-red-400 focus:ring-red-300/30' : ''" placeholder="••••••••" />
+                  <p v-if="showFieldError(form.loginPassword)" class="text-red-500 text-xs mt-1">입력 필요</p>
                 </div>
               </div>
             </div>
@@ -351,7 +510,8 @@ const showPassword = ref(false)
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="label">BU 이름 *</label>
-                <input v-model="form.business_unit.bu_name" class="input" placeholder="API Platform" />
+                <input v-model="form.business_unit.bu_name" class="input" :class="showFieldError(form.business_unit.bu_name) ? 'border-red-400 focus:border-red-400 focus:ring-red-300/30' : ''" placeholder="API Platform" />
+                <p v-if="showFieldError(form.business_unit.bu_name)" class="text-red-500 text-xs mt-1">입력 필요</p>
               </div>
               <div>
                 <label class="label">BU 코드</label>
@@ -363,7 +523,16 @@ const showPassword = ref(false)
               </div>
               <div>
                 <label class="label">비즈니스 도메인</label>
-                <input v-model="form.business_unit.business_domain" class="input" placeholder="Telecom" />
+                <select v-model="form.business_unit.business_domain" class="input">
+                  <option value="">선택</option>
+                  <option value="ECOMMERCE">이커머스</option>
+                  <option value="PAYMENT">결제/핀테크</option>
+                  <option value="LOGISTICS">물류</option>
+                  <option value="CUSTOMER_SUPPORT">고객지원</option>
+                  <option value="MEDIA">미디어</option>
+                  <option value="HEALTHCARE">헬스케어</option>
+                  <option value="FINANCE">금융</option>
+                </select>
               </div>
               <div>
                 <label class="label">구독 티어</label>
@@ -372,10 +541,6 @@ const showPassword = ref(false)
                   <option>Professional</option>
                   <option>Enterprise</option>
                 </select>
-              </div>
-              <div>
-                <label class="label">담당자 이메일</label>
-                <input v-model="form.business_unit.manager_email" type="email" class="input" />
               </div>
               <div>
                 <label class="label">계약 시작일</label>
@@ -388,76 +553,8 @@ const showPassword = ref(false)
             </div>
           </div>
 
-          <!-- Step 3: 인프라 요구사항 -->
+          <!-- Step 3: 서비스 목록 -->
           <div v-if="step === 3" class="space-y-4">
-            <h3 class="font-semibold text-text-primary mb-4">인프라 요구사항</h3>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="label">CSP</label>
-                <select v-model="form.requirements!.csp" class="input">
-                  <option>AWS</option>
-                  <option>GCP</option>
-                  <option>Azure</option>
-                </select>
-              </div>
-              <div>
-                <label class="label">Primary 리전</label>
-                <input v-model="form.requirements!.primary_region" class="input" placeholder="ap-northeast-2" />
-              </div>
-              <div>
-                <label class="label">데이터 타입</label>
-                <input v-model="form.requirements!.data_type" class="input" placeholder="Relational" />
-              </div>
-            </div>
-            <div class="space-y-2 mt-2">
-              <label class="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" v-model="form.requirements!.multi_az_required" class="w-4 h-4 accent-[#2980B9]" />
-                <span class="text-sm text-text-primary">Multi-AZ 필요</span>
-              </label>
-              <label class="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" v-model="form.requirements!.db_required" class="w-4 h-4 accent-[#2980B9]" />
-                <span class="text-sm text-text-primary">데이터베이스 필요</span>
-              </label>
-              <label class="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" v-model="form.requirements!.backup_required" class="w-4 h-4 accent-[#2980B9]" />
-                <span class="text-sm text-text-primary">백업 필요</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Step 4: 비용 제약 -->
-          <div v-if="step === 4" class="space-y-4">
-            <h3 class="font-semibold text-text-primary mb-4">비용 제약</h3>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="label">월 예산 ($)</label>
-                <input v-model.number="form.cost_constraints!.monthly_budget" type="number" class="input" placeholder="5000" />
-              </div>
-              <div>
-                <label class="label">비용 우선순위</label>
-                <select v-model="form.cost_constraints!.cost_priority" class="input">
-                  <option>Performance First</option>
-                  <option>Balanced</option>
-                  <option>Cost First</option>
-                </select>
-              </div>
-              <div>
-                <label class="label">최대 컴퓨트 인스턴스 수</label>
-                <input v-model.number="form.cost_constraints!.max_compute_instance_count" type="number" class="input" placeholder="10" />
-              </div>
-              <div>
-                <label class="label">최대 스토리지 (GB)</label>
-                <input v-model.number="form.cost_constraints!.max_storage_size_gb" type="number" class="input" placeholder="500" />
-              </div>
-            </div>
-            <label class="flex items-center gap-3 cursor-pointer mt-2">
-              <input type="checkbox" v-model="form.cost_constraints!.auto_scaling_required" class="w-4 h-4 accent-[#2980B9]" />
-              <span class="text-sm text-text-primary">Auto Scaling 필요</span>
-            </label>
-          </div>
-
-          <!-- Step 5: 서비스 목록 -->
-          <div v-if="step === 5" class="space-y-4">
             <div class="flex items-center justify-between mb-4">
               <h3 class="font-semibold text-text-primary">서비스 등록</h3>
               <button @click="addService" class="flex items-center gap-1.5 text-xs text-[#2980B9] hover:underline">
@@ -479,15 +576,17 @@ const showPassword = ref(false)
               <div class="grid grid-cols-2 gap-3">
                 <div>
                   <label class="label">서비스명 *</label>
-                  <input v-model="svc.service_name" class="input" placeholder="auth-api" />
+                  <input v-model="svc.service_name" class="input" :class="showFieldError(svc.service_name) ? 'border-red-400 focus:border-red-400 focus:ring-red-300/30' : ''" placeholder="auth-api" />
+                  <p v-if="showFieldError(svc.service_name)" class="text-red-500 text-xs mt-1">입력 필요</p>
                 </div>
                 <div>
                   <label class="label">서비스 타입</label>
                   <select v-model="svc.service_type" class="input">
-                    <option>java</option>
-                    <option>python</option>
-                    <option>node</option>
-                    <option>all</option>
+                    <option value="web">Web</option>
+                    <option value="api">API</option>
+                    <option value="batch">Batch</option>
+                    <option value="db">DB</option>
+                    <option value="etc">기타</option>
                   </select>
                 </div>
                 <div>
@@ -530,7 +629,7 @@ const showPassword = ref(false)
         <div v-if="!result" class="flex items-center justify-between px-6 py-4 border-t border-border">
           <button
             v-if="step > 1"
-            @click="step--"
+            @click="step--; attemptedNext = false"
             class="px-4 py-2 text-sm font-medium text-text-secondary border border-border rounded-xl hover:bg-gray-50 transition-colors"
           >
             이전
@@ -538,14 +637,15 @@ const showPassword = ref(false)
           <div v-else />
 
           <button
-            v-if="step < totalSteps"
-            @click="step++"
-            class="px-4 py-2 text-sm font-semibold bg-[#2980B9] text-white rounded-xl hover:bg-[#2471a3] transition-colors"
+            v-if="step > 0 && step < totalSteps"
+            @click="nextStep"
+            :disabled="!canProceed && (parsedFromDocs || attemptedNext)"
+            class="px-4 py-2 text-sm font-semibold bg-[#2980B9] text-white rounded-xl hover:bg-[#2471a3] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             다음
           </button>
           <button
-            v-else
+            v-else-if="step === totalSteps"
             @click="submitWizard"
             :disabled="isPending"
             class="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-[#2980B9] text-white rounded-xl hover:bg-[#2471a3] transition-colors disabled:opacity-60"

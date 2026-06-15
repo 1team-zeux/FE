@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const props = defineProps<{
   label: string
   accept: string
   description?: string
+  allowedExtensions?: string[]
+  maxSizeMb?: number
 }>()
 
 const emit = defineEmits<{
@@ -16,12 +18,20 @@ const selectedFile = ref<File | null>(null)
 const errorMsg = ref<string | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 
+const extensions = computed(() => props.allowedExtensions ?? ['.pdf'])
+const maxMb = computed(() => props.maxSizeMb ?? 50)
+const extensionLabel = computed(() =>
+  extensions.value.map(e => e.replace('.', '').toUpperCase()).join('/'),
+)
+
 function validateFile(file: File): string | null {
-  if (!file.name.toLowerCase().endsWith('.pdf') && !file.type.includes('pdf')) {
-    return 'PDF 파일만 업로드 가능합니다.'
+  const nameLower = file.name.toLowerCase()
+  const allowed = extensions.value.some(ext => nameLower.endsWith(ext))
+  if (!allowed) {
+    return `${extensionLabel.value} 파일만 업로드 가능합니다.`
   }
-  if (file.size > 50 * 1024 * 1024) {
-    return '파일 크기는 50MB 이하여야 합니다.'
+  if (file.size > maxMb.value * 1024 * 1024) {
+    return `파일 크기는 ${maxMb.value}MB 이하여야 합니다.`
   }
   return null
 }
@@ -87,9 +97,9 @@ function formatSize(bytes: number) {
             d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
         </svg>
         <p data-testid="upload-status" class="text-sm text-text-secondary">
-          {{ errorMsg ?? 'PDF 파일을 드래그하거나 클릭하여 선택' }}
+          {{ errorMsg ?? `${extensionLabel} 파일을 드래그하거나 클릭하여 선택` }}
         </p>
-        <p class="text-xs text-text-muted">최대 50MB</p>
+        <p class="text-xs text-text-muted">최대 {{ maxMb }}MB</p>
       </div>
 
       <div v-else class="space-y-1">
