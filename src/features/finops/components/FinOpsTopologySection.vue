@@ -11,7 +11,12 @@ import {
   resolveTopologyCore,
   resolveTopologyFinding,
 } from '../utils/topologyMetrics'
-import { buildDesignDiagramViz, buildResourceGraphViz } from '../utils/topologyGraphLayout'
+import {
+  buildDesignDiagramAsIsViz,
+  buildDesignDiagramToBeViz,
+  buildResourceGraphAsIsViz,
+  buildResourceGraphToBeViz,
+} from '../utils/topologyGraphLayout'
 import FinOpsTopologyGraphViz from './FinOpsTopologyGraphViz.vue'
 
 const props = defineProps<{
@@ -46,16 +51,28 @@ const toggleLabel = computed(() => {
 
 const impact = computed(() => topo.value.proposalImpact)
 
-const resourceViz = computed(() => {
+const resourceVizAsIs = computed(() => {
   const ctx = resolved.value.finding?.topology_context
   if (!ctx) return null
-  return buildResourceGraphViz(ctx, props.finding?.resource_id)
+  return buildResourceGraphAsIsViz(ctx, props.finding?.resource_id)
 })
 
-const designViz = computed(() => {
+const resourceVizToBe = computed(() => {
   const ctx = resolved.value.finding?.topology_context
   if (!ctx) return null
-  return buildDesignDiagramViz(ctx, props.finding?.resource_id)
+  return buildResourceGraphToBeViz(ctx, props.finding?.resource_id)
+})
+
+const designVizAsIs = computed(() => {
+  const ctx = resolved.value.finding?.topology_context
+  if (!ctx) return null
+  return buildDesignDiagramAsIsViz(ctx, props.finding?.resource_id)
+})
+
+const designVizToBe = computed(() => {
+  const ctx = resolved.value.finding?.topology_context
+  if (!ctx) return null
+  return buildDesignDiagramToBeViz(ctx, props.finding?.resource_id)
 })
 </script>
 
@@ -103,23 +120,66 @@ const designViz = computed(() => {
         </span>
       </div>
 
-      <!-- 시각화: 운영 리소스 그래프 -->
-      <FinOpsTopologyGraphViz
-        v-if="resourceViz"
-        :model="resourceViz"
-        title="운영 리소스 그래프 (resource_dependencies)"
-        :height="240"
-      />
+      <!-- 운영 리소스: as-is / to-be -->
+      <div v-if="resourceVizAsIs" class="space-y-2">
+        <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+          운영 리소스 · what-if
+        </h4>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <FinOpsTopologyGraphViz
+            :model="resourceVizAsIs"
+            title="현재 (as-is)"
+            mode="as-is"
+            :height="260"
+          />
+          <FinOpsTopologyGraphViz
+            v-if="resourceVizToBe"
+            :model="resourceVizToBe"
+            title="제안 후 (to-be)"
+            mode="to-be"
+            :height="260"
+          />
+          <div
+            v-else
+            class="rounded-lg border border-dashed border-border bg-bg-muted/30 flex items-center justify-center min-h-[200px] text-[10px] text-gray-400"
+          >
+            제안 시뮬레이션 없음
+          </div>
+        </div>
+      </div>
 
-      <!-- 시각화: Topology Agent 설계 다이어그램 -->
-      <FinOpsTopologyGraphViz
-        v-if="designViz"
-        :model="designViz"
-        :title="`설계 다이어그램${topo.designDiagram.display_name ? ` · ${topo.designDiagram.display_name}` : ''}`"
-        :height="300"
-      />
+      <!-- 설계 다이어그램: as-is / to-be -->
+      <div v-if="designVizAsIs" class="space-y-2">
+        <h4 class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+          설계 다이어그램 · what-if
+          <span v-if="topo.designDiagram.display_name" class="text-gray-300 font-normal normal-case ml-1">
+            {{ topo.designDiagram.display_name }}
+          </span>
+        </h4>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <FinOpsTopologyGraphViz
+            :model="designVizAsIs"
+            title="현재 (as-is)"
+            mode="as-is"
+            :height="300"
+          />
+          <FinOpsTopologyGraphViz
+            v-if="designVizToBe"
+            :model="designVizToBe"
+            title="제안 후 (to-be)"
+            mode="to-be"
+            :height="300"
+          />
+          <div
+            v-else
+            class="rounded-lg border border-dashed border-border bg-bg-muted/30 flex items-center justify-center min-h-[240px] text-[10px] text-gray-400"
+          >
+            설계 what-if 없음
+          </div>
+        </div>
+      </div>
 
-      <!-- Phase 2: as-is vs proposal diff (요약) -->
+      <!-- what-if 요약 -->
       <div v-if="impact" class="rounded-lg border border-brand/20 bg-brand/5 p-3 space-y-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h4 class="text-[10px] font-bold text-brand uppercase tracking-wider">

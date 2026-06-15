@@ -9,6 +9,7 @@ export interface TopologyVizNode {
   x: number
   y: number
   state: VizNodeState
+  groupId?: string | null
 }
 
 export interface TopologyVizEdge {
@@ -116,7 +117,7 @@ function bounds(nodes: TopologyVizNode[], groups: TopologyVizGroup[]) {
 
 function buildGroupsFromDesign(
   groups: Array<{ groupId?: string; label?: string; type?: string }>,
-  nodes: Array<TopologyVizNode & { groupId?: string | null }>,
+  nodes: TopologyVizNode[],
 ): TopologyVizGroup[] {
   if (!groups.length) return []
   const GROUP_PAD: Record<string, number> = {
@@ -151,6 +152,13 @@ function buildGroupsFromDesign(
 }
 
 export function buildResourceGraphViz(
+  ctx: TopologyContext,
+  targetResourceId?: string,
+): TopologyVizModel | null {
+  return buildResourceGraphAsIsViz(ctx, targetResourceId)
+}
+
+export function buildResourceGraphAsIsViz(
   ctx: TopologyContext,
   targetResourceId?: string,
 ): TopologyVizModel | null {
@@ -208,7 +216,47 @@ export function buildResourceGraphViz(
   }
 }
 
+export function buildResourceGraphToBeViz(
+  ctx: TopologyContext,
+  targetResourceId?: string,
+): TopologyVizModel | null {
+  const asIs = buildResourceGraphAsIsViz(ctx, targetResourceId)
+  const impact = ctx.proposal_impact
+  if (!asIs || !impact) return null
+
+  const removed = new Set((impact.removed_nodes ?? []).map((n) => n.id))
+  const modified = new Set((impact.modified_nodes ?? []).map((n) => n.id))
+
+  const nodes = asIs.nodes
+    .filter((n) => !removed.has(n.id))
+    .map((n) => ({
+      ...n,
+      state: (modified.has(n.id) ? 'modified' : 'normal') as VizNodeState,
+    }))
+
+  const alive = new Set(nodes.map((n) => n.id))
+  const edges = asIs.edges
+    .filter((e) => alive.has(e.from) && alive.has(e.to))
+    .map((e) => ({ ...e, broken: false }))
+
+  const b = bounds(nodes, [])
+  return {
+    nodes,
+    edges,
+    groups: [],
+    width: b.width ?? asIs.width,
+    height: b.height ?? asIs.height,
+  }
+}
+
 export function buildDesignDiagramViz(
+  ctx: TopologyContext,
+  targetResourceId?: string,
+): TopologyVizModel | null {
+  return buildDesignDiagramAsIsViz(ctx, targetResourceId)
+}
+
+export function buildDesignDiagramAsIsViz(
   ctx: TopologyContext,
   targetResourceId?: string,
 ): TopologyVizModel | null {
@@ -236,7 +284,7 @@ export function buildDesignDiagramViz(
     (ctx.design_proposal_impact?.broken_edges ?? []).map((e) => `${e.from}->${e.to}`),
   )
 
-  const nodes: Array<TopologyVizNode & { groupId?: string | null }> = rawNodes.map((n) => {
+  const nodes: TopologyVizNode[] = rawNodes.map((n) => {
     const p = pos.get(n.nodeId) ?? { x: MARGIN, y: MARGIN }
     let state: VizNodeState = 'normal'
     if (matched.has(n.nodeId)) state = 'target'
@@ -271,6 +319,45 @@ export function buildDesignDiagramViz(
     groups,
     width: b.width ?? 520,
     height: b.height ?? 280,
+  }
+}
+
+export function buildDesignDiagramToBeViz(
+  ctx: TopologyContext,
+  targetResourceId?: string,
+): TopologyVizModel | null {
+  const asIs = buildDesignDiagramAsIsViz(ctx, targetResourceId)
+  const impact = ctx.design_proposal_impact
+  if (!asIs || !impact) return null
+
+  const matched = new Set((impact.matched_design_nodes ?? []).map((n) => n.nodeId))
+  const structural = impact.action === 'stop' || impact.action === 'delete'
+
+  let nodes: TopologyVizNode[] = asIs.nodes
+  if (structural && matched.size) {
+    nodes = nodes.filter((n) => !matched.has(n.id))
+  } else if (matched.size) {
+    nodes = nodes.map((n) =>
+      matched.has(n.id)
+        ? { ...n, state: 'modified' as VizNodeState }
+        : { ...n, state: 'normal' as VizNodeState },
+    )
+  }
+
+  const alive = new Set(nodes.map((n) => n.id))
+  const edges = asIs.edges
+    .filter((e) => alive.has(e.from) && alive.has(e.to))
+    .map((e) => ({ ...e, broken: false }))
+
+  const survivingGroups = asIs.groups.filter((g) => nodes.some((n) => n.groupId === g.id))
+
+  const b = bounds(nodes, survivingGroups)
+  return {
+    nodes,
+    edges,
+    groups: survivingGroups,
+    width: b.width ?? asIs.width,
+    height: b.height ?? asIs.height,
   }
 }
 
