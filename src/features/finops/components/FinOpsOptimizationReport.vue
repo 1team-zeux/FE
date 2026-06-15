@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import type { FinOpsRun, OptimizationCategory, OptimizationProposal } from '../types/finops.schema'
+import type { FinOpsRun, FinOpsFinding, OptimizationCategory, OptimizationProposal } from '../types/finops.schema'
 import {
   CATEGORY_LABELS,
   filterByCategory,
@@ -42,7 +42,15 @@ const selected = computed(() =>
 const selectedFinding = computed(() => {
   if (!selected.value?.resource_id) return null
   const list = props.run.findings_snapshot?.findings ?? []
-  return list.find((f) => f.resource_id === selected.value!.resource_id) ?? null
+  const fromSnap = list.find((f) => f.resource_id === selected.value!.resource_id)
+  if (fromSnap) return fromSnap
+  return {
+    resource_id: selected.value.resource_id,
+    resource_type: selected.value.category,
+    recommended_action: selected.value.recommended_action,
+    guard_reason: selected.value.sla_impact_detail,
+    topology_context: selected.value.topology_context,
+  } satisfies FinOpsFinding
 })
 
 const evaluationDays = computed(
@@ -201,12 +209,7 @@ const priorityClass = (band?: string) =>
           :evaluation-days="evaluationDays"
         />
 
-        <FinOpsTopologySection
-          :finding="selectedFinding ?? {
-            resource_id: selected.resource_id ?? selected.service_name,
-            topology_context: selected.topology_context,
-          }"
-        />
+        <FinOpsTopologySection :finding="selectedFinding" />
 
         <div class="rounded-xl border p-4" :class="slaImpactClass(selected.sla_impact)">
           <div class="text-[10px] font-bold uppercase mb-1">SLA 영향 검증</div>

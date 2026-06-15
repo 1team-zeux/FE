@@ -14,6 +14,7 @@ export interface TopologyCoreView {
   designDiagram: NonNullable<TopologyContext['design_diagram']>
   designProposalImpact?: TopologyContext['design_proposal_impact']
   hasGraphDiff: boolean
+  isClientFallback: boolean
 }
 
 const CHANGE_TYPE_LABEL: Record<string, string> = {
@@ -28,6 +29,199 @@ const IMPACT_LEVEL_LABEL: Record<string, string> = {
   high: '높음',
   medium: '중간',
   low: '낮음',
+}
+
+const DEMO_RESOURCE_GRAPH = {
+  source: 'demo',
+  nodes: [
+    { id: 'alb-prod-01', label: 'alb-prod-01 (alb)', resource_type: 'alb', status: 'active' },
+    { id: 'i-demo-idle-01', label: 'i-demo-idle-01 (ec2)', resource_type: 'ec2', status: 'active' },
+    { id: 'db-prod-01', label: 'db-prod-01 (rds)', resource_type: 'rds', status: 'active' },
+  ],
+  edges: [
+    { from: 'alb-prod-01', to: 'i-demo-idle-01', dependency_type: 'traffic' },
+    { from: 'i-demo-idle-01', to: 'db-prod-01', dependency_type: 'data' },
+  ],
+  node_count: 3,
+  edge_count: 2,
+}
+
+const DEMO_DESIGN_DIAGRAM = {
+  topology_id: 'demo-api-gateway-standard',
+  concept: 'standard',
+  display_name: 'api-gateway · Standard',
+  source: 'demo',
+  nodes: [
+    { nodeId: 'route53-1', type: 'route53', label: 'Route 53' },
+    { nodeId: 'alb-1', type: 'elb', label: 'ALB' },
+    { nodeId: 'c1-1', type: 'ec2', label: 'api-gateway (EC2)' },
+    { nodeId: 'rds-1', type: 'rds', label: 'RDS' },
+  ],
+  edges: [
+    { edgeId: 'e-alb-c1', from: 'alb-1', to: 'c1-1' },
+    { edgeId: 'e-c1-rds', from: 'c1-1', to: 'rds-1' },
+  ],
+}
+
+function inferTypes(resourceId: string, resourceType?: string): Set<string> {
+  const rid = resourceId.toLowerCase()
+  const rtype = (resourceType ?? '').toLowerCase()
+  const hits = new Set<string>()
+  if (rtype) hits.add(rtype)
+  if (rid.startsWith('i-') || rtype.includes('ec2')) hits.add('ec2')
+  if (rid.includes('alb') || rtype.includes('alb')) hits.add('elb')
+  if (rid.startsWith('db-') || rtype.includes('rds')) hits.add('rds')
+  return hits
+}
+
+function buildClientProposalImpact(
+  resourceId: string,
+  action: string,
+): TopologyProposalImpact | undefined {
+  const act = action.toLowerCase()
+  if (!['stop', 'delete', 'downsize', 'resize', 'schedule'].includes(act)) return undefined
+  if (!DEMO_RESOURCE_GRAPH.nodes.some((n) => n.id === resourceId)) return undefined
+
+  const broken = DEMO_RESOURCE_GRAPH.edges.filter(
+    (e) => e.from === resourceId || e.to === resourceId,
+  )
+  const affectedPeers = broken
+    .flatMap((e) => [e.from, e.to])
+    .filter((id) => id !== resourceId)
+    .map((id) => ({
+      resource_id: id,
+      resource_type: DEMO_RESOURCE_GRAPH.nodes.find((n) => n.id === id)?.resource_type,
+    }))
+
+  const structural = act === 'stop' || act === 'delete'
+  return {
+    action: act,
+    target_resource_id: resourceId,
+    as_is: { node_count: 3, edge_count: 2 },
+    to_be: {
+      node_count: structural ? 2 : 3,
+      edge_count: structural ? broken.length === 2 ? 0 : 1 : 2,
+    },
+    removed_nodes: structural
+      ? DEMO_RESOURCE_GRAPH.nodes.filter((n) => n.id === resourceId).map((n) => ({ ...n, change: act }))
+      : [],
+    modified_nodes: !structural
+      ? DEMO_RESOURCE_GRAPH.nodes.filter((n) => n.id === resourceId).map((n) => ({ ...n, change: act, status: 'capacity_reduced' }))
+      : [],
+    broken_edges: broken.map((e) => ({ ...e, reason: `source ${act}` })),
+    affected_peers: affectedPeers,
+    impact_level: structural && broken.length > 0 ? 'high' : 'medium',
+    summary: structural
+      ? `${act} 시 연결 리소스 ${affectedPeers.length}개 영향 (demo)`
+      : `${act} — 용량 변경 (demo)`,
+    graph_source: 'demo',
+  }
+}
+
+function buildClientDesignImpact(
+  resourceId: string,
+  resourceType: string | undefined,
+  action: string,
+) {
+  const act = action.toLowerCase()
+  const types = inferTypes(resourceId, resourceType)
+  const matched = DEMO_DESIGN_DIAGRAM.nodes.filter((n) => types.has(n.type ?? ''))
+  if (!matched.length) return undefined
+
+  const matchedIds = new Set(matched.map((n) => n.nodeId))
+  const broken = DEMO_DESIGN_DIAGRAM.edges.filter(
+    (e) => matchedIds.has(e.from) || matchedIds.has(e.to),
+  )
+
+  return {
+    action: act,
+    target_resource_id: resourceId,
+    matched_design_nodes: matched.map((n) => ({
+      nodeId: n.nodeId,
+      type: n.type,
+      label: n.label,
+      match_reason: `type:${n.type}`,
+    })),
+    broken_edges: broken.map((e) => ({ ...e, reason: `design:${act}` })),
+    affected_design_nodes: DEMO_DESIGN_DIAGRAM.nodes.filter(
+      (n) => !matchedIds.has(n.nodeId)
+        && broken.some((e) => e.from === n.nodeId || e.to === n.nodeId),
+    ),
+    impact_level: (act === 'stop' || act === 'delete') && broken.length ? 'high' : 'medium',
+    summary: `설계 다이어그램 — ${matched.length}개 컴포넌트·${broken.length}개 연결에 ${act} 영향 (demo)`,
+    diagram_source: 'demo',
+  } as NonNullable<TopologyContext['design_proposal_impact']>
+}
+
+export function buildClientDemoTopologyContext(
+  finding: Pick<FinOpsFinding, 'resource_id' | 'resource_type' | 'recommended_action'>,
+): TopologyContext {
+  const action = finding.recommended_action ?? 'stop'
+  const proposalImpact = buildClientProposalImpact(finding.resource_id, action)
+  const designProposalImpact = buildClientDesignImpact(
+    finding.resource_id,
+    finding.resource_type,
+    action,
+  )
+
+  let finopsImpact: TopologyContext['finops_impact'] = 'review'
+  if (proposalImpact?.impact_level === 'high' || designProposalImpact?.impact_level === 'high') {
+    finopsImpact = 'defer_recommended'
+  }
+
+  return {
+    source: 'demo',
+    resource_graph: DEMO_RESOURCE_GRAPH,
+    design_diagram: DEMO_DESIGN_DIAGRAM,
+    proposal_impact: proposalImpact,
+    design_proposal_impact: designProposalImpact,
+    finops_impact: finopsImpact,
+    change_events: [
+      {
+        occurred_at: new Date(Date.now() - 18 * 3600_000).toISOString(),
+        change_type: 'deploy',
+        summary: 'api-gateway staging rollout v2.4.1 (client demo)',
+        resource_id: 'i-demo-idle-01',
+        service_id: 'api-gateway',
+        source: 'demo',
+      },
+    ],
+    dependencies: {
+      upstream: [{ service_id: 'payment-api', dependency_type: 'sync' }],
+      downstream: [{ service_id: 'billing-api', dependency_type: 'async' }],
+    },
+  }
+}
+
+function hasTopologyPayload(ctx?: TopologyContext): boolean {
+  if (!ctx) return false
+  return Boolean(
+    ctx.change_events?.length
+    || ctx.resource_graph?.nodes?.length
+    || ctx.design_diagram?.nodes?.length
+    || ctx.proposal_impact
+    || ctx.design_proposal_impact
+    || ctx.dependencies?.upstream?.length
+    || ctx.dependencies?.downstream?.length,
+  )
+}
+
+/** Merge finding + proposal topology fields; apply client demo when snapshot lacks BE data. */
+export function resolveTopologyFinding(
+  finding: FinOpsFinding | null | undefined,
+): { finding: FinOpsFinding | null; isClientFallback: boolean } {
+  if (!finding?.resource_id) return { finding: null, isClientFallback: false }
+
+  const ctx = finding.topology_context
+  if (hasTopologyPayload(ctx)) {
+    return { finding, isClientFallback: false }
+  }
+
+  const demo = buildClientDemoTopologyContext(finding)
+  return {
+    finding: { ...finding, topology_context: demo },
+    isClientFallback: true,
+  }
 }
 
 export function changeTypeLabel(changeType: string): string {
@@ -75,7 +269,7 @@ export function formatTopologyTimestamp(iso: string): string {
 export function resolveTopologyCore(
   finding: FinOpsFinding | null | undefined,
 ): TopologyCoreView {
-  const ctx = finding?.topology_context
+  const { finding: resolved, isClientFallback } = resolveTopologyFinding(finding)
   const empty: TopologyCoreView = {
     hasCore: false,
     changeEvents: [],
@@ -89,7 +283,11 @@ export function resolveTopologyCore(
     designDiagram: { nodes: [], edges: [] },
     designProposalImpact: undefined,
     hasGraphDiff: false,
+    isClientFallback: false,
   }
+  if (!resolved) return empty
+
+  const ctx = resolved.topology_context
   if (!ctx) return empty
 
   const changeEvents = ctx.change_events ?? []
@@ -124,11 +322,13 @@ export function resolveTopologyCore(
     designDiagram,
     designProposalImpact,
     hasGraphDiff: Boolean(proposalImpact || designProposalImpact),
+    isClientFallback,
   }
 }
 
 export function findingToTopologyMetrics(finding: FinOpsFinding) {
+  const { finding: resolved } = resolveTopologyFinding(finding)
   return {
-    topology_context: finding.topology_context,
+    topology_context: resolved?.topology_context,
   }
 }

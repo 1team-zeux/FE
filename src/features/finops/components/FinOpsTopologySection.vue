@@ -9,13 +9,15 @@ import {
   impactLevelClass,
   impactLevelLabel,
   resolveTopologyCore,
+  resolveTopologyFinding,
 } from '../utils/topologyMetrics'
 
 const props = defineProps<{
   finding: FinOpsFinding | null
 }>()
 
-const topo = computed(() => resolveTopologyCore(props.finding))
+const resolved = computed(() => resolveTopologyFinding(props.finding))
+const topo = computed(() => resolveTopologyCore(resolved.value.finding))
 const expanded = ref(false)
 const graphExpanded = ref(true)
 
@@ -63,6 +65,12 @@ const impact = computed(() => topo.value.proposalImpact)
         v-if="topo.finopsImpact && topo.finopsImpact !== 'none'"
         class="flex flex-wrap items-center gap-2"
       >
+        <span
+          v-if="topo.isClientFallback"
+          class="px-2 py-0.5 rounded border text-[9px] font-bold bg-amber-500/10 text-amber-700 border-amber-500/25"
+        >
+          클라이언트 demo (스냅샷 미포함 — FinOps 재실행 권장)
+        </span>
         <span
           class="px-2 py-0.5 rounded border text-[9px] font-bold"
           :class="finopsImpactClass(topo.finopsImpact)"
@@ -344,7 +352,7 @@ const impact = computed(() => topo.value.proposalImpact)
       </div>
 
       <p v-if="!topo.hasCore" class="text-xs text-gray-400">
-        resource_dependencies·action_histories·service_dependencies에서 수집된 맥락이 없습니다.
+        토폴로지 맥락이 없습니다. FinOps run을 재실행하거나 제안 리소스를 선택해 주세요.
       </p>
     </div>
   </div>
