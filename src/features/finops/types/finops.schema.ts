@@ -97,7 +97,16 @@ export const TopologyDesignDiagramSchema = z.object({
   display_name: z.string().optional(),
   bundle_id: z.string().nullable().optional(),
   source: z.string().optional(),
-  groups: z.array(z.record(z.string(), z.union([z.string(), z.boolean(), z.null()]))).optional(),
+  groups: z
+    .array(
+      z.object({
+        groupId: z.string().optional(),
+        label: z.string().optional(),
+        type: z.string().optional(),
+        parentGroupId: z.string().optional(),
+      }),
+    )
+    .optional(),
   nodes: z.array(TopologyDesignNodeSchema).optional(),
   edges: z.array(TopologyDesignEdgeSchema).optional(),
 })
@@ -394,6 +403,8 @@ export const FinOpsRunDetailResponseSchema = z.object({
 export type FinOpsRun = z.infer<typeof FinOpsRunSchema>
 export type FinOpsFinding = z.infer<typeof FinOpsFindingSchema>
 export type TopologyContext = z.infer<typeof TopologyContextSchema>
+export type TopologyProposalImpact = z.infer<typeof TopologyProposalImpactSchema>
+export type TopologyDesignProposalImpact = z.infer<typeof TopologyDesignProposalImpactSchema>
 export type FindingsSnapshot = z.infer<typeof FindingsSnapshotSchema>
 export type ExecutiveReport = z.infer<typeof ExecutiveReportSchema>
 export type BacklogItem = z.infer<typeof BacklogItemSchema>

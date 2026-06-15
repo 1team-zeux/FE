@@ -11,6 +11,8 @@ import {
   resolveTopologyCore,
   resolveTopologyFinding,
 } from '../utils/topologyMetrics'
+import { buildDesignDiagramViz, buildResourceGraphViz } from '../utils/topologyGraphLayout'
+import FinOpsTopologyGraphViz from './FinOpsTopologyGraphViz.vue'
 
 const props = defineProps<{
   finding: FinOpsFinding | null
@@ -19,13 +21,11 @@ const props = defineProps<{
 const resolved = computed(() => resolveTopologyFinding(props.finding))
 const topo = computed(() => resolveTopologyCore(resolved.value.finding))
 const expanded = ref(false)
-const graphExpanded = ref(true)
 
 watch(
   () => props.finding?.resource_id,
   () => {
     expanded.value = topo.value.hasCore
-    graphExpanded.value = Boolean(topo.value.proposalImpact)
   },
   { immediate: true },
 )
@@ -45,6 +45,18 @@ const toggleLabel = computed(() => {
 })
 
 const impact = computed(() => topo.value.proposalImpact)
+
+const resourceViz = computed(() => {
+  const ctx = resolved.value.finding?.topology_context
+  if (!ctx) return null
+  return buildResourceGraphViz(ctx, props.finding?.resource_id)
+})
+
+const designViz = computed(() => {
+  const ctx = resolved.value.finding?.topology_context
+  if (!ctx) return null
+  return buildDesignDiagramViz(ctx, props.finding?.resource_id)
+})
 </script>
 
 <template>
@@ -91,7 +103,23 @@ const impact = computed(() => topo.value.proposalImpact)
         </span>
       </div>
 
-      <!-- Phase 2: as-is vs proposal diff -->
+      <!-- 시각화: 운영 리소스 그래프 -->
+      <FinOpsTopologyGraphViz
+        v-if="resourceViz"
+        :model="resourceViz"
+        title="운영 리소스 그래프 (resource_dependencies)"
+        :height="240"
+      />
+
+      <!-- 시각화: Topology Agent 설계 다이어그램 -->
+      <FinOpsTopologyGraphViz
+        v-if="designViz"
+        :model="designViz"
+        :title="`설계 다이어그램${topo.designDiagram.display_name ? ` · ${topo.designDiagram.display_name}` : ''}`"
+        :height="300"
+      />
+
+      <!-- Phase 2: as-is vs proposal diff (요약) -->
       <div v-if="impact" class="rounded-lg border border-brand/20 bg-brand/5 p-3 space-y-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <h4 class="text-[10px] font-bold text-brand uppercase tracking-wider">
@@ -115,183 +143,24 @@ const impact = computed(() => topo.value.proposalImpact)
             노드 {{ impact.to_be.node_count }} · 엣지 {{ impact.to_be.edge_count }}
           </div>
         </div>
-
-        <div v-if="impact.removed_nodes?.length" class="space-y-1">
-          <p class="text-[10px] font-bold text-red-600 uppercase">제거·중지</p>
-          <ul class="space-y-1">
-            <li
-              v-for="n in impact.removed_nodes"
-              :key="n.id"
-              class="text-xs font-mono px-2 py-1 rounded bg-red-500/5 border border-red-500/20"
-            >
-              {{ n.id }}
-              <span v-if="n.resource_type" class="text-gray-400"> · {{ n.resource_type }}</span>
-            </li>
-          </ul>
-        </div>
-
-        <div v-if="impact.modified_nodes?.length" class="space-y-1">
-          <p class="text-[10px] font-bold text-amber-700 uppercase">용량 변경</p>
-          <ul class="space-y-1">
-            <li
-              v-for="n in impact.modified_nodes"
-              :key="`mod-${n.id}`"
-              class="text-xs font-mono px-2 py-1 rounded bg-amber-500/5 border border-amber-500/20"
-            >
-              {{ n.id }} → {{ n.change }}
-            </li>
-          </ul>
-        </div>
-
-        <div v-if="impact.broken_edges?.length" class="space-y-1">
-          <p class="text-[10px] font-bold text-gray-500 uppercase">끊기는 연결</p>
-          <ul class="space-y-1">
-            <li
-              v-for="(e, i) in impact.broken_edges"
-              :key="`edge-${i}`"
-              class="text-xs font-mono px-2 py-1 rounded border border-border bg-bg-card"
-            >
-              {{ e.from }} → {{ e.to }}
-              <span v-if="e.dependency_type" class="text-gray-400"> · {{ e.dependency_type }}</span>
-            </li>
-          </ul>
-        </div>
-
-        <div v-if="impact.affected_peers?.length" class="space-y-1">
-          <p class="text-[10px] font-bold text-gray-500 uppercase">영향 받는 연결 리소스</p>
-          <ul class="space-y-1">
-            <li
-              v-for="p in impact.affected_peers"
-              :key="p.resource_id"
-              class="text-xs px-2 py-1 rounded border border-border bg-bg-card"
-            >
-              <span class="font-mono">{{ p.resource_id }}</span>
-              <span v-if="p.resource_type" class="text-gray-400"> · {{ p.resource_type }}</span>
-            </li>
-          </ul>
-        </div>
-
-        <p v-if="impact.graph_source" class="text-[9px] text-gray-400">
-          그래프 출처: {{ impact.graph_source }} · resource_dependencies
-        </p>
       </div>
 
-      <!-- Phase 3: Topology Agent design diagram -->
       <div
-        v-if="topo.designProposalImpact || (topo.designDiagram.nodes?.length ?? 0) > 0"
-        class="rounded-lg border border-border bg-bg-card p-3 space-y-3"
+        v-if="topo.designProposalImpact"
+        class="rounded-lg border border-border bg-bg-card p-3 space-y-2"
       >
-        <div class="flex flex-wrap items-center justify-between gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <h4 class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
-            설계 다이어그램 (Topology Agent)
+            설계 what-if 요약
           </h4>
-          <span v-if="topo.designDiagram.display_name" class="text-[10px] text-gray-400">
-            {{ topo.designDiagram.display_name }}
+          <span
+            class="px-2 py-0.5 rounded border text-[9px] font-bold"
+            :class="impactLevelClass(topo.designProposalImpact.impact_level)"
+          >
+            {{ impactLevelLabel(topo.designProposalImpact.impact_level) }}
           </span>
         </div>
-
-        <div v-if="topo.designProposalImpact" class="space-y-2">
-          <div class="flex flex-wrap items-center gap-2">
-            <span
-              class="px-2 py-0.5 rounded border text-[9px] font-bold"
-              :class="impactLevelClass(topo.designProposalImpact.impact_level)"
-            >
-              설계 영향 {{ impactLevelLabel(topo.designProposalImpact.impact_level) }}
-            </span>
-          </div>
-          <p class="text-xs text-text-primary">{{ topo.designProposalImpact.summary }}</p>
-          <div v-if="topo.designProposalImpact.matched_design_nodes?.length" class="space-y-1">
-            <p class="text-[10px] font-bold text-brand uppercase">매칭 컴포넌트</p>
-            <ul class="space-y-1">
-              <li
-                v-for="n in topo.designProposalImpact.matched_design_nodes"
-                :key="n.nodeId"
-                class="text-xs font-mono px-2 py-1 rounded border border-brand/30 bg-brand/5"
-              >
-                {{ n.label || n.nodeId }}
-                <span class="text-gray-400"> · {{ n.type }}</span>
-              </li>
-            </ul>
-          </div>
-          <div v-if="topo.designProposalImpact.broken_edges?.length" class="space-y-1">
-            <p class="text-[10px] font-bold text-gray-500 uppercase">설계 상 끊기는 연결</p>
-            <ul class="space-y-1">
-              <li
-                v-for="(e, i) in topo.designProposalImpact.broken_edges"
-                :key="`de-${i}`"
-                class="text-[10px] font-mono text-gray-500"
-              >
-                {{ e.from }} → {{ e.to }}
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div v-if="(topo.designDiagram.nodes?.length ?? 0) > 0" class="space-y-2">
-          <p class="text-[10px] font-bold text-gray-400 uppercase">as-is 컴포넌트</p>
-          <ul class="flex flex-wrap gap-1.5">
-            <li
-              v-for="n in topo.designDiagram.nodes"
-              :key="n.nodeId"
-              class="text-[10px] px-2 py-1 rounded border border-border"
-              :class="
-                topo.designProposalImpact?.matched_design_nodes?.some((m) => m.nodeId === n.nodeId)
-                  ? 'border-brand text-brand bg-brand/5'
-                  : 'bg-bg-muted'
-              "
-            >
-              {{ n.label || n.nodeId }}
-              <span class="text-gray-400">({{ n.type }})</span>
-            </li>
-          </ul>
-          <ul v-if="topo.designDiagram.edges?.length" class="space-y-0.5">
-            <li
-              v-for="(e, i) in topo.designDiagram.edges"
-              :key="`dg-${i}`"
-              class="text-[10px] font-mono text-gray-400"
-            >
-              {{ e.from }} → {{ e.to }}
-            </li>
-          </ul>
-        </div>
-        <p v-if="topo.designDiagram.source" class="text-[9px] text-gray-400">
-          출처: {{ topo.designDiagram.source }}
-          <span v-if="topo.designDiagram.bundle_id"> · bundle {{ topo.designDiagram.bundle_id }}</span>
-        </p>
-      </div>
-
-      <!-- as-is resource graph (compact) -->
-      <div v-if="(topo.resourceGraph.nodes?.length ?? 0) > 0">
-        <button
-          type="button"
-          class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2"
-          @click="graphExpanded = !graphExpanded"
-        >
-          현재 리소스 그래프 (as-is)
-          <span class="text-gray-300 font-normal normal-case">{{ graphExpanded ? '접기' : '펼치기' }}</span>
-        </button>
-        <div v-if="graphExpanded" class="space-y-2">
-          <ul class="flex flex-wrap gap-1.5">
-            <li
-              v-for="n in topo.resourceGraph.nodes"
-              :key="n.id"
-              class="text-[10px] font-mono px-2 py-1 rounded border border-border bg-bg-card"
-              :class="n.id === finding?.resource_id ? 'border-brand text-brand' : ''"
-            >
-              {{ n.id }}
-            </li>
-          </ul>
-          <ul v-if="topo.resourceGraph.edges?.length" class="space-y-1">
-            <li
-              v-for="(e, i) in topo.resourceGraph.edges"
-              :key="`g-${i}`"
-              class="text-[10px] font-mono text-gray-500 px-2"
-            >
-              {{ e.from }} → {{ e.to }}
-              <span v-if="e.dependency_type" class="text-gray-300">({{ e.dependency_type }})</span>
-            </li>
-          </ul>
-        </div>
+        <p class="text-xs text-text-primary">{{ topo.designProposalImpact.summary }}</p>
       </div>
 
       <div v-if="topo.changeEvents.length">

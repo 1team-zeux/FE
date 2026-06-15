@@ -52,14 +52,20 @@ const DEMO_DESIGN_DIAGRAM = {
   display_name: 'api-gateway · Standard',
   source: 'demo',
   nodes: [
-    { nodeId: 'route53-1', type: 'route53', label: 'Route 53' },
-    { nodeId: 'alb-1', type: 'elb', label: 'ALB' },
-    { nodeId: 'c1-1', type: 'ec2', label: 'api-gateway (EC2)' },
-    { nodeId: 'rds-1', type: 'rds', label: 'RDS' },
+    { nodeId: 'route53-1', type: 'route53', label: 'Route 53', groupId: null },
+    { nodeId: 'alb-1', type: 'elb', label: 'ALB', groupId: 'g-public' },
+    { nodeId: 'c1-1', type: 'ec2', label: 'api-gateway (EC2)', groupId: 'g-private-a' },
+    { nodeId: 'rds-1', type: 'rds', label: 'RDS', groupId: 'g-db' },
   ],
   edges: [
     { edgeId: 'e-alb-c1', from: 'alb-1', to: 'c1-1' },
     { edgeId: 'e-c1-rds', from: 'c1-1', to: 'rds-1' },
+  ],
+  groups: [
+    { groupId: 'g-vpc', label: 'VPC · ap-northeast-2', type: 'vpc' },
+    { groupId: 'g-public', label: 'Public Subnet', type: 'public-subnet', parentGroupId: 'g-vpc' },
+    { groupId: 'g-private-a', label: 'Private Subnet A', type: 'private-subnet', parentGroupId: 'g-vpc' },
+    { groupId: 'g-db', label: 'DB Subnet', type: 'db-subnet', parentGroupId: 'g-vpc' },
   ],
 }
 
