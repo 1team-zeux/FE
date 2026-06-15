@@ -1,5 +1,5 @@
 /** FinOps Agent 판정 규칙 레지스트리 — 외부·공식 출처 중심 (UI 푸터) */
-export type PolicyRuleCategory = 'detection' | 'guard' | 'rca' | 'priority' | 'governance'
+export type PolicyRuleCategory = 'detection' | 'guard' | 'rca' | 'topology' | 'priority' | 'governance'
 
 export interface PolicyRuleRow {
   ruleId: string
@@ -170,6 +170,39 @@ export const GUARD_RULES: PolicyRuleRow[] = [
     sourceRef: 'FinOps Foundation — Resource Tagging capability',
     sourceUrl: 'https://www.finops.org/framework/capabilities/resource-tagging/',
     sourceNote: '비용 배분·제외 대상 리소스 태깅 관행.',
+  },
+  {
+    ruleId: 'GRD-009',
+    category: 'guard',
+    name: 'Recent topology / deploy change',
+    condition: 'change within 48h AND action ∈ stop/delete/downsize/resize',
+    outcome: 'guard_status=defer',
+    sourceRef: 'ITIL 4 — Change Enablement Practice',
+    sourceUrl: 'https://www.axelos.com/certifications/itil-service-management',
+    sourceNote: '배포·토폴로지 변경 직후 안정화 기간 — 공격적 비용 조치 보류.',
+  },
+]
+
+export const TOPOLOGY_RULES: PolicyRuleRow[] = [
+  {
+    ruleId: 'TOP-001',
+    category: 'topology',
+    name: 'Recent change defer window',
+    condition: 'topology_context.recent_change_within_hours ≤ 48',
+    outcome: 'finops_impact=defer_recommended · guard defer for risky actions',
+    sourceRef: 'ITIL 4 — Change Enablement · Release validation',
+    sourceUrl: 'https://www.axelos.com/certifications/itil-service-management',
+    sourceNote: 'action_histories·service_dependencies·RCA config_change 맥락 반영.',
+  },
+  {
+    ruleId: 'TOP-002',
+    category: 'topology',
+    name: 'Resource graph downstream impact',
+    condition: 'proposal_impact: broken_edges OR affected_peers AND action ∈ stop/delete',
+    outcome: 'guard_status=defer · as-is vs to-be diff',
+    sourceRef: 'FinOps Foundation — Inform phase (impact analysis before action)',
+    sourceUrl: 'https://www.finops.org/framework/phases/',
+    sourceNote: 'zeux.resource_dependencies 기반 what-if — 제안 전후 그래프 대조.',
   },
 ]
 

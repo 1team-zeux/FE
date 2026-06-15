@@ -13,6 +13,7 @@ import {
   totalSavingsKrw,
 } from '../utils/optimizationReport'
 import FinOpsEvidencePanel from './FinOpsEvidencePanel.vue'
+import FinOpsTopologySection from './FinOpsTopologySection.vue'
 
 const props = defineProps<{
   run: FinOpsRun
@@ -198,6 +199,13 @@ const priorityClass = (band?: string) =>
             guard_reason: selected.sla_impact_detail,
           }"
           :evaluation-days="evaluationDays"
+        />
+
+        <FinOpsTopologySection
+          :finding="selectedFinding ?? {
+            resource_id: selected.resource_id ?? selected.service_name,
+            topology_context: selected.topology_context,
+          }"
         />
 
         <div class="rounded-xl border p-4" :class="slaImpactClass(selected.sla_impact)">

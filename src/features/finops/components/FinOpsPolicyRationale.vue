@@ -10,6 +10,7 @@ import {
   POLICY_REGISTRY_VERSION,
   PRIORITY_RULES,
   RCA_RULES,
+  TOPOLOGY_RULES,
 } from '../data/policyRuleRegistry'
 import FinOpsPolicyRuleTable from './FinOpsPolicyRuleTable.vue'
 </script>
@@ -66,6 +67,11 @@ import FinOpsPolicyRuleTable from './FinOpsPolicyRuleTable.vue'
       <section>
         <h4 class="text-[10px] font-semibold text-gray-500 mb-2">§4 RCA 연동 규칙 (연쇄 오탐 방지)</h4>
         <FinOpsPolicyRuleTable :rows="RCA_RULES" />
+      </section>
+
+      <section>
+        <h4 class="text-[10px] font-semibold text-gray-500 mb-2">§4b 토폴로지·변경 맥락</h4>
+        <FinOpsPolicyRuleTable :rows="TOPOLOGY_RULES" />
       </section>
 
       <section>

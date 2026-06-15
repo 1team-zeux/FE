@@ -10,6 +10,7 @@ import type {
 } from '../types/finops.schema'
 import { resolveExecutiveReport } from './executiveReport'
 import { findingToProposalMetrics } from './evidenceMetrics'
+import { findingToTopologyMetrics } from './topologyMetrics'
 
 export const CATEGORY_LABELS: Record<OptimizationCategory, string> = {
   rightsizing: 'RightSizing',
@@ -49,6 +50,7 @@ function findingToProposal(item: FinOpsFinding, index: number): OptimizationProp
   const blocked = item.guard_status === 'blocked' || item.guard_status === 'defer'
   const action = item.recommended_action ?? 'optimize'
   const metrics = findingToProposalMetrics(item)
+  const topo = findingToTopologyMetrics(item)
 
   return {
     id: `finding-${item.resource_id}-${index}`,
@@ -77,6 +79,7 @@ function findingToProposal(item: FinOpsFinding, index: number): OptimizationProp
     utilization_source: metrics.utilization_source,
     evidence: metrics.evidence,
     utilization: metrics.utilization,
+    topology_context: topo.topology_context,
     resource_id: item.resource_id,
     recommended_action: item.recommended_action,
     terraform_handoff: !blocked && ['downsize', 'stop', 'schedule'].includes(action),
@@ -120,6 +123,7 @@ function enrichProposalFromFinding(
   const match = findings.find((f) => f.resource_id === proposal.resource_id)
   if (!match) return proposal
   const metrics = findingToProposalMetrics(match)
+  const topo = findingToTopologyMetrics(match)
   return {
     ...proposal,
     evidence_summary: metrics.evidence_summary ?? proposal.evidence_summary,
@@ -137,6 +141,7 @@ function enrichProposalFromFinding(
     utilization_source: metrics.utilization_source,
     evidence: metrics.evidence,
     utilization: metrics.utilization,
+    topology_context: topo.topology_context ?? proposal.topology_context,
   }
 }
 

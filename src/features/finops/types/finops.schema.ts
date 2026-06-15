@@ -9,6 +9,94 @@ export const LogSampleSchema = z.object({
   message: z.string(),
 })
 
+export const TopologyChangeEventSchema = z.object({
+  occurred_at: z.string(),
+  change_type: z.string(),
+  summary: z.string(),
+  resource_id: z.string().nullable().optional(),
+  service_id: z.string().optional(),
+  source: z.string().optional(),
+})
+
+export const TopologyDependencySchema = z.object({
+  service_id: z.string(),
+  dependency_type: z.string().optional(),
+  criticality: z.number().optional(),
+})
+
+export const TopologyGraphNodeSchema = z.object({
+  id: z.string(),
+  label: z.string().optional(),
+  resource_type: z.string().optional(),
+  status: z.string().optional(),
+  change: z.string().optional(),
+})
+
+export const TopologyGraphEdgeSchema = z.object({
+  from: z.string(),
+  to: z.string(),
+  dependency_type: z.string().optional(),
+  reason: z.string().optional(),
+})
+
+export const TopologyResourceGraphSchema = z.object({
+  source: z.string().optional(),
+  nodes: z.array(TopologyGraphNodeSchema).optional(),
+  edges: z.array(TopologyGraphEdgeSchema).optional(),
+  node_count: z.number().optional(),
+  edge_count: z.number().optional(),
+})
+
+export const TopologyProposalImpactSchema = z.object({
+  action: z.string(),
+  target_resource_id: z.string(),
+  as_is: z.object({
+    node_count: z.number(),
+    edge_count: z.number(),
+  }),
+  to_be: z.object({
+    node_count: z.number(),
+    edge_count: z.number(),
+  }),
+  removed_nodes: z.array(TopologyGraphNodeSchema).optional(),
+  modified_nodes: z.array(TopologyGraphNodeSchema).optional(),
+  broken_edges: z.array(TopologyGraphEdgeSchema).optional(),
+  dependent_callers: z.array(z.string()).optional(),
+  affected_peers: z
+    .array(
+      z.object({
+        resource_id: z.string(),
+        resource_type: z.string().nullable().optional(),
+        dependency_type: z.string().optional(),
+      }),
+    )
+    .optional(),
+  impact_level: z.enum(['low', 'medium', 'high']),
+  summary: z.string(),
+  graph_source: z.string().optional(),
+})
+
+export const TopologyContextSchema = z.object({
+  change_events: z.array(TopologyChangeEventSchema).optional(),
+  dependencies: z
+    .object({
+      upstream: z.array(TopologyDependencySchema).optional(),
+      downstream: z.array(TopologyDependencySchema).optional(),
+    })
+    .optional(),
+  recent_change_within_hours: z.number().nullable().optional(),
+  finops_impact: z.enum(['defer_recommended', 'review', 'none']).optional(),
+  rca_link: z
+    .object({
+      cause_type: z.string().optional(),
+      incident_id: z.string().optional(),
+    })
+    .optional(),
+  source: z.string().optional(),
+  resource_graph: TopologyResourceGraphSchema.optional(),
+  proposal_impact: TopologyProposalImpactSchema.optional(),
+})
+
 export const FinOpsFindingSchema = z.object({
   finding_id: z.string().optional(),
   resource_id: z.string(),
@@ -36,6 +124,7 @@ export const FinOpsFindingSchema = z.object({
   logql: z.string().optional(),
   log_samples: z.array(LogSampleSchema).optional(),
   observability_service_id: z.string().optional(),
+  topology_context: TopologyContextSchema.optional(),
 })
 
 export const BacklogItemSchema = z.object({
@@ -99,6 +188,7 @@ export const OptimizationProposalSchema = z.object({
   recommended_action: z.string().optional(),
   terraform_handoff: z.boolean().optional(),
   iac_change_label: z.string().optional(),
+  topology_context: TopologyContextSchema.optional(),
 })
 
 export const TradeoffRowSchema = z.object({
@@ -257,6 +347,7 @@ export const FinOpsRunDetailResponseSchema = z.object({
 
 export type FinOpsRun = z.infer<typeof FinOpsRunSchema>
 export type FinOpsFinding = z.infer<typeof FinOpsFindingSchema>
+export type TopologyContext = z.infer<typeof TopologyContextSchema>
 export type FindingsSnapshot = z.infer<typeof FindingsSnapshotSchema>
 export type ExecutiveReport = z.infer<typeof ExecutiveReportSchema>
 export type BacklogItem = z.infer<typeof BacklogItemSchema>
