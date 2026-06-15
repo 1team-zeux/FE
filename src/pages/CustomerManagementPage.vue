@@ -19,7 +19,7 @@ const showCredPw = ref(false)
 // 위저드 상태
 const showWizard = ref(false)
 const step = ref(0)
-const totalSteps = 5
+const totalSteps = 3
 const result = ref<{ curl_command: string; registration_token: string; loginEmail: string; loginPassword: string } | null>(null)
 const wizardError = ref('')
 
@@ -42,9 +42,7 @@ const stepRequiredFields = computed(() => ({
     { value: form.value.loginPassword,          label: '초기 비밀번호' },
   ],
   2: [{ value: form.value.business_unit.bu_name, label: '사업부명' }],
-  3: [] as { value: string; label: string }[],
-  4: [] as { value: string; label: string }[],
-  5: form.value.services.map((s, i) => ({ value: s.service_name, label: `서비스 ${i + 1} 이름` })),
+  3: form.value.services.map((s, i) => ({ value: s.service_name, label: `서비스 ${i + 1} 이름` })),
 }))
 
 const missingInStep = (n: number) =>
@@ -94,8 +92,6 @@ async function parseDocFiles() {
 const form = ref<OnboardPayload>({
   customer: { customer_name: '', customer_code: '', contact_email: '' },
   business_unit: { bu_name: '', bu_code: '', application_name: '', manager_email: '', business_domain: '', subscription_tier: 'Standard', contract_start_date: '', contract_end_date: '' },
-  requirements: { csp: 'AWS', primary_region: 'ap-northeast-2', multi_az_required: false, db_required: false, data_type: '', backup_required: false },
-  cost_constraints: { monthly_budget: undefined, cost_priority: 'Balanced', auto_scaling_required: true, max_compute_instance_count: undefined, max_storage_size_gb: undefined },
   services: [{ service_name: '', service_type: 'java', service_tier: 'standard', criticality_score: 5, environment: 'production', sla_target_availability: 99.9, sla_target_latency_ms: 500 }],
   loginEmail: '',
   loginPassword: '',
@@ -193,7 +189,14 @@ const showPassword = ref(false)
             <div class="text-xs text-text-muted mt-0.5 font-mono">{{ cust.customer_code }}</div>
           </div>
           <div class="flex items-center gap-2 shrink-0 ml-2">
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700">Active</span>
+            <span
+              v-if="cust.agent_active"
+              class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-blue-700"
+            >에이전트 활성 · {{ cust.container_count }}개</span>
+            <span
+              v-else
+              class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500"
+            >대기</span>
             <button
               class="text-[10px] text-[#2980B9] hover:underline font-medium"
               @click.stop="selectedCust = cust; showCredPw = false"
@@ -543,76 +546,8 @@ const showPassword = ref(false)
             </div>
           </div>
 
-          <!-- Step 3: 인프라 요구사항 -->
+          <!-- Step 3: 서비스 목록 -->
           <div v-if="step === 3" class="space-y-4">
-            <h3 class="font-semibold text-text-primary mb-4">인프라 요구사항</h3>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="label">CSP</label>
-                <select v-model="form.requirements!.csp" class="input">
-                  <option>AWS</option>
-                  <option>GCP</option>
-                  <option>Azure</option>
-                </select>
-              </div>
-              <div>
-                <label class="label">Primary 리전</label>
-                <input v-model="form.requirements!.primary_region" class="input" placeholder="ap-northeast-2" />
-              </div>
-              <div>
-                <label class="label">데이터 타입</label>
-                <input v-model="form.requirements!.data_type" class="input" placeholder="Relational" />
-              </div>
-            </div>
-            <div class="space-y-2 mt-2">
-              <label class="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" v-model="form.requirements!.multi_az_required" class="w-4 h-4 accent-[#2980B9]" />
-                <span class="text-sm text-text-primary">Multi-AZ 필요</span>
-              </label>
-              <label class="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" v-model="form.requirements!.db_required" class="w-4 h-4 accent-[#2980B9]" />
-                <span class="text-sm text-text-primary">데이터베이스 필요</span>
-              </label>
-              <label class="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" v-model="form.requirements!.backup_required" class="w-4 h-4 accent-[#2980B9]" />
-                <span class="text-sm text-text-primary">백업 필요</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Step 4: 비용 제약 -->
-          <div v-if="step === 4" class="space-y-4">
-            <h3 class="font-semibold text-text-primary mb-4">비용 제약</h3>
-            <div class="grid grid-cols-2 gap-3">
-              <div>
-                <label class="label">월 예산 ($)</label>
-                <input v-model.number="form.cost_constraints!.monthly_budget" type="number" class="input" placeholder="5000" />
-              </div>
-              <div>
-                <label class="label">비용 우선순위</label>
-                <select v-model="form.cost_constraints!.cost_priority" class="input">
-                  <option>Performance First</option>
-                  <option>Balanced</option>
-                  <option>Cost First</option>
-                </select>
-              </div>
-              <div>
-                <label class="label">최대 컴퓨트 인스턴스 수</label>
-                <input v-model.number="form.cost_constraints!.max_compute_instance_count" type="number" class="input" placeholder="10" />
-              </div>
-              <div>
-                <label class="label">최대 스토리지 (GB)</label>
-                <input v-model.number="form.cost_constraints!.max_storage_size_gb" type="number" class="input" placeholder="500" />
-              </div>
-            </div>
-            <label class="flex items-center gap-3 cursor-pointer mt-2">
-              <input type="checkbox" v-model="form.cost_constraints!.auto_scaling_required" class="w-4 h-4 accent-[#2980B9]" />
-              <span class="text-sm text-text-primary">Auto Scaling 필요</span>
-            </label>
-          </div>
-
-          <!-- Step 5: 서비스 목록 -->
-          <div v-if="step === 5" class="space-y-4">
             <div class="flex items-center justify-between mb-4">
               <h3 class="font-semibold text-text-primary">서비스 등록</h3>
               <button @click="addService" class="flex items-center gap-1.5 text-xs text-[#2980B9] hover:underline">
