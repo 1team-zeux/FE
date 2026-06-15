@@ -170,7 +170,7 @@ export const FinOpsFindingSchema = z.object({
   logql: z.string().optional(),
   log_samples: z.array(LogSampleSchema).optional(),
   observability_service_id: z.string().optional(),
-  topology_context: TopologyContextSchema.optional(),
+  topology_context: TopologyContextSchema.optional().catch(undefined),
 })
 
 export const BacklogItemSchema = z.object({
