@@ -73,8 +73,6 @@ async function parseDocFiles() {
     })
     if (data.customer) Object.assign(form.value.customer, data.customer)
     if (data.business_unit) Object.assign(form.value.business_unit, data.business_unit)
-    if (data.requirements) Object.assign(form.value.requirements!, data.requirements)
-    if (data.cost_constraints) Object.assign(form.value.cost_constraints!, data.cost_constraints)
     if (data.services?.length) form.value.services = data.services
     // manager_email → contact_email 단일 필드로 통합
     if (!form.value.customer.contact_email && data.business_unit?.manager_email)
