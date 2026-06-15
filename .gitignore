@@ -39,3 +39,4 @@ vite.config.*.timestamp-*
 *.tsbuildinfo
 .worktrees/
 docs/
+.superpowers/
