@@ -12,6 +12,7 @@ import {
   sparklinePoints,
   thresholdLineY,
 } from '../utils/evidenceMetrics'
+import { humanizeFindingReason, problemStatementFromFinding } from '../utils/proposalNarrative'
 
 const props = defineProps<{
   finding: FinOpsFinding | null
@@ -21,6 +22,15 @@ const props = defineProps<{
 }>()
 
 const mlt = computed(() => resolveMltCore(props.finding))
+const problemStatement = computed(() =>
+  props.finding ? problemStatementFromFinding(props.finding) : null,
+)
+const showTechnicalReason = computed(() => {
+  const raw = props.finding?.reason?.trim()
+  if (!raw) return false
+  const human = props.finding ? humanizeFindingReason(props.finding) : null
+  return human !== raw && !problemStatement.value?.includes(raw)
+})
 const mltExpanded = ref(false)
 const detailExpanded = ref(false)
 
@@ -67,10 +77,18 @@ const mltToggleLabel = computed(() => {
     class="space-y-3"
     :class="embedded ? '' : 'rounded-xl bg-bg-muted/60 border border-border p-4'"
   >
+    <!-- 문제 설명 (자연어) -->
+    <div class="rounded-lg border border-brand/25 bg-brand/5 px-3 py-3 space-y-1">
+      <span class="text-[10px] font-bold text-brand uppercase tracking-wider">어떤 문제인가요?</span>
+      <p class="text-sm text-text-primary leading-relaxed">
+        {{ problemStatement }}
+      </p>
+    </div>
+
     <!-- 판정 근거 (항상 표시) -->
     <div class="flex flex-wrap items-center justify-between gap-2">
       <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-        판정 근거
+        관측 출처
       </span>
       <div class="flex flex-wrap gap-1.5">
         <span
@@ -88,10 +106,6 @@ const mltToggleLabel = computed(() => {
         </span>
       </div>
     </div>
-
-    <p v-if="finding.reason" class="text-sm text-gray-600 leading-relaxed font-medium">
-      {{ finding.reason }}
-    </p>
 
     <!-- M/L/T 핵심 (토글) -->
     <div class="rounded-lg border border-border/60 bg-bg-card/80 overflow-hidden">
@@ -272,7 +286,7 @@ const mltToggleLabel = computed(() => {
             :key="row.key"
             class="rounded-lg border border-border/60 bg-bg-card px-2.5 py-2"
           >
-            <div class="text-[9px] text-gray-400 uppercase font-bold">{{ row.key }}</div>
+            <div class="text-[9px] text-gray-400 uppercase font-bold">{{ row.label }}</div>
             <div class="text-sm font-mono font-bold text-text-primary mt-0.5">{{ row.value }}</div>
           </div>
         </div>
@@ -283,10 +297,14 @@ const mltToggleLabel = computed(() => {
             :key="'u-' + row.key"
             class="rounded-lg border border-border/60 bg-bg-card px-2.5 py-2"
           >
-            <div class="text-[9px] text-gray-400 uppercase font-bold">{{ row.key }}</div>
+            <div class="text-[9px] text-gray-400 uppercase font-bold">{{ row.label }}</div>
             <div class="text-sm font-mono font-bold text-text-primary mt-0.5">{{ row.value }}</div>
           </div>
         </div>
+
+        <p v-if="showTechnicalReason" class="text-[10px] text-gray-400 font-mono pt-1">
+          시스템 판정 코드: {{ finding.reason }}
+        </p>
       </div>
     </div>
 

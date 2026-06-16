@@ -16,6 +16,7 @@ import {
   resolveTopologyFinding,
 } from '../utils/topologyMetrics'
 import { formatKrwCompact, slaImpactClass, slaImpactLabel } from '../utils/optimizationReport'
+import { resolveProposalNarrative } from '../utils/proposalNarrative'
 
 const props = defineProps<{
   run: FinOpsRun
@@ -30,6 +31,7 @@ const emit = defineEmits<{
 }>()
 
 const drill = computed(() => resolveDrillDownAvailability(props.finding, props.proposal, props.run))
+const narrative = computed(() => resolveProposalNarrative(props.finding, props.proposal))
 const mlt = computed(() => resolveMltCore(props.finding))
 const topo = computed(() =>
   props.finding ? resolveTopologyCore(resolveTopologyFinding(props.finding).finding) : null,
@@ -58,9 +60,14 @@ function onDrill(panel: InspectorPanel) {
       <div class="min-w-0">
         <span class="text-[10px] font-bold text-brand uppercase tracking-widest">제안 요약</span>
         <h3 class="text-lg font-bold text-text-primary mt-0.5 leading-snug">
-          {{ proposal.service_name }}
+          {{ narrative.headline }}
         </h3>
-        <p class="text-sm text-gray-500 mt-0.5 line-clamp-2">{{ proposal.title }}</p>
+        <p class="text-[12px] font-mono text-gray-400 mt-1">
+          {{ narrative.resourceTypeLabel }} · <span class="text-gray-500">{{ narrative.resourceId }}</span>
+        </p>
+        <p class="text-sm text-text-primary mt-2 leading-relaxed">
+          {{ narrative.summary }}
+        </p>
       </div>
       <div class="text-right shrink-0">
         <div class="text-2xl font-bold text-brand">{{ formatKrwCompact(proposal.monthly_savings_krw) }}</div>
@@ -89,15 +96,20 @@ function onDrill(panel: InspectorPanel) {
       </span>
       <span
         v-if="finding?.pattern_id"
-        class="inline-block px-2 py-0.5 rounded border text-[10px] font-mono bg-bg-muted text-gray-500 border-border"
+        class="inline-block px-2 py-0.5 rounded border text-[10px] font-bold bg-bg-muted text-gray-600 border-border"
       >
-        {{ finding.pattern_id }}
+        {{ narrative.patternLabel ?? finding.pattern_id }}
+      </span>
+      <span
+        class="inline-block px-2 py-0.5 rounded border text-[10px] font-bold bg-brand/5 text-brand border-brand/20"
+      >
+        권장 {{ narrative.actionLabel }}
       </span>
       <span
         v-if="finding?.confidence_score != null"
-        class="inline-block px-2 py-0.5 rounded border text-[10px] font-bold bg-brand/5 text-brand border-brand/20"
+        class="inline-block px-2 py-0.5 rounded border text-[10px] font-bold bg-bg-muted text-gray-600 border-border"
       >
-        confidence {{ (finding.confidence_score * 100).toFixed(0) }}%
+        신뢰도 {{ (finding.confidence_score * 100).toFixed(0) }}%
       </span>
       <button
         v-if="run.data_quality_summary?.rca_linked"
@@ -121,6 +133,14 @@ function onDrill(panel: InspectorPanel) {
       >
         영향 {{ impactLevelLabel(topo.proposalImpact.impact_level) }}
       </span>
+    </div>
+
+    <div
+      v-if="narrative.problemStatement"
+      class="rounded-lg border border-brand/20 bg-brand/5 px-3 py-2.5"
+    >
+      <p class="text-[10px] font-bold text-brand uppercase tracking-wider mb-1">감지된 문제</p>
+      <p class="text-[13px] text-text-primary leading-relaxed">{{ narrative.problemStatement }}</p>
     </div>
 
     <p

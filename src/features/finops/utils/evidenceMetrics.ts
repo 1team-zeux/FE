@@ -111,16 +111,42 @@ export function evidenceMetricLabel(finding: FinOpsFinding): string {
   if (finding.metric_label) return finding.metric_label
   const pid = finding.pattern_id ?? ''
   if (pid.includes('ec2') || pid.includes('rds')) return 'CPU 이용률 (%)'
-  if (pid.includes('nat')) return 'NAT egress (GB/day)'
+  if (pid.includes('nat')) return '일일 네트워크 송신량 (GB)'
   return '관측 메트릭'
 }
 
-export function formatEvidenceEntries(evidence?: Record<string, unknown>): { key: string; value: string }[] {
+const EVIDENCE_KEY_LABELS: Record<string, string> = {
+  cpu_p95: 'CPU 사용률 (바쁜 구간 기준)',
+  cpu_avg: 'CPU 사용률 (평균)',
+  threshold: '판정 기준값',
+  attached: '서버 연결 여부',
+  egress_gb_per_day: '일일 송신량 (GB)',
+  days_observed: '관측 일수',
+  request_vs_usage_ratio: '예약 대비 실사용 배율',
+}
+
+function evidenceEntryLabel(key: string): string {
+  return EVIDENCE_KEY_LABELS[key] ?? key.replace(/_/g, ' ')
+}
+
+export function formatEvidenceEntries(evidence?: Record<string, unknown>): { key: string; label: string; value: string }[] {
   if (!evidence) return []
   return Object.entries(evidence).map(([key, value]) => ({
     key,
-    value: typeof value === 'number' ? String(value) : String(value ?? '—'),
+    label: evidenceEntryLabel(key),
+    value: formatEvidenceValue(key, value),
   }))
+}
+
+function formatEvidenceValue(key: string, value: unknown): string {
+  if (value === true) return '예'
+  if (value === false) return '아니오'
+  if (key === 'attached') return value ? '연결됨' : '미연결'
+  if (typeof value === 'number' && (key.includes('cpu') || key === 'threshold')) {
+    return `${value}%`
+  }
+  if (typeof value === 'number') return String(value)
+  return String(value ?? '—')
 }
 
 export function sourceBadgeLabel(source?: string): string {
