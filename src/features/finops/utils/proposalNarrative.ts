@@ -9,6 +9,7 @@ const CATEGORY_LABELS: Record<OptimizationCategory, string> = {
 
 const PATTERN_CATEGORY: Record<string, OptimizationCategory> = {
   idle_ec2_cpu: 'unused',
+  overprovision_ec2: 'rightsizing',
   idle_ebs_unattached: 'unused',
   idle_nat_gateway: 'unused',
   overprovision_rds: 'rightsizing',
@@ -37,7 +38,8 @@ function formatKrwCompact(value: number): string {
 }
 
 const PATTERN_LABELS: Record<string, string> = {
-  idle_ec2_cpu: 'EC2 유휴 CPU',
+  idle_ec2_cpu: 'EC2 유휴',
+  overprovision_ec2: 'EC2 과잉 프로비저닝',
   idle_ebs_unattached: '미연결 EBS',
   idle_nat_gateway: 'NAT 저트래픽',
   overprovision_rds: 'RDS 과잉 프로비저닝',
