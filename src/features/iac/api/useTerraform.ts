@@ -4,6 +4,9 @@ import { api } from '@/services/api'
 import { useIacStore } from '../stores/iac.store'
 import type { Ref } from 'vue'
 
+const GENERATE_RETRY_DELAY_MS = 500
+const GENERATE_MAX_ATTEMPTS = 6
+
 export interface ResourceStatus {
   resource: string
   status: 'pending' | 'in_progress' | 'complete' | 'error'
@@ -22,12 +25,43 @@ export interface PlanResult {
   items: PlanItem[]
 }
 
+type GenerateTerraformResponse = { planId: string; hclPreview: string }
+type ApiErrorLike = Error & { status?: number }
+
+function sleep(ms: number) {
+  return new Promise((resolve) => globalThis.setTimeout(resolve, ms))
+}
+
+export function isApprovedTopologyPendingError(error: unknown) {
+  if (!(error instanceof Error)) return false
+  const status = (error as ApiErrorLike).status
+  return status === 404 && error.message.includes('Approved topology not found')
+}
+
+export async function generateTerraformWithRetry(topologyId: string) {
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= GENERATE_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      const res = await api.post<GenerateTerraformResponse>('/terraform/generate', { topologyId })
+      return res.data
+    } catch (error) {
+      lastError = error
+      if (!isApprovedTopologyPendingError(error) || attempt === GENERATE_MAX_ATTEMPTS) {
+        throw error
+      }
+      await sleep(GENERATE_RETRY_DELAY_MS)
+    }
+  }
+
+  throw lastError ?? new Error('Terraform generate failed')
+}
+
 export function useGenerateTerraform() {
   const store = useIacStore()
   return useMutation({
     mutationFn: async (topologyId: string) => {
-      const res = await api.post<{ planId: string; hclPreview: string }>('/terraform/generate', { topologyId })
-      return res.data
+      return generateTerraformWithRetry(topologyId)
     },
     onMutate() { store.setDeployStatus('generating') },
     onSuccess() { store.setDeployStatus('planning') },

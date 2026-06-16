@@ -42,7 +42,7 @@ const guardClass = (status?: string) => ({
           <td class="px-4 py-3 font-bold">{{ f.recommended_action ?? '—' }}</td>
           <td class="px-4 py-3 font-bold text-brand">${{ f.monthly_waste_usd?.toFixed(2) ?? '—' }}</td>
           <td class="px-4 py-3 text-[11px] text-gray-600 max-w-[200px]">
-            <p class="truncate" :title="f.reason">{{ f.reason ?? '—' }}</p>
+            <p class="truncate" :title="f.reason ?? undefined">{{ f.reason ?? '—' }}</p>
             <div v-if="formatEvidenceEntries(f.evidence).length" class="flex flex-wrap gap-1 mt-1">
               <span
                 v-for="ev in formatEvidenceEntries(f.evidence).slice(0, 2)"
