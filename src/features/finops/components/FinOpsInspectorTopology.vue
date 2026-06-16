@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { FinOpsFinding } from '../types/finops.schema'
 import {
   TOPOLOGY_LAYER_LABELS,
+  TOPOLOGY_VIEW_HINTS,
   TOPOLOGY_VIEW_LABELS,
   type TopologyLayer,
   type TopologyView,
@@ -70,9 +71,9 @@ const activeModel = computed(() => {
 })
 
 const graphTitle = computed(() => {
-  if (view.value === 'as-is') return '현재 (as-is)'
-  if (view.value === 'to-be') return '제안 후 (to-be)'
-  return '비교 (overlay)'
+  if (view.value === 'as-is') return '현재 상태'
+  if (view.value === 'to-be') return '적용 후'
+  return '변경 비교'
 })
 
 const graphMode = computed(() => view.value)
@@ -124,16 +125,19 @@ function selectView(next: TopologyView) {
       </span>
     </div>
 
-    <div class="flex flex-wrap gap-2">
+    <!-- 레이어 선택 -->
+    <div class="flex gap-1.5">
       <button
         v-for="(label, key) in TOPOLOGY_LAYER_LABELS"
         :key="key"
         type="button"
-        class="px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-colors"
+        class="px-3 py-1.5 rounded-lg text-[12px] font-bold border transition-colors"
         :class="
           layer === key
-            ? 'bg-brand text-white border-brand'
-            : 'bg-bg-muted text-gray-500 border-border hover:border-brand/40'
+            ? 'bg-brand text-white border-brand shadow-sm'
+            : key === 'design' && !hasDesign
+              ? 'bg-bg-muted text-gray-300 border-border cursor-not-allowed'
+              : 'bg-bg-card text-gray-500 border-border hover:border-brand/50 hover:text-text-primary'
         "
         :disabled="key === 'design' && !hasDesign"
         @click="selectLayer(key)"
@@ -142,23 +146,25 @@ function selectView(next: TopologyView) {
       </button>
     </div>
 
-    <div class="flex flex-wrap gap-1">
+    <!-- 뷰 선택 — 세그먼트 컨트롤 -->
+    <div class="flex rounded-xl border border-border bg-bg-muted p-1 gap-1">
       <button
         v-for="(label, key) in TOPOLOGY_VIEW_LABELS"
         :key="key"
         type="button"
-        class="px-2.5 py-1 rounded-md text-[10px] font-bold transition-colors"
+        class="flex-1 flex flex-col items-center px-2 py-1.5 rounded-lg transition-all text-center"
         :class="
           view === key
-            ? 'bg-text-primary text-bg-card'
-            : 'bg-bg-muted text-gray-500 hover:text-text-primary'
+            ? 'bg-bg-card text-text-primary shadow-sm'
+            : (key === 'to-be' && !(layer === 'resource' ? resourceModels.toBe : designModels.toBe))
+              ? 'text-gray-300 cursor-not-allowed'
+              : 'text-gray-400 hover:text-text-primary hover:bg-bg-card/50'
         "
-        :disabled="
-          (key === 'to-be' && !(layer === 'resource' ? resourceModels.toBe : designModels.toBe))
-        "
+        :disabled="key === 'to-be' && !(layer === 'resource' ? resourceModels.toBe : designModels.toBe)"
         @click="selectView(key)"
       >
-        {{ label }}
+        <span class="text-[11px] font-bold leading-tight">{{ label }}</span>
+        <span class="text-[9px] leading-tight mt-0.5 opacity-70">{{ TOPOLOGY_VIEW_HINTS[key] }}</span>
       </button>
     </div>
 
@@ -180,13 +186,13 @@ function selectView(next: TopologyView) {
         설계 다이어그램이 없습니다.
       </template>
       <template v-else>
-        선택한 뷰({{ TOPOLOGY_VIEW_LABELS[view] }})를 표시할 데이터가 없습니다.
+        「{{ TOPOLOGY_VIEW_LABELS[view] }}」 데이터가 없습니다.
       </template>
     </div>
 
     <div v-if="impact && layer === 'resource'" class="rounded-lg border border-brand/20 bg-brand/5 p-3 space-y-2">
       <div class="flex flex-wrap items-center justify-between gap-2">
-        <h4 class="text-[10px] font-bold text-brand uppercase tracking-wider">what-if 요약</h4>
+        <h4 class="text-[10px] font-bold text-brand uppercase tracking-wider">적용 시 예상 변화</h4>
         <span
           class="px-2 py-0.5 rounded border text-[9px] font-bold"
           :class="impactLevelClass(impact.impact_level)"
@@ -197,11 +203,11 @@ function selectView(next: TopologyView) {
       <p class="text-xs text-text-primary leading-snug">{{ impact.summary }}</p>
       <div class="grid grid-cols-2 gap-2 text-[10px] font-mono">
         <div class="rounded border border-border bg-bg-card px-2 py-1.5">
-          <span class="text-gray-400 block mb-0.5">as-is</span>
+          <span class="text-gray-400 block mb-0.5">현재</span>
           노드 {{ impact.as_is.node_count }} · 엣지 {{ impact.as_is.edge_count }}
         </div>
         <div class="rounded border border-border bg-bg-card px-2 py-1.5">
-          <span class="text-gray-400 block mb-0.5">to-be</span>
+          <span class="text-gray-400 block mb-0.5">적용 후</span>
           노드 {{ impact.to_be.node_count }} · 엣지 {{ impact.to_be.edge_count }}
         </div>
       </div>

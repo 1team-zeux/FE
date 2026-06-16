@@ -73,14 +73,20 @@ export type TopologyLayer = 'resource' | 'design'
 export type TopologyView = 'as-is' | 'to-be' | 'diff'
 
 export const TOPOLOGY_LAYER_LABELS: Record<TopologyLayer, string> = {
-  resource: '운영 리소스',
-  design: '설계 다이어그램',
+  resource: '인프라',
+  design: '아키텍처 설계',
 }
 
 export const TOPOLOGY_VIEW_LABELS: Record<TopologyView, string> = {
-  'as-is': 'as-is',
-  'to-be': 'to-be',
-  diff: '비교',
+  'as-is': '현재 상태',
+  'to-be': '적용 후',
+  diff: '변경 비교',
+}
+
+export const TOPOLOGY_VIEW_HINTS: Record<TopologyView, string> = {
+  'as-is': '운영 중인 구성',
+  'to-be': '제안 반영 시',
+  diff: '무엇이 바뀌나',
 }
 
 /** URL query 값 (하이픈 없음) */
