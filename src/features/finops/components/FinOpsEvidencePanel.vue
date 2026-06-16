@@ -12,21 +12,33 @@ import {
   sparklinePoints,
   thresholdLineY,
 } from '../utils/evidenceMetrics'
+import { humanizeFindingReason, problemStatementFromFinding } from '../utils/proposalNarrative'
 
 const props = defineProps<{
   finding: FinOpsFinding | null
   evaluationDays?: number | null
+  /** Inspector 드로어 내 전체 펼침 레이아웃 */
+  embedded?: boolean
 }>()
 
 const mlt = computed(() => resolveMltCore(props.finding))
+const problemStatement = computed(() =>
+  props.finding ? problemStatementFromFinding(props.finding) : null,
+)
+const showTechnicalReason = computed(() => {
+  const raw = props.finding?.reason?.trim()
+  if (!raw) return false
+  const human = props.finding ? humanizeFindingReason(props.finding) : null
+  return human !== raw && !problemStatement.value?.includes(raw)
+})
 const mltExpanded = ref(false)
 const detailExpanded = ref(false)
 
 watch(
   () => props.finding?.resource_id,
   () => {
-    mltExpanded.value = mlt.value.hasAnyCore
-    detailExpanded.value = false
+    mltExpanded.value = props.embedded ? true : mlt.value.hasAnyCore
+    detailExpanded.value = props.embedded ? true : false
   },
   { immediate: true },
 )
@@ -60,11 +72,23 @@ const mltToggleLabel = computed(() => {
 </script>
 
 <template>
-  <div v-if="finding" class="rounded-xl bg-bg-muted/60 border border-border p-4 space-y-3">
+  <div
+    v-if="finding"
+    class="space-y-3"
+    :class="embedded ? '' : 'rounded-xl bg-bg-muted/60 border border-border p-4'"
+  >
+    <!-- 문제 설명 (자연어) -->
+    <div class="rounded-lg border border-brand/25 bg-brand/5 px-3 py-3 space-y-1">
+      <span class="text-[10px] font-bold text-brand uppercase tracking-wider">어떤 문제인가요?</span>
+      <p class="text-sm text-text-primary leading-relaxed">
+        {{ problemStatement }}
+      </p>
+    </div>
+
     <!-- 판정 근거 (항상 표시) -->
     <div class="flex flex-wrap items-center justify-between gap-2">
       <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-        판정 근거
+        관측 출처
       </span>
       <div class="flex flex-wrap gap-1.5">
         <span
@@ -83,13 +107,10 @@ const mltToggleLabel = computed(() => {
       </div>
     </div>
 
-    <p v-if="finding.reason" class="text-sm text-gray-600 leading-relaxed font-medium">
-      {{ finding.reason }}
-    </p>
-
     <!-- M/L/T 핵심 (토글) -->
     <div class="rounded-lg border border-border/60 bg-bg-card/80 overflow-hidden">
       <button
+        v-if="!embedded"
         type="button"
         class="w-full flex items-center justify-between gap-2 px-3 py-2.5 text-left hover:bg-bg-muted/40 transition-colors"
         @click="mltExpanded = !mltExpanded"
@@ -99,8 +120,11 @@ const mltToggleLabel = computed(() => {
           {{ mltExpanded ? '접기' : '펼치기' }}
         </span>
       </button>
+      <div v-else class="px-3 py-2 border-b border-border/40">
+        <span class="text-[11px] font-bold text-gray-600">{{ mltToggleLabel }}</span>
+      </div>
 
-      <div v-show="mltExpanded" class="px-3 pb-3 space-y-3 border-t border-border/40">
+      <div v-show="embedded || mltExpanded" class="px-3 pb-3 space-y-3" :class="embedded ? 'pt-2' : 'border-t border-border/40'">
         <p v-if="!mlt.hasAnyCore" class="text-[12px] text-gray-400 pt-2 leading-relaxed">
           Prometheus / Loki / Tempo 연동 데이터가 없습니다. 판정은 CMDB·집계 이용률 근거에 의존합니다.
         </p>
@@ -218,6 +242,7 @@ const mltToggleLabel = computed(() => {
     <!-- 상세 (PromQL, 전체 로그, evidence grid) -->
     <div v-if="hasSecondary" class="rounded-lg border border-border/50 overflow-hidden">
       <button
+        v-if="!embedded"
         type="button"
         class="w-full flex items-center justify-between gap-2 px-3 py-2 text-left text-[11px] font-bold text-gray-500 hover:bg-bg-muted/30 transition-colors"
         @click="detailExpanded = !detailExpanded"
@@ -225,8 +250,11 @@ const mltToggleLabel = computed(() => {
         <span>관측 상세 · PromQL / 로그 전체 / 수치</span>
         <span class="text-[10px] text-gray-400 font-normal">{{ detailExpanded ? '접기' : '펼치기' }}</span>
       </button>
+      <div v-else class="px-3 py-2 border-b border-border/40 text-[11px] font-bold text-gray-500">
+        관측 상세 · PromQL / 로그 전체 / 수치
+      </div>
 
-      <div v-show="detailExpanded" class="px-3 pb-3 space-y-3 border-t border-border/40 pt-2">
+      <div v-show="embedded || detailExpanded" class="px-3 pb-3 space-y-3 border-t border-border/40 pt-2">
         <details v-if="finding.promql" class="text-[10px]" open>
           <summary class="cursor-pointer text-gray-400 font-bold uppercase select-none mb-1">PromQL</summary>
           <pre class="p-2 rounded bg-bg-card border border-border/60 text-[10px] font-mono text-gray-600 overflow-x-auto whitespace-pre-wrap">{{ finding.promql }}</pre>
@@ -258,7 +286,7 @@ const mltToggleLabel = computed(() => {
             :key="row.key"
             class="rounded-lg border border-border/60 bg-bg-card px-2.5 py-2"
           >
-            <div class="text-[9px] text-gray-400 uppercase font-bold">{{ row.key }}</div>
+            <div class="text-[9px] text-gray-400 uppercase font-bold">{{ row.label }}</div>
             <div class="text-sm font-mono font-bold text-text-primary mt-0.5">{{ row.value }}</div>
           </div>
         </div>
@@ -269,10 +297,14 @@ const mltToggleLabel = computed(() => {
             :key="'u-' + row.key"
             class="rounded-lg border border-border/60 bg-bg-card px-2.5 py-2"
           >
-            <div class="text-[9px] text-gray-400 uppercase font-bold">{{ row.key }}</div>
+            <div class="text-[9px] text-gray-400 uppercase font-bold">{{ row.label }}</div>
             <div class="text-sm font-mono font-bold text-text-primary mt-0.5">{{ row.value }}</div>
           </div>
         </div>
+
+        <p v-if="showTechnicalReason" class="text-[10px] text-gray-400 font-mono pt-1">
+          시스템 판정 코드: {{ finding.reason }}
+        </p>
       </div>
     </div>
 

@@ -21,6 +21,8 @@ import FinOpsTopologyGraphViz from './FinOpsTopologyGraphViz.vue'
 
 const props = defineProps<{
   finding: FinOpsFinding | null
+  /** Inspector 드로어: 접기 없이 전체 표시 */
+  embedded?: boolean
 }>()
 
 const resolved = computed(() => resolveTopologyFinding(props.finding))
@@ -30,7 +32,7 @@ const expanded = ref(false)
 watch(
   () => props.finding?.resource_id,
   () => {
-    expanded.value = topo.value.hasCore
+    expanded.value = props.embedded ? true : topo.value.hasCore
   },
   { immediate: true },
 )
@@ -77,8 +79,13 @@ const designVizToBe = computed(() => {
 </script>
 
 <template>
-  <div v-if="finding" class="rounded-xl bg-bg-muted/40 border border-border/80 p-4 space-y-3">
+  <div
+    v-if="finding"
+    class="space-y-3"
+    :class="embedded ? '' : 'rounded-xl bg-bg-muted/40 border border-border/80 p-4'"
+  >
     <button
+      v-if="!embedded"
       type="button"
       class="w-full flex items-center justify-between gap-2 text-left"
       @click="expanded = !expanded"
@@ -88,8 +95,11 @@ const designVizToBe = computed(() => {
       </span>
       <span class="text-[10px] text-gray-400">{{ expanded ? '접기' : '펼치기' }}</span>
     </button>
+    <div v-else class="pb-1">
+      <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{{ toggleLabel }}</span>
+    </div>
 
-    <div v-if="expanded" class="space-y-4">
+    <div v-if="embedded || expanded" class="space-y-4">
       <div
         v-if="topo.finopsImpact && topo.finopsImpact !== 'none'"
         class="flex flex-wrap items-center gap-2"
