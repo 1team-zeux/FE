@@ -8,7 +8,6 @@ export default defineConfig(({ mode }) => {
   const AUTH_URL = env.AUTH_SERVER_URL ?? 'http://localhost:8081'
   const SLA_URL = env.SLA_AGENT_URL ?? 'http://localhost:8090'
   const FINOPS_URL = env.VITE_FINOPS_API_URL ?? SLA_URL
-  const MONITOR_URL = env.MONITORING_API_URL ?? 'http://localhost:8091'
 
   return {
     plugins: [vue()],
@@ -25,7 +24,7 @@ export default defineConfig(({ mode }) => {
         '/api/finops': { target: FINOPS_URL, changeOrigin: true },
         '/api/rca': { target: SLA_URL, changeOrigin: true },
         '/monitoring': {
-          target: MONITOR_URL,
+          target: SLA_URL,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/monitoring/, ''),
         },
