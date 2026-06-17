@@ -70,7 +70,7 @@ const statusBadgeCls = (s: string) => ({
     <!-- 헤더 -->
     <div class="flex items-center justify-between mb-3">
       <div>
-        <div class="text-[10px] font-bold text-[#2980B9] uppercase tracking-widest mb-1">SLA 현황</div>
+        <div class="text-sm font-bold text-[#2980B9] uppercase tracking-widest mb-1">SLA 현황</div>
         <h1 class="text-xl font-bold text-text-primary">
           {{ contract?.business_unit?.bu_name || buId }}
         </h1>
@@ -95,23 +95,23 @@ const statusBadgeCls = (s: string) => ({
           </svg>
         </div>
         <div class="min-w-0">
-          <div class="text-[10px] text-text-muted">고객사</div>
+          <div class="text-sm text-text-muted">고객사</div>
           <div class="text-sm font-bold text-text-primary truncate">{{ contract.customer.customer_name }}</div>
         </div>
       </div>
       <div class="h-8 w-px bg-gray-100 hidden sm:block" />
       <div class="min-w-0">
-        <div class="text-[10px] text-text-muted">Business Unit</div>
+        <div class="text-sm text-text-muted">Business Unit</div>
         <div class="text-sm font-semibold text-text-primary truncate">{{ contract.business_unit.bu_name || '—' }}</div>
       </div>
       <div class="h-8 w-px bg-gray-100 hidden sm:block" />
       <div>
-        <div class="text-[10px] text-text-muted">Tier</div>
+        <div class="text-sm text-text-muted">Tier</div>
         <div class="text-sm font-semibold text-[#2980B9]">{{ contract.business_unit.subscription_tier || '—' }}</div>
       </div>
       <div class="h-8 w-px bg-gray-100 hidden sm:block" />
       <div>
-        <div class="text-[10px] text-text-muted">계약기간</div>
+        <div class="text-sm text-text-muted">계약기간</div>
         <div class="text-sm font-semibold text-text-primary">
           {{ contract.business_unit.contract_start_date?.slice(0,7).replace('-','.') || '—' }}
           {{ contract.business_unit.contract_end_date ? ' ~ ' + contract.business_unit.contract_end_date.slice(0,7).replace('-','.') : '' }}
@@ -119,33 +119,33 @@ const statusBadgeCls = (s: string) => ({
       </div>
       <div v-if="contract.customer.contact_email" class="h-8 w-px bg-gray-100 hidden sm:block" />
       <div v-if="contract.customer.contact_email" class="min-w-0">
-        <div class="text-[10px] text-text-muted">담당자</div>
-        <div class="text-xs text-text-secondary truncate">{{ contract.customer.contact_email }}</div>
+        <div class="text-sm text-text-muted">담당자</div>
+        <div class="text-sm text-text-secondary truncate">{{ contract.customer.contact_email }}</div>
       </div>
     </div>
 
     <!-- Summary 배너 -->
     <div v-if="summary" class="grid grid-cols-4 gap-3 mb-5">
       <div class="bg-white border border-border rounded-xl p-4">
-        <div class="text-[10px] font-semibold text-text-muted uppercase tracking-wide mb-1">SLA 준수율</div>
+        <div class="text-sm font-semibold text-text-muted uppercase tracking-wide mb-1">SLA 준수율</div>
         <div class="text-2xl font-bold" :class="Number(summary.compliance) >= 99.9 ? 'text-status-ok' : Number(summary.compliance) >= 99 ? 'text-status-warning' : 'text-status-critical'">
           {{ summary.compliance }}%
         </div>
       </div>
       <div class="bg-white border border-border rounded-xl p-4">
-        <div class="text-[10px] font-semibold text-text-muted uppercase tracking-wide mb-1">잔여 에러 예산</div>
+        <div class="text-sm font-semibold text-text-muted uppercase tracking-wide mb-1">잔여 에러 예산</div>
         <div class="text-2xl font-bold" :class="Number(summary.budget) > 60 ? 'text-status-ok' : Number(summary.budget) > 30 ? 'text-status-warning' : 'text-status-critical'">
           {{ summary.budget }}%
         </div>
       </div>
       <div class="bg-white border border-border rounded-xl p-4">
-        <div class="text-[10px] font-semibold text-text-muted uppercase tracking-wide mb-1">번률 (Burn Rate)</div>
+        <div class="text-sm font-semibold text-text-muted uppercase tracking-wide mb-1">번률 (Burn Rate)</div>
         <div class="text-2xl font-bold" :class="Number(summary.burnRate) <= 1 ? 'text-status-ok' : Number(summary.burnRate) <= 2 ? 'text-status-warning' : 'text-status-critical'">
           {{ summary.burnRate }}x
         </div>
       </div>
       <div class="bg-white border border-border rounded-xl p-4">
-        <div class="text-[10px] font-semibold text-text-muted uppercase tracking-wide mb-1">예상 패널티</div>
+        <div class="text-sm font-semibold text-text-muted uppercase tracking-wide mb-1">예상 패널티</div>
         <div class="text-2xl font-bold" :class="Number(summary.penalty) === 0 ? 'text-status-ok' : Number(summary.penalty) < 500 ? 'text-status-warning' : 'text-status-critical'">
           ${{ summary.penalty }}
         </div>
@@ -175,9 +175,9 @@ const statusBadgeCls = (s: string) => ({
             <div class="flex items-start justify-between mb-3">
               <div class="flex-1 min-w-0">
                 <div class="font-semibold text-sm text-text-primary truncate">{{ svc.name }}</div>
-                <div v-if="svc.tier" class="text-[10px] text-text-muted mt-0.5">{{ svc.tier }}</div>
+                <div v-if="svc.tier" class="text-sm text-text-muted mt-0.5">{{ svc.tier }}</div>
               </div>
-              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border shrink-0 ml-2" :class="statusBadgeCls(svc.status)">
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-bold border shrink-0 ml-2" :class="statusBadgeCls(svc.status)">
                 <span class="w-1.5 h-1.5 rounded-full" :class="statusDot(svc.status)" />
                 {{ statusLabel(svc.status) }}
               </span>
@@ -187,7 +187,7 @@ const statusBadgeCls = (s: string) => ({
             <div class="space-y-2">
               <!-- SLO % -->
               <div class="flex items-center justify-between">
-                <span class="text-[10px] text-text-muted">가용성</span>
+                <span class="text-sm text-text-muted">가용성</span>
                 <span class="text-sm font-bold font-mono" :class="statusColor(svc.status)">
                   {{ svc.availability > 0 ? svc.availability.toFixed(2) + '%' : '—' }}
                 </span>
@@ -196,8 +196,8 @@ const statusBadgeCls = (s: string) => ({
               <!-- 에러 예산 바 -->
               <div>
                 <div class="flex items-center justify-between mb-1">
-                  <span class="text-[10px] text-text-muted">에러 예산</span>
-                  <span class="text-[10px] font-semibold text-text-primary">{{ svc.budgetRemaining }}%</span>
+                  <span class="text-sm text-text-muted">에러 예산</span>
+                  <span class="text-sm font-semibold text-text-primary">{{ svc.budgetRemaining }}%</span>
                 </div>
                 <div class="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                   <div
@@ -214,8 +214,8 @@ const statusBadgeCls = (s: string) => ({
 
               <!-- Burn Rate -->
               <div class="flex items-center justify-between">
-                <span class="text-[10px] text-text-muted">Burn Rate</span>
-                <span class="text-xs font-semibold" :class="svc.burn ? 'text-status-warning' : 'text-status-ok'">
+                <span class="text-sm text-text-muted">Burn Rate</span>
+                <span class="text-sm font-semibold" :class="svc.burn ? 'text-status-warning' : 'text-status-ok'">
                   {{ svc.burn ?? 'Stable' }}
                 </span>
               </div>
@@ -223,7 +223,7 @@ const statusBadgeCls = (s: string) => ({
 
             <!-- 분석 링크 -->
             <div class="mt-3 pt-2 border-t border-gray-50 flex justify-end">
-              <span class="text-[10px] font-semibold text-[#2980B9] opacity-0 group-hover:opacity-100 transition-opacity">
+              <span class="text-sm font-semibold text-[#2980B9] opacity-0 group-hover:opacity-100 transition-opacity">
                 상세 분석 →
               </span>
             </div>
@@ -235,7 +235,7 @@ const statusBadgeCls = (s: string) => ({
       </div>
 
       <!-- 우: Service Profile 패널 (운영 기준) -->
-      <ServiceProfilePanel :contract="contract" :is-loading="contractLoading" :services="services ?? []" />
+      <ServiceProfilePanel :contract="contract" :is-loading="contractLoading" :services="services ?? []" :map="serviceMap" />
     </div>
   </div>
 </template>

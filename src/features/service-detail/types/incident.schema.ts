@@ -24,6 +24,7 @@ export const IncidentSchema = z.object({
   relatedAlarms: z.array(z.string()),
   candidates: z.array(RcaCandidateSchema),
   timeline: z.array(TimelineEventSchema),
+  summary: z.string().optional(),
 });
 
 export type TimelineEvent = z.infer<typeof TimelineEventSchema>;

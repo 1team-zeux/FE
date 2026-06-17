@@ -68,7 +68,7 @@ const edgePath = (from: string, to: string) => {
         v-for="node in map.nodes" :key="node.id"
         class="cursor-pointer"
         :transform="`translate(${node.x}, ${node.y})`"
-        @click="emit('nodeClick', node.id)"
+        @click="emit('nodeClick', node.name)"
       >
         <rect
           width="128" height="40" rx="6"

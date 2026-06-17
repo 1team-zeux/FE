@@ -1,11 +1,18 @@
 <script setup lang="ts">
-defineProps<{ title: string; content: string; open: boolean }>()
+import type { ServiceMap } from '@/features/sla/api/useServiceMapQuery'
+import ServiceMapComp from '@/features/sla/components/ServiceMap.vue'
+
+defineProps<{
+  title: string
+  content: string
+  open: boolean
+  map?: ServiceMap
+}>()
 defineEmits<{ (e: 'close'): void }>()
 
 function renderMd(md: string): string {
   const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-  // 테이블 블록을 placeholder로 추출
   const tables: string[] = []
   const lines = md.split('\n')
   const out: string[] = []
@@ -50,9 +57,7 @@ function renderMd(md: string): string {
     .replace(/^/, '<p class="text-sm text-gray-800 mb-2">')
     .replace(/$/, '</p>')
 
-  // placeholder 주변 <p> 제거
   result = result.replace(/<p[^>]*>(__TABLE_\d+__)<\/p>/g, '$1')
-
   tables.forEach((t, i) => { result = result.replace(`__TABLE_${i}__`, t) })
   return result
 }
@@ -62,7 +67,7 @@ function renderMd(md: string): string {
   <Teleport to="body">
     <Transition name="fade">
       <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" @click.self="$emit('close')">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
 
           <!-- 헤더 -->
           <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
@@ -72,6 +77,14 @@ function renderMd(md: string): string {
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
               </svg>
             </button>
+          </div>
+
+          <!-- 서비스맵 시각화 -->
+          <div v-if="map" class="shrink-0 border-b border-gray-100 bg-gray-50" style="height: 260px; overflow: hidden;">
+            <div class="px-4 pt-3 pb-1 text-xs font-bold text-gray-400 uppercase tracking-widest">서비스 토폴로지</div>
+            <div style="height: 220px;">
+              <ServiceMapComp :map="map" />
+            </div>
           </div>
 
           <!-- 본문 -->
