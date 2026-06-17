@@ -393,21 +393,19 @@ function budgetBarCls(val: number) {
     @close="closeModal"
   />
 
-  <!-- SLA CONTRACT 모달 (서비스맵 포함) -->
+  <!-- SLA CONTRACT 모달 -->
   <TopologyModal
     :open="contractOpen"
     :title="MODAL_CONTENT.contract.title"
     :content="MODAL_CONTENT.contract.content"
-    :map="map"
     @close="contractOpen = false"
   />
 
-  <!-- 토폴로지 전용 모달 (서비스맵 포함) -->
+  <!-- 토폴로지 전용 모달 -->
   <TopologyModal
     :open="topologyOpen"
     :title="MODAL_CONTENT.topology.title"
     :content="MODAL_CONTENT.topology.content"
-    :map="map"
     @close="topologyOpen = false"
   />
 </template>
