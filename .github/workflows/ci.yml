@@ -3,7 +3,6 @@ name: FE CI
 on:
   push:
     branches: [main, master]
-  workflow_dispatch:
 
 env:
   HARBOR_REGISTRY: amdp-registry.skala-ai.com
@@ -60,4 +59,3 @@ jobs:
           git remote set-url origin https://x-access-token:${{ secrets.GITOPS_PAT }}@github.com/${{ env.GITOPS_REPO }}.git
           git commit -am "ci: deploy frontend $IMAGE_TAG" || echo "no changes"
           git pull --rebase origin main
-          git push origin main
