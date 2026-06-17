@@ -91,7 +91,12 @@ const onTriggerRun = () => {
   stopStream()
   showConsole.value = true
   reportReveal.value = false
-  startStream({ serviceId: 'api-gateway', force: true })
+  startStream({
+    tenantId: tenantFilter.value || 'skala-commerce',
+    teamId: 'platform-team',
+    serviceId: 'payment-api',
+    force: true,
+  })
 }
 
 const onAdoptProposal = (proposal: OptimizationProposal) => {

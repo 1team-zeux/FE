@@ -47,7 +47,8 @@ function usdToKrw(usd: number): number {
 
 function findingToProposal(item: FinOpsFinding, index: number): OptimizationProposal {
   const category = patternToCategory(item.pattern_id, item.recommended_action)
-  const savingsUsd = item.monthly_waste_usd ?? 0
+  // blocked/defer: potential savings 표시, eligible: actual savings
+  const savingsUsd = item.monthly_waste_usd ?? item.monthly_potential_waste_usd ?? 0
   const blocked = item.guard_status === 'blocked' || item.guard_status === 'defer'
   const action = item.recommended_action ?? 'optimize'
   const metrics = findingToProposalMetrics(item)
