@@ -16,6 +16,7 @@ export const useSystemMetricsQuery = (svcId: string, tenantId: string, range?: R
       return SystemMetricsSchema.parse(res.data);
     },
     enabled: !!tenantId,
-    staleTime: 30_000,
+    staleTime: 8_000,
+    refetchInterval: 10_000,
   });
 };

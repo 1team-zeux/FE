@@ -114,13 +114,13 @@ const hoverValue = computed(() => props.hoverIdx != null ? props.series[props.ho
       <text
         v-for="(gl, i) in gridLines" :key="`lbl-${i}`"
         :x="padL - 4" :y="gl.y + 3.5"
-        text-anchor="end" font-size="9" fill="#9CA3AF"
+        text-anchor="end" font-size="11" fill="#9CA3AF"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
       >{{ gl.label }}</text>
       <!-- Y-axis top label (hi) -->
       <text
         :x="padL - 4" :y="padT + 3.5"
-        text-anchor="end" font-size="9" fill="#9CA3AF"
+        text-anchor="end" font-size="11" fill="#9CA3AF"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
       >{{ fmtVal(hi) }}</text>
     </g>
@@ -138,7 +138,7 @@ const hoverValue = computed(() => props.hoverIdx != null ? props.series[props.ho
       <line :x1="padL" :x2="W - padR" :y1="targetY" :y2="targetY" stroke="#D1D5DB" stroke-width="1" stroke-dasharray="4 3" opacity="0.9" />
       <text
         :x="W - padR" :y="targetY - 4"
-        text-anchor="end" font-size="9" fill="#6B7280"
+        text-anchor="end" font-size="11" fill="#6B7280"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
       >{{ targetLabel }}</text>
     </template>
@@ -180,7 +180,7 @@ const hoverValue = computed(() => props.hoverIdx != null ? props.series[props.ho
       <text
         :x="hoverX > W / 2 ? hoverX - 25 : hoverX + 25"
         :y="getY(hoverValue) - 8"
-        text-anchor="middle" font-size="9.5" fill="white"
+        text-anchor="middle" font-size="11" fill="white"
         font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', monospace"
       >{{ hoverValue }}</text>
     </template>

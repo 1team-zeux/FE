@@ -1,7 +1,9 @@
 export * from './types/metrics.schema';
 export * from './types/incident.schema';
 export * from './api/useServiceMetricsQuery';
+export * from './api/useSliMetricsStream';
 export * from './api/useSystemMetricsQuery';
+export * from './api/useSystemMetricsStream';
 export * from './api/useIncidentQuery';
 export { default as RcaPanel } from './components/RcaPanel.vue';
 export { default as TracePanel } from './components/TracePanel.vue';

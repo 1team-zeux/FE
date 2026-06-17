@@ -25,8 +25,8 @@ const customers = computed(() => {
   return unique;
 });
 
-const goToRca = (serviceId: string) => {
-  router.push({ path: `/dashboard/service/${serviceId}`, query: { tab: 'rca' } });
+const goToRca = (serviceId: string, tenantId?: string) => {
+  router.push({ path: `/dashboard/service/${serviceId}`, query: { tab: 'rca', ...(tenantId ? { tenantId } : {}) } });
 };
 
 const severityBadge = (sev: string) => ({
@@ -92,7 +92,7 @@ const severityLabel = (sev: string) => ({ critical: '위험', warning: '경고' 
           <tr
             v-for="evt in filtered" :key="evt.id"
             class="border-b border-border last:border-b-0 hover:bg-gray-50 transition-colors cursor-pointer"
-            @click="goToRca(evt.serviceId)"
+            @click="goToRca(evt.serviceId, evt.customerId)"
           >
             <td class="px-4 py-3 font-mono text-xs text-gray-500">{{ evt.ts }}</td>
             <td class="px-4 py-3">
