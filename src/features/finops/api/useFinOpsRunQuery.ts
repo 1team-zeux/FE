@@ -13,7 +13,12 @@ export const useFinOpsRunQuery = (runId: MaybeRef<string | undefined>) => {
       const rid = id.value
       if (!rid) throw new Error('run_id required')
       const { data } = await api.get(`/api/finops/runs/${rid}`)
-      return FinOpsRunDetailResponseSchema.parse(data).run
+      const result = FinOpsRunDetailResponseSchema.safeParse(data)
+      if (!result.success) {
+        console.error('[FinOps] run detail parse error', result.error.format())
+        return data?.run ?? data
+      }
+      return result.data.run
     },
     enabled: computed(() => Boolean(id.value)),
   })
