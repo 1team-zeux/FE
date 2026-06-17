@@ -161,6 +161,8 @@ export const FinOpsFindingSchema = z.object({
   guard_status: GuardStatusSchema.optional(),
   guard_reason: z.string().optional(),
   monthly_waste_usd: z.number().nullable().optional(),
+  monthly_potential_waste_usd: z.number().nullable().optional(),
+  monthly_cost_usd: z.number().nullable().optional(),
   data_source: z.string().optional(),
   reason: z.string().nullable().optional(),
   evidence: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])).optional(),

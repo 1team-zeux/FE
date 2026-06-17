@@ -11,6 +11,7 @@ import type {
 import { resolveExecutiveReport } from './executiveReport'
 import { findingToProposalMetrics } from './evidenceMetrics'
 import { findingToTopologyMetrics } from './topologyMetrics'
+import { humanizeFindingReason, proposalTitleFromFinding, resourceTypeLabel } from './proposalNarrative'
 
 export const CATEGORY_LABELS: Record<OptimizationCategory, string> = {
   rightsizing: 'RightSizing',
@@ -46,7 +47,8 @@ function usdToKrw(usd: number): number {
 
 function findingToProposal(item: FinOpsFinding, index: number): OptimizationProposal {
   const category = patternToCategory(item.pattern_id, item.recommended_action)
-  const savingsUsd = item.monthly_waste_usd ?? 0
+  // blocked/defer: potential savings 표시, eligible: actual savings
+  const savingsUsd = item.monthly_waste_usd ?? item.monthly_potential_waste_usd ?? 0
   const blocked = item.guard_status === 'blocked' || item.guard_status === 'defer'
   const action = item.recommended_action ?? 'optimize'
   const metrics = findingToProposalMetrics(item)
@@ -57,14 +59,14 @@ function findingToProposal(item: FinOpsFinding, index: number): OptimizationProp
     category,
     service_name: item.resource_id,
     title: blocked
-      ? `${item.resource_id}: ${item.guard_reason ?? 'SLA guard 검토 필요'}`
-      : `${item.resource_id}: ${action}`,
+      ? `${resourceTypeLabel(item.resource_id, item.resource_type)} — ${item.guard_reason ?? 'SLA guard 검토 필요'}`
+      : proposalTitleFromFinding(item),
     monthly_savings_krw: usdToKrw(savingsUsd),
     monthly_savings_usd: savingsUsd || undefined,
     priority_band: blocked ? 'P2' : undefined,
     sla_impact: blocked ? 'review' : 'low',
     sla_impact_detail: item.guard_reason ?? undefined,
-    evidence_summary: metrics.evidence_summary ?? item.guard_reason ?? item.data_source,
+    evidence_summary: humanizeFindingReason(item) ?? metrics.evidence_summary ?? item.guard_reason ?? item.data_source,
     cpu_utilization_trend: metrics.cpu_utilization_trend,
     metric_series_timestamps: metrics.metric_series_timestamps,
     metric_series_source: metrics.metric_series_source,

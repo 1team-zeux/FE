@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import type { FinOpsFinding } from '../types/finops.schema'
 import { formatEvidenceEntries, sourceBadgeClass, sourceBadgeLabel } from '../utils/evidenceMetrics'
+import { humanizeFindingReason } from '../utils/proposalNarrative'
 
 defineProps<{
   findings: FinOpsFinding[]
 }>()
+
+function reasonText(f: FinOpsFinding): string {
+  return humanizeFindingReason(f) ?? '—'
+}
 
 const guardClass = (status?: string) => ({
   eligible: 'bg-status-ok/10 text-status-ok border-status-ok/20',
@@ -41,15 +46,15 @@ const guardClass = (status?: string) => ({
           <td class="px-4 py-3 text-gray-500">{{ f.pattern_id ?? '—' }}</td>
           <td class="px-4 py-3 font-bold">{{ f.recommended_action ?? '—' }}</td>
           <td class="px-4 py-3 font-bold text-brand">${{ f.monthly_waste_usd?.toFixed(2) ?? '—' }}</td>
-          <td class="px-4 py-3 text-[11px] text-gray-600 max-w-[200px]">
-            <p class="truncate" :title="f.reason ?? undefined">{{ f.reason ?? '—' }}</p>
+          <td class="px-4 py-3 text-[11px] text-gray-600 max-w-[240px]">
+            <p class="line-clamp-3 leading-snug" :title="reasonText(f)">{{ reasonText(f) }}</p>
             <div v-if="formatEvidenceEntries(f.evidence).length" class="flex flex-wrap gap-1 mt-1">
               <span
                 v-for="ev in formatEvidenceEntries(f.evidence).slice(0, 2)"
                 :key="ev.key"
-                class="text-[9px] font-mono px-1 py-0.5 rounded bg-bg-muted"
+                class="text-[9px] px-1 py-0.5 rounded bg-bg-muted text-gray-500"
               >
-                {{ ev.key }}={{ ev.value }}
+                {{ ev.label }} {{ ev.value }}
               </span>
             </div>
             <span

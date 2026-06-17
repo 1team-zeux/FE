@@ -219,14 +219,40 @@ export function resolveTopologyFinding(
   if (!finding?.resource_id) return { finding: null, isClientFallback: false }
 
   const ctx = finding.topology_context
-  if (hasTopologyPayload(ctx)) {
+  if (!hasTopologyPayload(ctx)) {
+    const demo = buildClientDemoTopologyContext(finding)
+    return {
+      finding: { ...finding, topology_context: demo },
+      isClientFallback: true,
+    }
+  }
+
+  const needsResource = !(ctx!.resource_graph?.nodes?.length)
+  const needsDesign = !(ctx!.design_diagram?.nodes?.length)
+  if (!needsResource && !needsDesign) {
     return { finding, isClientFallback: false }
   }
 
   const demo = buildClientDemoTopologyContext(finding)
+  const merged: TopologyContext = {
+    ...ctx!,
+    ...(needsResource
+      ? {
+          resource_graph: demo.resource_graph,
+          proposal_impact: ctx!.proposal_impact ?? demo.proposal_impact,
+        }
+      : {}),
+    ...(needsDesign
+      ? {
+          design_diagram: demo.design_diagram,
+          design_proposal_impact: ctx!.design_proposal_impact ?? demo.design_proposal_impact,
+        }
+      : {}),
+  }
+
   return {
-    finding: { ...finding, topology_context: demo },
-    isClientFallback: true,
+    finding: { ...finding, topology_context: merged },
+    isClientFallback: needsResource || needsDesign,
   }
 }
 
