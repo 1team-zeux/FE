@@ -25,7 +25,7 @@ export default defineConfig(({ mode }) => {
         '/api/finops': { target: FINOPS_URL, changeOrigin: true },
         '/api/rca': { target: SLA_URL, changeOrigin: true },
         '/monitoring': {
-          target: SLA_URL,
+          target: MONITOR_URL,
           changeOrigin: true,
           rewrite: (path) => path.replace(/^\/monitoring/, ''),
         },
