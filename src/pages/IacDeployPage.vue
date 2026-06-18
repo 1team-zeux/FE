@@ -272,6 +272,7 @@ function handleBackStep() {
           @retryVerify="store.setDeployStatus('verifying')"
           @editCode="handleEditCode"
           @reviewTopology="handleReviewTopology"
+          @complete="store.setDeployStatus('done')"
         />
       </div>
 
@@ -290,7 +291,7 @@ function handleBackStep() {
         이전 단계
       </button>
       <button
-        :disabled="deployStatus !== 'done'"
+        :disabled="!['verifying', 'done'].includes(deployStatus)"
         @click="router.push('/iac/handoff')"
         class="btn-brand min-w-[200px] flex items-center justify-center gap-2"
       >

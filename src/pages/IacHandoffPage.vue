@@ -13,8 +13,8 @@ const store = useIacStore()
 const router = useRouter()
 const { deployStatus, lastPlanId } = storeToRefs(store)
 
-// 배포 완료 상태가 아니면 deploy 페이지로 리다이렉트
-if (deployStatus.value !== 'done') {
+// verify 또는 done 상태에서만 접근 (apply 중에 들어오면 deploy로 돌려보냄)
+if (!['verifying', 'done'].includes(deployStatus.value)) {
   router.replace('/iac/deploy')
 }
 

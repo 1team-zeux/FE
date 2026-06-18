@@ -11,6 +11,7 @@ const emit = defineEmits<{
   retryVerify: []
   editCode: []
   reviewTopology: []
+  complete: []  // 모든 핑이 settle된 직후 발생 — 푸터 "고객사 정보 확인" 활성화 트리거
 }>()
 
 // 순차 공개: 400ms 간격으로 아이템 등장, 700ms 후 결과 확정
@@ -58,6 +59,11 @@ const visiblePings = computed(() => props.verifyData?.pings.slice(0, visibleCoun
 const allSettled   = computed(() =>
   !!props.verifyData && settledCount.value >= props.verifyData.pings.length
 )
+
+// 모두 settle되면 부모에게 complete 알림 (1회만)
+watch(allSettled, (settled) => {
+  if (settled) emit('complete')
+})
 
 const TYPE_LABEL: Record<string, string> = {
   aws_vpc:                     'VPC',

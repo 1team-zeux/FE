@@ -24,6 +24,7 @@ export interface PlanResult {
   planId: string
   summary: { add: number; change: number; destroy: number }
   items: PlanItem[]
+  planOutput?: string  // `terraform plan` 콘솔 출력 형태 (변경점 diff)
 }
 
 type GenerateTerraformResponse = { planId: string; hclPreview: string }
