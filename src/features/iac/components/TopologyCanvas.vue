@@ -35,7 +35,8 @@ type PositionedGroup = TopologyGroup & { x: number; y: number; width: number; he
 const localNodes = ref<(TopologyNode & { x: number; y: number })[]>([])
 const localEdges = ref<TopologyEdge[]>([...props.edges])
 const localGroups = ref<PositionedGroup[]>([])
-const nodeMap = computed(() => new Map(localNodes.value.map(n => [n.nodeId, n])))
+const nodeMap  = computed(() => new Map(localNodes.value.map(n => [n.nodeId, n])))
+const groupMap = computed(() => new Map(localGroups.value.map(g => [g.groupId, g])))
 const offsetX = ref(0)
 const offsetY = ref(0)
 
@@ -53,9 +54,15 @@ function recomputeOffset() {
 
 function runLayout() {
   if (!props.nodes.length) return
-  const nodePos = gridLayout(props.nodes)
+  const nodePos = gridLayout(props.nodes, props.groups, props.edges)
+
+  // Preserve positions for nodes that already exist in localNodes (e.g. drag-dropped nodes).
+  // Only use gridLayout positions for nodes appearing for the first time.
+  const prevPos = new Map(localNodes.value.map(n => [n.nodeId, { x: n.x, y: n.y }]))
 
   localNodes.value = props.nodes.map(n => {
+    const prev = prevPos.get(n.nodeId)
+    if (prev !== undefined) return { ...n, x: prev.x, y: prev.y }
     const pos = nodePos.get(n.nodeId)
     return { ...n, x: pos?.x ?? 0, y: pos?.y ?? 0 }
   })
@@ -168,16 +175,81 @@ function onDrop(e: DragEvent) {
   emit('update:nodes', localNodes.value)
 }
 
-function edgePath(edge: TopologyEdge) {
-  const from = nodeMap.value.get(edge.from)
-  const to = nodeMap.value.get(edge.to)
-  if (!from || !to) return ''
+type Anchor = { sx: number; sy: number; ex: number; ey: number; srcGid: string | null; tgtGid: string | null }
+
+function edgeAnchors(edge: TopologyEdge): Anchor | null {
+  const fromNode  = nodeMap.value.get(edge.from)
+  const toNode    = nodeMap.value.get(edge.to)
+  const fromGroup = groupMap.value.get(edge.from)
+  const toGroup   = groupMap.value.get(edge.to)
+  if (!fromNode && !fromGroup) return null
+  if (!toNode   && !toGroup)   return null
+
   const hw = NW / 2
-  const goRight = to.x >= from.x
-  const sx = goRight ? from.x + hw : from.x - hw
-  const ex = goRight ? to.x - hw : to.x + hw
-  const midX = (sx + ex) / 2
-  return `M${sx},${from.y} H${midX} V${to.y} H${ex}`
+  const fromCx = fromNode ? fromNode.x : fromGroup!.x + fromGroup!.width  / 2
+  const fromCy = fromNode ? fromNode.y : fromGroup!.y + fromGroup!.height / 2
+  const toCx   = toNode   ? toNode.x   : toGroup!.x   + toGroup!.width    / 2
+  const toCy   = toNode   ? toNode.y   : toGroup!.y   + toGroup!.height   / 2
+
+  const dx = Math.abs(toCx - fromCx)
+  const dy = Math.abs(toCy - fromCy)
+  const goRight = toCx >= fromCx
+  const goDown  = toCy >= fromCy
+
+  let sx: number, sy: number, ex: number, ey: number
+
+  if (dy > dx * 0.4) {
+    // Primarily vertical: connect from top/bottom ports
+    sx = fromCx
+    sy = fromNode ? (goDown ? fromNode.y + hw : fromNode.y - hw) : (goDown ? fromGroup!.y + fromGroup!.height : fromGroup!.y)
+    ex = toCx
+    ey = toNode   ? (goDown ? toNode.y   - hw : toNode.y   + hw) : (goDown ? toGroup!.y                      : toGroup!.y + toGroup!.height)
+  } else {
+    // Primarily horizontal: connect from left/right ports
+    sx = fromNode ? (goRight ? fromNode.x + hw : fromNode.x - hw) : (goRight ? fromGroup!.x + fromGroup!.width : fromGroup!.x)
+    sy = fromCy
+    ex = toNode   ? (goRight ? toNode.x   - hw : toNode.x   + hw) : (goRight ? toGroup!.x                     : toGroup!.x + toGroup!.width)
+    ey = toCy
+  }
+
+  const srcGid = fromNode?.parentGroupId ?? fromGroup?.groupId ?? null
+  const tgtGid = toNode?.parentGroupId   ?? toGroup?.groupId   ?? null
+
+  return { sx, sy, ex, ey, srcGid, tgtGid }
+}
+
+function edgePath(edge: TopologyEdge): string {
+  const a = edgeAnchors(edge)
+  if (!a) return ''
+  const { sx, sy, ex, ey, srcGid, tgtGid } = a
+
+  // Detect if horizontal segment would cross through the g-private-* column.
+  // If so, route via the VPC header corridor (above all subnets) to avoid overlap.
+  const privGroups = localGroups.value.filter(g => g.groupId.startsWith('g-private-'))
+  if (privGroups.length > 0) {
+    const isPrivSrc = privGroups.some(g => g.groupId === srcGid)
+    const isPrivTgt = privGroups.some(g => g.groupId === tgtGid)
+    if (!isPrivSrc && !isPrivTgt) {
+      const xMin = Math.min(sx, ex), xMax = Math.max(sx, ex)
+      // All private groups share the same x/width (stacked vertically)
+      const privX0 = privGroups[0].x
+      const privX1 = privX0 + privGroups[0].width
+      if (xMax > privX0 && xMin < privX1) {
+        const testY = Math.abs(sy - ey) < 4 ? sy : ey
+        const crossesPriv = privGroups.some(g => testY > g.y && testY < g.y + g.height)
+        if (crossesPriv) {
+          const corridorY = privGroups[0].y - 20
+          return `M${sx},${sy} V${corridorY} H${ex} V${ey}`
+        }
+      }
+    }
+  }
+
+  if (Math.abs(sy - ey) < 4) return `M${sx},${sy} H${ex}`
+  if (Math.abs(sx - ex) < 4) return `M${sx},${sy} V${ey}`
+
+  // Default: V-first L-path (go to target Y, then target X)
+  return `M${sx},${sy} V${ey} H${ex}`
 }
 </script>
 
@@ -212,19 +284,19 @@ function edgePath(edge: TopologyEdge) {
         </text>
       </g>
 
-      <!-- 엣지 -->
+      <!-- 엣지 (node→node, node→group, group→group 모두 지원) -->
       <g v-for="edge in localEdges" :key="edge.edgeId">
         <path
-          v-if="nodeMap.get(edge.from) && nodeMap.get(edge.to)"
+          v-if="edgeAnchors(edge)"
           :d="edgePath(edge)"
           fill="none" stroke="#9CA3AF" stroke-width="1.5"
           :stroke-dasharray="edge.dashed ? '6 4' : 'none'"
           marker-end="url(#arr)"
           stroke-linejoin="round"
         />
-        <text v-if="edge.label && nodeMap.get(edge.from) && nodeMap.get(edge.to)"
-          :x="(nodeMap.get(edge.from)!.x + nodeMap.get(edge.to)!.x) / 2"
-          :y="(nodeMap.get(edge.from)!.y + nodeMap.get(edge.to)!.y) / 2 - 6"
+        <text v-if="edge.label && edgeAnchors(edge)"
+          :x="(edgeAnchors(edge)!.sx + edgeAnchors(edge)!.ex) / 2"
+          :y="(edgeAnchors(edge)!.sy + edgeAnchors(edge)!.ey) / 2 - 6"
           font-size="9" fill="#9CA3AF" text-anchor="middle">{{ edge.label }}</text>
       </g>
 
@@ -250,7 +322,9 @@ function edgePath(edge: TopologyEdge) {
           :stroke-width="selected === node.nodeId ? 2 : 1.5" />
         <image v-if="ICONS[node.type]" :href="ICONS[node.type]" x="16" y="10" width="40" height="40" />
         <text v-else x="36" y="36" text-anchor="middle" font-size="10" fill="#6B7280">{{ node.type }}</text>
-        <text x="36" y="64" text-anchor="middle" font-size="9" fill="#6B7280" font-family="monospace">{{ node.label }}</text>
+
+  <text x="36" y="64" text-anchor="middle" font-size="9" fill="#6B7280" font-family="monospace">{{
+  node.label }}</text>
 
         <circle v-if="hovered === node.nodeId && !drag"
           :cx="NW" :cy="NH / 2" r="5"

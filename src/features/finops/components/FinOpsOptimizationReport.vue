@@ -207,7 +207,7 @@ function onAdopt() {
   if (selected.value.terraform_handoff) {
     showTerraformPeek.value = true
     setTimeout(() => {
-      router.push({ path: '/iac/4', query: { from: 'finops', proposal: selected.value!.id } })
+      router.push({ path: '/iac/deploy', query: { from: 'finops', proposal: selected.value!.id } })
     }, 1200)
   }
 }

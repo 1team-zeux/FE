@@ -19,10 +19,10 @@ export function useConfirmField() {
   return useMutation({
     mutationFn: async ({ bundleId, fieldId, value }: { bundleId: string; fieldId: string; value: string | number | null }) => {
       const res = await api.patch(`/sla-bundles/draft/${bundleId}/fields`, { fieldId, value })
-      return res.data
+      return SLABundleSchema.parse(res.data)
     },
-    onSuccess() {
-      queryClient.invalidateQueries({ queryKey: ['sla-bundle-draft'] })
+    onSuccess(data) {
+      queryClient.setQueryData(['sla-bundle-draft', data.uploadSessionId], data)
     },
   })
 }

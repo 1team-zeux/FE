@@ -36,10 +36,10 @@ const router = createRouter({
       path: '/iac',
       component: () => import('@/components/AppLayout.vue'),
       children: [
-        { path: '1',   name: 'iac-document-upload',  component: () => import('@/pages/IacDocumentUploadPage.vue') },
-        { path: '2',   name: 'iac-sla-review',       component: () => import('@/pages/IacSlaReviewPage.vue') },
-        { path: '3',   name: 'iac-topology-select',  component: () => import('@/pages/IacTopologySelectPage.vue') },
-        { path: '4',   name: 'iac-deploy',           component: () => import('@/pages/IacDeployPage.vue') },
+        { path: 'document-upload',   name: 'iac-document-upload',  component: () => import('@/pages/IacDocumentUploadPage.vue') },
+        { path: 'sla-review',   name: 'iac-sla-review',       component: () => import('@/pages/IacSlaReviewPage.vue') },
+        { path: 'topology-select',   name: 'iac-topology-select',  component: () => import('@/pages/IacTopologySelectPage.vue') },
+        { path: 'deploy',   name: 'iac-deploy',           component: () => import('@/pages/IacDeployPage.vue') },
       ],
     },
   ],
@@ -47,9 +47,10 @@ const router = createRouter({
 
 router.beforeEach((to, from) => {
   // IaC 페이지 전환 애니메이션
-  const toStep  = parseInt(to.path.match(/\/iac\/(\d)/)?.[1]   ?? '0')
-  const fromStep = parseInt(from.path.match(/\/iac\/(\d)/)?.[1] ?? '0')
-  if (toStep && fromStep) {
+  const IAC_STEPS = ['document-upload', 'sla-review', 'topology-select', 'deploy']
+  const toStep   = IAC_STEPS.indexOf(to.path.split('/iac/')[1] ?? '')
+  const fromStep = IAC_STEPS.indexOf(from.path.split('/iac/')[1] ?? '')
+  if (toStep >= 0 && fromStep >= 0) {
     pageTransition.value = toStep > fromStep ? 'iac-forward' : 'iac-backward'
   } else {
     pageTransition.value = ''

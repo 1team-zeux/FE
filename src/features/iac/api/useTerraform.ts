@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { useMutation, useQuery } from '@tanstack/vue-query'
+import { storeToRefs } from 'pinia'
 import { api } from '@/services/api'
 import { useIacStore } from '../stores/iac.store'
 import type { Ref } from 'vue'
@@ -38,12 +39,15 @@ export function isApprovedTopologyPendingError(error: unknown) {
   return status === 404 && error.message.includes('Approved topology not found')
 }
 
-export async function generateTerraformWithRetry(topologyId: string) {
+export async function generateTerraformWithRetry(topologyId: string, workflowId: string | null) {
   let lastError: unknown
 
   for (let attempt = 1; attempt <= GENERATE_MAX_ATTEMPTS; attempt += 1) {
     try {
-      const res = await api.post<GenerateTerraformResponse>('/terraform/generate', { topologyId })
+      const res = await api.post<GenerateTerraformResponse>('/terraform/generate', { 
+        topologyId,
+        workflow_id: workflowId
+      })
       return res.data
     } catch (error) {
       lastError = error
@@ -61,7 +65,7 @@ export function useGenerateTerraform() {
   const store = useIacStore()
   return useMutation({
     mutationFn: async (topologyId: string) => {
-      return generateTerraformWithRetry(topologyId)
+      return generateTerraformWithRetry(topologyId, store.topologyWorkflowId)
     },
     onMutate() { store.setDeployStatus('generating') },
     onSuccess() { store.setDeployStatus('planning') },
@@ -148,12 +152,17 @@ export interface VerifyResult {
 }
 
 export function useTerraformVerify(planId: Ref<string | null>) {
+  const store = useIacStore()
+  const { deployStatus } = storeToRefs(store)
+
   return useQuery({
     queryKey: ['terraform-verify', planId],
     queryFn: async () => {
       const res = await api.get(`/terraform/verify/${planId.value}`)
       return res.data as VerifyResult
     },
-    enabled: () => !!planId.value,
+    // verifying/done 상태일 때만 발동 — generate 직후 의도치 않은 호출 방지
+    enabled: () => !!planId.value && (deployStatus.value === 'verifying' || deployStatus.value === 'done'),
+    retry: false,
   })
 }

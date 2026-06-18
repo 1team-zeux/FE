@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   useFinOpsRunsQuery,
@@ -16,6 +16,10 @@ import {
 import { useFinOpsTenantServicesQuery } from '@/features/finops/api/useFinOpsTenantServicesQuery'
 import type { OptimizationProposal } from '@/features/finops/types/finops.schema'
 import { useCustomersQuery } from '@/features/customer/api/useCustomersQuery'
+import {
+  clearAssistantPageContext,
+  setAssistantPageContext,
+} from '@/features/assistant/assistantContext'
 
 const route = useRoute()
 const router = useRouter()
@@ -107,6 +111,27 @@ watch(selectedRunId, (id, prevId) => {
     })
   }
 }, { immediate: true })
+
+watch(
+  [tenantFilter, serviceFilter, selectedRunId],
+  ([tenantId, serviceId, runId]) => {
+    if (!tenantId?.trim()) {
+      clearAssistantPageContext()
+      return
+    }
+    setAssistantPageContext({
+      source: 'finops',
+      tenant_id: tenantId.trim(),
+      service_id: serviceId?.trim() || undefined,
+      run_id: runId,
+    })
+  },
+  { immediate: true },
+)
+
+onUnmounted(() => {
+  clearAssistantPageContext()
+})
 
 watch(selectedRun, (run) => {
   if (run && !isStreaming.value) {

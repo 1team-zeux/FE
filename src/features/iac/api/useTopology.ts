@@ -22,7 +22,7 @@ function mapTopology(t: Record<string, any>) {
   })
 }
 
-const MAX_POLL_COUNT = 30 // 2초 × 30 = 최대 1분
+const MAX_POLL_COUNT = 90 // 2초 × 90 = 최대 3분 (LLM-first 파이프라인 소요 시간 반영)
 
 export function useTopologySession(bundleId: Ref<string | null>) {
   const store = useIacStore()
