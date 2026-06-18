@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { computed, ref, useId, watch } from 'vue'
+import { computed, ref, useId, watch, nextTick } from 'vue'
 import { NODE_ICONS } from '@/features/iac/utils/awsIcons'
 import {
   groupStroke,
   nodeStateFill,
   nodeStateStroke,
+  VIZ_ICON_SIZE,
+  VIZ_ICON_X,
+  VIZ_ICON_Y,
   VIZ_NODE_H,
   VIZ_NODE_W,
   type TopologyVizModel,
@@ -27,27 +30,43 @@ const pan = ref({ x: 0, y: 0 })
 const panning = ref(false)
 const panAnchor = ref({ px: 0, py: 0, ox: 0, oy: 0 })
 
-const viewH = computed(() => props.height ?? Math.max(220, props.model?.height ?? 220))
-const viewW = computed(() => Math.max(320, props.model?.width ?? 480))
+const displayH = computed(() => props.height ?? 360)
+
+const viewW = computed(() => Math.max(1, props.model?.width ?? 400))
+const viewH = computed(() => Math.max(1, props.model?.height ?? 220))
 
 const nodeMap = computed(() => new Map((props.model?.nodes ?? []).map((n) => [n.id, n])))
 
-const contentCenter = computed(() => ({
-  x: (props.model?.width ?? viewW.value) / 2,
-  y: (props.model?.height ?? viewH.value) / 2,
-}))
+const contentCenter = computed(() => {
+  const m = props.model
+  if (!m?.nodes.length) {
+    return { x: viewW.value / 2, y: viewH.value / 2 }
+  }
+  const xs = m.nodes.map((n) => n.x)
+  const ys = m.nodes.map((n) => n.y)
+  return {
+    x: (Math.min(...xs) + Math.max(...xs)) / 2,
+    y: (Math.min(...ys) + Math.max(...ys)) / 2,
+  }
+})
 
 const contentTransform = computed(() => {
   const c = contentCenter.value
   return `translate(${pan.value.x + viewW.value / 2}, ${pan.value.y + viewH.value / 2}) scale(${scale.value}) translate(${-c.x}, ${-c.y})`
 })
 
+function fitToView() {
+  scale.value = 1
+  pan.value = { x: 0, y: 0 }
+}
+
 watch(
   () => props.model,
-  () => {
-    scale.value = 1
-    pan.value = { x: 0, y: 0 }
+  async () => {
+    await nextTick()
+    fitToView()
   },
+  { immediate: true },
 )
 
 function edgePath(from: string, to: string): string {
@@ -60,6 +79,17 @@ function edgePath(from: string, to: string): string {
   const ex = goRight ? t.x - hw : t.x + hw
   const midX = (sx + ex) / 2
   return `M${sx},${f.y} H${midX} V${t.y} H${ex}`
+}
+
+function edgeMidpoint(from: string, to: string): { x: number; y: number } | null {
+  const f = nodeMap.value.get(from)
+  const t = nodeMap.value.get(to)
+  if (!f || !t) return null
+  return { x: (f.x + t.x) / 2, y: (f.y + t.y) / 2 - 6 }
+}
+
+function nodeAnimDelay(idx: number): string {
+  return `${Math.min(idx * 45, 600)}ms`
 }
 
 function onWheel(e: WheelEvent) {
@@ -101,8 +131,7 @@ function zoomOut() {
 }
 
 function resetView() {
-  scale.value = 1
-  pan.value = { x: 0, y: 0 }
+  fitToView()
 }
 </script>
 
@@ -134,7 +163,7 @@ function resetView() {
         </div>
       </div>
     </div>
-    <div class="relative overflow-hidden bg-[var(--color-bg-card)]" :style="{ height: `${viewH}px` }">
+    <div class="relative overflow-hidden bg-[var(--color-bg-card)]" :style="{ height: `${displayH}px` }">
       <p class="absolute bottom-2 right-2 z-10 text-[9px] text-gray-400 pointer-events-none select-none">
         드래그 · 휠 줌
       </p>
@@ -142,7 +171,8 @@ function resetView() {
         ref="svgEl"
         :viewBox="`0 0 ${viewW} ${viewH}`"
         width="100%"
-        :height="viewH"
+        :height="displayH"
+        preserveAspectRatio="xMidYMid meet"
         class="block touch-none"
         :class="panning ? 'cursor-grabbing' : 'cursor-grab'"
         @wheel.prevent="onWheel"
@@ -194,56 +224,124 @@ function resetView() {
               stroke-width="1.5"
               :stroke-dasharray="edge.broken ? '5 4' : 'none'"
               :marker-end="edge.broken ? `url(#finops-arr-broken-${uid})` : `url(#finops-arr-${uid})`"
+              :class="edge.broken ? 'finops-edge-broken' : 'finops-edge-live'"
             />
+            <text
+              v-if="edge.label && edgeMidpoint(edge.from, edge.to)"
+              :x="edgeMidpoint(edge.from, edge.to)!.x"
+              :y="edgeMidpoint(edge.from, edge.to)!.y"
+              text-anchor="middle"
+              font-size="8"
+              fill="#9CA3AF"
+              font-family="ui-monospace, monospace"
+              class="pointer-events-none select-none"
+            >
+              {{ edge.label }}
+            </text>
           </g>
 
           <g
-            v-for="node in model.nodes"
+            v-for="(node, idx) in model.nodes"
             :key="node.id"
             :transform="`translate(${node.x - VIZ_NODE_W / 2}, ${node.y - VIZ_NODE_H / 2})`"
-            class="pointer-events-none"
           >
-            <rect
-              :width="VIZ_NODE_W"
-              :height="VIZ_NODE_H"
-              rx="8"
-              :fill="nodeStateFill(node.state)"
-              :stroke="nodeStateStroke(node.state)"
-              stroke-width="2"
-              :opacity="node.state === 'removed' ? 0.55 : 1"
-            />
-            <image
-              v-if="NODE_ICONS[node.iconType]"
-              :href="NODE_ICONS[node.iconType]"
-              x="22"
-              y="8"
-              width="44"
-              height="44"
-              :opacity="node.state === 'removed' ? 0.4 : 1"
-            />
-            <text
-              v-else
-              x="44"
-              y="36"
-              text-anchor="middle"
-              font-size="10"
-              fill="#6B7280"
+            <g
+              class="pointer-events-none finops-node-enter"
+              :style="{ animationDelay: nodeAnimDelay(idx) }"
             >
-              {{ node.iconType }}
-            </text>
-            <text
-              x="44"
-              y="68"
-              text-anchor="middle"
-              font-size="9"
-              fill="var(--color-text-primary, #111)"
-              font-family="ui-monospace, monospace"
-            >
-              {{ node.label.length > 14 ? `${node.label.slice(0, 12)}…` : node.label }}
-            </text>
+              <rect
+                v-if="node.state === 'target'"
+                :width="VIZ_NODE_W + 8"
+                :height="VIZ_NODE_H + 8"
+                x="-4"
+                y="-4"
+                rx="10"
+                fill="none"
+                stroke="var(--color-brand, #2980B9)"
+                stroke-width="2"
+                class="finops-target-pulse"
+              />
+              <rect
+                :width="VIZ_NODE_W"
+                :height="VIZ_NODE_H"
+                rx="8"
+                :fill="nodeStateFill(node.state)"
+                :stroke="nodeStateStroke(node.state)"
+                stroke-width="2"
+                :opacity="node.state === 'removed' ? 0.55 : 1"
+              />
+              <image
+                v-if="NODE_ICONS[node.iconType]"
+                :href="NODE_ICONS[node.iconType]"
+                :x="VIZ_ICON_X"
+                :y="VIZ_ICON_Y"
+                :width="VIZ_ICON_SIZE"
+                :height="VIZ_ICON_SIZE"
+                :opacity="node.state === 'removed' ? 0.4 : 1"
+              />
+              <text
+                v-else
+                :x="VIZ_NODE_W / 2"
+                :y="VIZ_ICON_Y + VIZ_ICON_SIZE / 2 + 4"
+                text-anchor="middle"
+                font-size="10"
+                fill="#6B7280"
+              >
+                {{ node.iconType }}
+              </text>
+              <text
+                :x="VIZ_NODE_W / 2"
+                :y="VIZ_NODE_H - 6"
+                text-anchor="middle"
+                font-size="9"
+                fill="var(--color-text-primary, #111)"
+                font-family="ui-monospace, monospace"
+              >
+                {{ node.label.length > 12 ? `${node.label.slice(0, 10)}…` : node.label }}
+              </text>
+            </g>
           </g>
         </g>
       </svg>
     </div>
   </div>
 </template>
+
+<style scoped>
+@keyframes finops-node-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes finops-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.75;
+  }
+}
+
+@keyframes finops-dash {
+  to {
+    stroke-dashoffset: -18;
+  }
+}
+
+.finops-node-enter {
+  animation: finops-node-in 0.4s ease-out both;
+}
+
+.finops-target-pulse {
+  animation: finops-pulse 2s ease-in-out infinite;
+}
+
+.finops-edge-broken {
+  animation: finops-dash 1.2s linear infinite;
+}
+</style>

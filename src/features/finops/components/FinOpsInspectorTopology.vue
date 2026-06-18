@@ -35,7 +35,7 @@ const props = defineProps<{
 const layer = defineModel<TopologyLayer>('layer', { default: 'resource' })
 const view = defineModel<TopologyView>('view', { default: 'diff' })
 
-const showDetails = ref(false)
+const showDetails = ref(true)
 
 const resolved = computed(() => resolveTopologyFinding(props.finding))
 const topo = computed(() => resolveTopologyCore(resolved.value.finding))
@@ -44,6 +44,33 @@ const targetId = computed(() => resolved.value.finding?.resource_id ?? props.fin
 
 const hasResource = computed(() => Boolean(ctx.value?.resource_graph?.nodes?.length))
 const hasDesign = computed(() => Boolean(ctx.value?.design_diagram?.nodes?.length))
+
+const topologyStats = computed(() => {
+  const rg = ctx.value?.resource_graph
+  const dd = ctx.value?.design_diagram
+  const impact = ctx.value?.proposal_impact
+  const serviceIds = new Set<string>()
+  for (const ev of topo.value.changeEvents) {
+    if (ev.service_id) serviceIds.add(ev.service_id)
+  }
+  for (const dep of [...(topo.value.upstream ?? []), ...(topo.value.downstream ?? [])]) {
+    serviceIds.add(dep.service_id)
+  }
+  return {
+    resourceNodes: rg?.nodes?.length ?? 0,
+    resourceEdges: rg?.edges?.length ?? 0,
+    designNodes: dd?.nodes?.length ?? 0,
+    designGroups: dd?.groups?.length ?? 0,
+    changeEvents: topo.value.changeEvents.length,
+    services: serviceIds.size,
+    upstream: topo.value.upstream?.length ?? 0,
+    downstream: topo.value.downstream?.length ?? 0,
+    asIsNodes: impact?.as_is.node_count,
+    toBeNodes: impact?.to_be.node_count,
+    asIsEdges: impact?.as_is.edge_count,
+    toBeEdges: impact?.to_be.edge_count,
+  }
+})
 
 const resourceModels = computed(() => {
   const c = ctx.value
@@ -78,9 +105,14 @@ const graphTitle = computed(() => {
 
 const graphMode = computed(() => view.value)
 
-const graphHeight = computed(() => (layer.value === 'design' ? 300 : 280))
+const graphHeight = computed(() => (layer.value === 'design' ? 400 : 360))
 
 const impact = computed(() => topo.value.proposalImpact)
+
+const affectedPeerCount = computed(() => {
+  const peers = impact.value?.affected_peers ?? []
+  return new Set(peers.map((p) => p.resource_id)).size
+})
 
 function selectLayer(next: TopologyLayer) {
   if (next === 'design' && !hasDesign.value) return
@@ -146,6 +178,49 @@ function selectView(next: TopologyView) {
       </button>
     </div>
 
+    <!-- 토폴로지 요약 스탯 -->
+    <div
+      v-if="topo.hasCore"
+      class="grid grid-cols-2 sm:grid-cols-4 gap-2"
+    >
+      <div class="rounded-lg border border-border bg-bg-card px-2.5 py-2">
+        <p class="text-[9px] text-gray-400 uppercase tracking-wider mb-0.5">리소스</p>
+        <p class="text-sm font-bold font-mono tabular-nums text-text-primary">
+          {{ topologyStats.resourceNodes }}
+          <span class="text-[10px] font-normal text-gray-400">노드</span>
+        </p>
+        <p class="text-[10px] text-gray-500 font-mono">{{ topologyStats.resourceEdges }} 연결</p>
+      </div>
+      <div class="rounded-lg border border-border bg-bg-card px-2.5 py-2">
+        <p class="text-[9px] text-gray-400 uppercase tracking-wider mb-0.5">설계 뷰</p>
+        <p class="text-sm font-bold font-mono tabular-nums text-text-primary">
+          {{ topologyStats.designNodes }}
+          <span class="text-[10px] font-normal text-gray-400">컴포넌트</span>
+        </p>
+        <p class="text-[10px] text-gray-500 font-mono">{{ topologyStats.designGroups }} 서브넷 그룹</p>
+      </div>
+      <div class="rounded-lg border border-border bg-bg-card px-2.5 py-2">
+        <p class="text-[9px] text-gray-400 uppercase tracking-wider mb-0.5">서비스</p>
+        <p class="text-sm font-bold font-mono tabular-nums text-text-primary">
+          {{ topologyStats.services }}
+          <span class="text-[10px] font-normal text-gray-400">개</span>
+        </p>
+        <p class="text-[10px] text-gray-500 font-mono">
+          ↑{{ topologyStats.upstream }} · ↓{{ topologyStats.downstream }}
+        </p>
+      </div>
+      <div class="rounded-lg border border-border bg-bg-card px-2.5 py-2">
+        <p class="text-[9px] text-gray-400 uppercase tracking-wider mb-0.5">변경 이벤트</p>
+        <p class="text-sm font-bold font-mono tabular-nums text-text-primary">
+          {{ topologyStats.changeEvents }}
+          <span class="text-[10px] font-normal text-gray-400">건</span>
+        </p>
+        <p v-if="topo.recentHours != null" class="text-[10px] text-gray-500">
+          최근 {{ topo.recentHours }}h
+        </p>
+      </div>
+    </div>
+
     <!-- 뷰 선택 — 세그먼트 컨트롤 -->
     <div class="flex rounded-xl border border-border bg-bg-muted p-1 gap-1">
       <button
@@ -203,13 +278,43 @@ function selectView(next: TopologyView) {
       <p class="text-xs text-text-primary leading-snug">{{ impact.summary }}</p>
       <div class="grid grid-cols-2 gap-2 text-[10px] font-mono">
         <div class="rounded border border-border bg-bg-card px-2 py-1.5">
-          <span class="text-gray-400 block mb-0.5">현재</span>
+          <span class="text-gray-400 block mb-0.5">현재 (as-is)</span>
           노드 {{ impact.as_is.node_count }} · 엣지 {{ impact.as_is.edge_count }}
         </div>
         <div class="rounded border border-border bg-bg-card px-2 py-1.5">
-          <span class="text-gray-400 block mb-0.5">적용 후</span>
-          노드 {{ impact.to_be.node_count }} · 엣지 {{ impact.to_be.edge_count }}
+          <span class="text-gray-400 block mb-0.5">적용 후 (to-be)</span>
+          노드 {{ impact.to_be.node_count }}
+          <span
+            v-if="impact.to_be.node_count < impact.as_is.node_count"
+            class="text-red-600"
+          >
+            (−{{ impact.as_is.node_count - impact.to_be.node_count }})
+          </span>
+          · 엣지 {{ impact.to_be.edge_count }}
+          <span
+            v-if="impact.to_be.edge_count < impact.as_is.edge_count"
+            class="text-red-600"
+          >
+            (−{{ impact.as_is.edge_count - impact.to_be.edge_count }})
+          </span>
         </div>
+      </div>
+      <div
+        v-if="impact.broken_edges?.length || impact.affected_peers?.length"
+        class="flex flex-wrap gap-1.5 pt-1"
+      >
+        <span
+          v-if="impact.broken_edges?.length"
+          class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-500/10 text-red-700 border border-red-500/20"
+        >
+          단절 연결 {{ impact.broken_edges.length }}건
+        </span>
+        <span
+          v-if="impact.affected_peers?.length"
+          class="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-700 border border-amber-500/20"
+        >
+          영향 리소스 {{ affectedPeerCount }}개
+        </span>
       </div>
     </div>
 
@@ -258,6 +363,10 @@ function selectView(next: TopologyView) {
               </span>
             </div>
             <p class="text-xs text-text-primary mt-1 leading-snug">{{ ev.summary }}</p>
+            <p v-if="ev.resource_id" class="text-[10px] text-gray-400 font-mono mt-1">
+              {{ ev.resource_id }}
+              <span v-if="ev.service_id" class="text-gray-300"> · {{ ev.service_id }}</span>
+            </p>
           </li>
         </ul>
       </div>
@@ -272,9 +381,12 @@ function selectView(next: TopologyView) {
             <li
               v-for="dep in topo.upstream"
               :key="`up-${dep.service_id}`"
-              class="text-xs px-2 py-1 rounded border border-border bg-bg-card"
+              class="text-xs px-2 py-1 rounded border border-border bg-bg-card flex items-center justify-between gap-2"
             >
-              {{ dep.service_id }}
+              <span>{{ dep.service_id }}</span>
+              <span v-if="dep.dependency_type" class="text-[9px] text-gray-400 font-mono uppercase">
+                {{ dep.dependency_type }}
+              </span>
             </li>
           </ul>
         </div>
@@ -284,9 +396,12 @@ function selectView(next: TopologyView) {
             <li
               v-for="dep in topo.downstream"
               :key="`down-${dep.service_id}`"
-              class="text-xs px-2 py-1 rounded border border-border bg-bg-card"
+              class="text-xs px-2 py-1 rounded border border-border bg-bg-card flex items-center justify-between gap-2"
             >
-              {{ dep.service_id }}
+              <span>{{ dep.service_id }}</span>
+              <span v-if="dep.dependency_type" class="text-[9px] text-gray-400 font-mono uppercase">
+                {{ dep.dependency_type }}
+              </span>
             </li>
           </ul>
         </div>

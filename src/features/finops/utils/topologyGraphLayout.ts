@@ -38,11 +38,16 @@ export interface TopologyVizModel {
   height: number
 }
 
-const NW = 88
-const NH = 76
-const COL_GAP = 160
-const ROW_GAP = 96
+const NW = 80
+const NH = 72
+const H_GAP = 56
+const V_GAP = 40
+const COL_STEP = NW + H_GAP
+const ROW_STEP = NH + V_GAP
 const MARGIN = 48
+const ICON_SIZE = 40
+const ICON_PAD_X = (NW - ICON_SIZE) / 2
+const ICON_PAD_Y = 6
 
 function mapIconType(raw?: string | null): string {
   const t = (raw ?? '').toLowerCase()
@@ -55,7 +60,8 @@ function mapIconType(raw?: string | null): string {
   if (t.includes('route53')) return 'route53'
   if (t.includes('igw')) return 'igw'
   if (t.includes('elasticache')) return 'elasticache'
-  if (t.includes('eventbridge')) return 'eventbridge'
+  if (t.includes('sqs')) return 'lambda'
+  if (t.includes('s3')) return 's3'
   return t || 'ec2'
 }
 
@@ -86,10 +92,10 @@ function layoutDag(
     const col = Number(d)
     ids.forEach((id, row) => {
       const total = ids.length
-      const yOffset = ((total - 1) * ROW_GAP) / 2
+      const yOffset = ((total - 1) * ROW_STEP) / 2
       pos.set(id, {
-        x: MARGIN + col * COL_GAP,
-        y: MARGIN + row * ROW_GAP - yOffset + 80,
+        x: MARGIN + col * COL_STEP,
+        y: MARGIN + row * ROW_STEP - yOffset + 60,
       })
     })
   }
@@ -107,12 +113,34 @@ function bounds(nodes: TopologyVizNode[], groups: TopologyVizGroup[]) {
     xs.push(g.x, g.x + g.width)
     ys.push(g.y, g.y + g.height)
   }
-  if (!xs.length) return { width: 400, height: 220 }
+  if (!xs.length) return { width: 400, height: 220, minX: 0, minY: 0 }
   const minX = Math.min(...xs) - 24
   const maxX = Math.max(...xs) + 24
   const minY = Math.min(...ys) - 24
   const maxY = Math.max(...ys) + 24
   return { width: maxX - minX, height: maxY - minY, minX, minY }
+}
+
+/** Shift graph into a 0-based viewport so viewBox and node positions align. */
+function finalizeVizModel(
+  nodes: TopologyVizNode[],
+  edges: TopologyVizEdge[],
+  groups: TopologyVizGroup[],
+): TopologyVizModel {
+  const b = bounds(nodes, groups)
+  const shiftX = 24 - (b.minX ?? 0)
+  const shiftY = 24 - (b.minY ?? 0)
+  return {
+    nodes: nodes.map((n) => ({ ...n, x: n.x + shiftX, y: n.y + shiftY })),
+    edges,
+    groups: groups.map((g) => ({
+      ...g,
+      x: g.x + shiftX,
+      y: g.y + shiftY,
+    })),
+    width: b.width ?? 400,
+    height: b.height ?? 220,
+  }
 }
 
 function buildGroupsFromDesign(
@@ -165,6 +193,8 @@ export function buildResourceGraphAsIsViz(
   const graph = ctx.resource_graph
   if (!graph?.nodes?.length) return null
 
+  const highlightId = ctx.proposal_impact?.target_resource_id ?? targetResourceId
+
   const edges = (graph.edges ?? []).map((e, i) => ({
     from: e.from,
     to: e.to,
@@ -184,7 +214,7 @@ export function buildResourceGraphAsIsViz(
   const nodes: TopologyVizNode[] = graph.nodes.map((n) => {
     const p = pos.get(n.id) ?? { x: MARGIN, y: MARGIN }
     let state: VizNodeState = 'normal'
-    if (n.id === targetResourceId) state = 'target'
+    if (n.id === highlightId) state = 'target'
     else if (removed.has(n.id)) state = 'removed'
     else if (modified.has(n.id)) state = 'modified'
     else if (affected.has(n.id)) state = 'affected'
@@ -206,14 +236,7 @@ export function buildResourceGraphAsIsViz(
     broken: broken.has(`${e.from}->${e.to}`),
   }))
 
-  const b = bounds(nodes, [])
-  return {
-    nodes,
-    edges: vizEdges,
-    groups: [],
-    width: b.width ?? 400,
-    height: b.height ?? 220,
-  }
+  return finalizeVizModel(nodes, vizEdges, [])
 }
 
 /** as-is 캔버스에 제거·변경·단절 엣지를 overlay (비교 뷰) */
@@ -247,14 +270,7 @@ export function buildResourceGraphToBeViz(
     .filter((e) => alive.has(e.from) && alive.has(e.to))
     .map((e) => ({ ...e, broken: false }))
 
-  const b = bounds(nodes, [])
-  return {
-    nodes,
-    edges,
-    groups: [],
-    width: b.width ?? asIs.width,
-    height: b.height ?? asIs.height,
-  }
+  return finalizeVizModel(nodes, edges, [])
 }
 
 export function buildDesignDiagramViz(
@@ -270,6 +286,10 @@ export function buildDesignDiagramAsIsViz(
 ): TopologyVizModel | null {
   const diagram = ctx.design_diagram
   if (!diagram?.nodes?.length) return null
+
+  const highlightIds = new Set(
+    (ctx.design_proposal_impact?.matched_design_nodes ?? []).map((n) => n.nodeId),
+  )
 
   const rawNodes = diagram.nodes
   const edges = (diagram.edges ?? []).map((e, i) => ({
@@ -295,7 +315,7 @@ export function buildDesignDiagramAsIsViz(
   const nodes: TopologyVizNode[] = rawNodes.map((n) => {
     const p = pos.get(n.nodeId) ?? { x: MARGIN, y: MARGIN }
     let state: VizNodeState = 'normal'
-    if (matched.has(n.nodeId)) state = 'target'
+    if (matched.has(n.nodeId) || highlightIds.has(n.nodeId)) state = 'target'
     else if (affected.has(n.nodeId)) state = 'affected'
     return {
       id: n.nodeId,
@@ -320,14 +340,7 @@ export function buildDesignDiagramAsIsViz(
     nodes,
   )
 
-  const b = bounds(nodes, groups)
-  return {
-    nodes,
-    edges: vizEdges,
-    groups,
-    width: b.width ?? 520,
-    height: b.height ?? 280,
-  }
+  return finalizeVizModel(nodes, vizEdges, groups)
 }
 
 /** 설계 다이어그램 — 제안 반영 diff overlay */
@@ -357,11 +370,7 @@ export function buildDesignDiagramDiffViz(
     broken: e.broken || broken.has(`${e.from}->${e.to}`),
   }))
 
-  return {
-    ...asIs,
-    nodes,
-    edges: vizEdges,
-  }
+  return finalizeVizModel(nodes, vizEdges, asIs.groups)
 }
 
 export function buildDesignDiagramToBeViz(
@@ -393,18 +402,14 @@ export function buildDesignDiagramToBeViz(
 
   const survivingGroups = asIs.groups.filter((g) => nodes.some((n) => n.groupId === g.id))
 
-  const b = bounds(nodes, survivingGroups)
-  return {
-    nodes,
-    edges,
-    groups: survivingGroups,
-    width: b.width ?? asIs.width,
-    height: b.height ?? asIs.height,
-  }
+  return finalizeVizModel(nodes, edges, survivingGroups)
 }
 
 export const VIZ_NODE_W = NW
 export const VIZ_NODE_H = NH
+export const VIZ_ICON_SIZE = ICON_SIZE
+export const VIZ_ICON_X = ICON_PAD_X
+export const VIZ_ICON_Y = ICON_PAD_Y
 
 export function nodeStateStroke(state: VizNodeState): string {
   if (state === 'target') return 'var(--color-brand, #2980B9)'
