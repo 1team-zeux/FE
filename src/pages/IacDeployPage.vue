@@ -12,15 +12,14 @@ import type { PlanResult, DeployMode } from '@/features/iac'
 
 const store = useIacStore()
 const router = useRouter()
-const { deployStatus, selectedTopologyId } = storeToRefs(store)
+// deployMode는 IacTopologySelectPage에서 확정 시 store에 저장됨
+const { deployStatus, selectedTopologyId, deployMode } = storeToRefs(store)
 
 const planId = ref<string | null>(null)
 const hclPreview = ref<string | null>(null)
 const planData = ref<PlanResult | null>(null)
 const failedDuringApply = ref(false)
 const planPanelVisible = ref(false)
-// 배포 모드: 'full' = ECS+RDS+ALB+Bastion+S3+CW, 'minimal' = EC2 1개 (테스트)
-const deployMode = ref<DeployMode>('full')
 
 const { mutate: generateCode } = useGenerateTerraform()
 const { mutate: runPlan, isPending: isPlanning } = useTerraformPlan()
@@ -103,10 +102,9 @@ onMounted(() => {
   }
 })
 
-function handleGenerate(mode: DeployMode = deployMode.value) {
+function handleGenerate() {
   if (!selectedTopologyId.value) return
-  deployMode.value = mode
-  generateCode({ topologyId: selectedTopologyId.value, mode }, {
+  generateCode({ topologyId: selectedTopologyId.value, mode: deployMode.value }, {
     onSuccess(data) {
       planId.value = data.planId
       hclPreview.value = data.hclPreview
@@ -114,16 +112,6 @@ function handleGenerate(mode: DeployMode = deployMode.value) {
       store.setLastPlanId(data.planId)
     },
   })
-}
-
-// 모드 토글: 현재 mode와 다른 mode로 재생성
-function switchMode(newMode: DeployMode) {
-  if (newMode === deployMode.value) return
-  // 진행 중인 plan/apply 패널 닫고 처음부터 다시
-  planPanelVisible.value = false
-  planData.value = null
-  store.setDeployStatus('idle')
-  handleGenerate(newMode)
 }
 
 function handlePlanClick() {
@@ -208,37 +196,15 @@ function handleBackStep() {
           <p class="text-xs text-text-secondary mt-0.5">인프라 코드를 생성하고 실제 리소스를 프로비저닝합니다.</p>
         </div>
         <div class="flex items-center gap-3">
-          <!-- 모드 토글: 전체 vs 테스트(EC2 1개) -->
-          <div class="inline-flex rounded-lg border border-border overflow-hidden text-xs">
-            <button
-              @click="switchMode('full')"
-              :disabled="deployStatus === 'applying' || deployStatus === 'verifying'"
-              :class="[
-                'px-3 py-1.5 font-medium transition-colors',
-                deployMode === 'full'
-                  ? 'bg-brand text-white'
-                  : 'bg-white text-text-secondary hover:bg-bg-muted',
-                'disabled:opacity-40 disabled:cursor-not-allowed',
-              ]"
-              title="ECS + RDS + ALB + Bastion + S3 + CloudWatch"
-            >
-              전체 배포
-            </button>
-            <button
-              @click="switchMode('minimal')"
-              :disabled="deployStatus === 'applying' || deployStatus === 'verifying'"
-              :class="[
-                'px-3 py-1.5 font-medium transition-colors border-l border-border',
-                deployMode === 'minimal'
-                  ? 'bg-brand text-white'
-                  : 'bg-white text-text-secondary hover:bg-bg-muted',
-                'disabled:opacity-40 disabled:cursor-not-allowed',
-              ]"
-              title="default VPC에 EC2 1개 (nginx 자동 설치) — 테스트용"
-            >
-              테스트 모드 (EC2 1개)
-            </button>
-          </div>
+          <!-- 현재 배포 모드 배지 (토폴로지 페이지에서 선택됨, 여기선 표시만) -->
+          <span
+            :class="deployMode === 'minimal'
+              ? 'bg-amber-50 text-amber-700 border-amber-200'
+              : 'bg-blue-50 text-blue-700 border-blue-200'"
+            class="text-xs font-medium px-3 py-1.5 rounded-full border"
+          >
+            {{ deployMode === 'minimal' ? '테스트 배포 (EC2 1개)' : '전체 배포 (ECS+RDS+ALB+...)' }}
+          </span>
           <span v-if="deployStatus === 'done'"
             class="flex items-center gap-1.5 text-xs font-medium text-status-ok bg-green-50 border border-green-200 px-3 py-1.5 rounded-full">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
