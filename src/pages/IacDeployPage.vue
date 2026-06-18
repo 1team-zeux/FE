@@ -8,7 +8,7 @@ import {
   IacHclPanel, IacPlanPanel, IacApplyPanel, IacVerifyPanel,
 } from '@/features/iac'
 import AppStepper from '@/components/AppStepper.vue'
-import type { PlanResult } from '@/features/iac'
+import type { PlanResult, DeployMode } from '@/features/iac'
 
 const store = useIacStore()
 const router = useRouter()
@@ -19,6 +19,8 @@ const hclPreview = ref<string | null>(null)
 const planData = ref<PlanResult | null>(null)
 const failedDuringApply = ref(false)
 const planPanelVisible = ref(false)
+// 배포 모드: 'full' = ECS+RDS+ALB+Bastion+S3+CW, 'minimal' = EC2 1개 (테스트)
+const deployMode = ref<DeployMode>('full')
 
 const { mutate: generateCode } = useGenerateTerraform()
 const { mutate: runPlan, isPending: isPlanning } = useTerraformPlan()
@@ -101,9 +103,10 @@ onMounted(() => {
   }
 })
 
-function handleGenerate() {
+function handleGenerate(mode: DeployMode = deployMode.value) {
   if (!selectedTopologyId.value) return
-  generateCode(selectedTopologyId.value, {
+  deployMode.value = mode
+  generateCode({ topologyId: selectedTopologyId.value, mode }, {
     onSuccess(data) {
       planId.value = data.planId
       hclPreview.value = data.hclPreview
@@ -111,6 +114,16 @@ function handleGenerate() {
       store.setLastPlanId(data.planId)
     },
   })
+}
+
+// 모드 토글: 현재 mode와 다른 mode로 재생성
+function switchMode(newMode: DeployMode) {
+  if (newMode === deployMode.value) return
+  // 진행 중인 plan/apply 패널 닫고 처음부터 다시
+  planPanelVisible.value = false
+  planData.value = null
+  store.setDeployStatus('idle')
+  handleGenerate(newMode)
 }
 
 function handlePlanClick() {
@@ -194,13 +207,46 @@ function handleBackStep() {
           <h1 class="text-xl font-bold text-text-primary">Terraform 배포</h1>
           <p class="text-xs text-text-secondary mt-0.5">인프라 코드를 생성하고 실제 리소스를 프로비저닝합니다.</p>
         </div>
-        <span v-if="deployStatus === 'done'"
-          class="flex items-center gap-1.5 text-xs font-medium text-status-ok bg-green-50 border border-green-200 px-3 py-1.5 rounded-full">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-          </svg>
-          배포 완료
-        </span>
+        <div class="flex items-center gap-3">
+          <!-- 모드 토글: 전체 vs 테스트(EC2 1개) -->
+          <div class="inline-flex rounded-lg border border-border overflow-hidden text-xs">
+            <button
+              @click="switchMode('full')"
+              :disabled="deployStatus === 'applying' || deployStatus === 'verifying'"
+              :class="[
+                'px-3 py-1.5 font-medium transition-colors',
+                deployMode === 'full'
+                  ? 'bg-brand text-white'
+                  : 'bg-white text-text-secondary hover:bg-bg-muted',
+                'disabled:opacity-40 disabled:cursor-not-allowed',
+              ]"
+              title="ECS + RDS + ALB + Bastion + S3 + CloudWatch"
+            >
+              전체 배포
+            </button>
+            <button
+              @click="switchMode('minimal')"
+              :disabled="deployStatus === 'applying' || deployStatus === 'verifying'"
+              :class="[
+                'px-3 py-1.5 font-medium transition-colors border-l border-border',
+                deployMode === 'minimal'
+                  ? 'bg-brand text-white'
+                  : 'bg-white text-text-secondary hover:bg-bg-muted',
+                'disabled:opacity-40 disabled:cursor-not-allowed',
+              ]"
+              title="default VPC에 EC2 1개 (nginx 자동 설치) — 테스트용"
+            >
+              테스트 모드 (EC2 1개)
+            </button>
+          </div>
+          <span v-if="deployStatus === 'done'"
+            class="flex items-center gap-1.5 text-xs font-medium text-status-ok bg-green-50 border border-green-200 px-3 py-1.5 rounded-full">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+            </svg>
+            배포 완료
+          </span>
+        </div>
       </div>
       <AppStepper :steps="STEPS" :currentStep="currentStep" compact />
     </div>

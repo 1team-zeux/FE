@@ -39,14 +39,21 @@ export function isApprovedTopologyPendingError(error: unknown) {
   return status === 404 && error.message.includes('Approved topology not found')
 }
 
-export async function generateTerraformWithRetry(topologyId: string, workflowId: string | null) {
+export type DeployMode = 'full' | 'minimal'
+
+export async function generateTerraformWithRetry(
+  topologyId: string,
+  workflowId: string | null,
+  mode: DeployMode = 'full',
+) {
   let lastError: unknown
 
   for (let attempt = 1; attempt <= GENERATE_MAX_ATTEMPTS; attempt += 1) {
     try {
-      const res = await api.post<GenerateTerraformResponse>('/terraform/generate', { 
+      const res = await api.post<GenerateTerraformResponse>('/terraform/generate', {
         topologyId,
-        workflow_id: workflowId
+        workflow_id: workflowId,
+        mode,
       })
       return res.data
     } catch (error) {
@@ -64,8 +71,8 @@ export async function generateTerraformWithRetry(topologyId: string, workflowId:
 export function useGenerateTerraform() {
   const store = useIacStore()
   return useMutation({
-    mutationFn: async (topologyId: string) => {
-      return generateTerraformWithRetry(topologyId, store.topologyWorkflowId)
+    mutationFn: async (args: { topologyId: string; mode?: DeployMode }) => {
+      return generateTerraformWithRetry(args.topologyId, store.topologyWorkflowId, args.mode ?? 'full')
     },
     onMutate() { store.setDeployStatus('generating') },
     onSuccess() { store.setDeployStatus('planning') },
