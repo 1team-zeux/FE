@@ -2,9 +2,11 @@
 import { ref, computed } from 'vue';
 import { usePortfolioQuery, PortfolioCard } from '@/features/portfolio';
 import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/features/auth/store/useAuthStore';
 
 const { data: bus, isLoading, isError } = usePortfolioQuery();
 const router = useRouter();
+const auth = useAuthStore();
 
 type FilterStatus = 'all' | 'healthy' | 'warning' | 'critical';
 type SortKey = 'risk' | 'budget' | 'events';
@@ -23,7 +25,11 @@ const kpi = computed(() => {
 });
 
 const filtered = computed(() => {
-  const all = bus.value ?? [];
+  let all = bus.value ?? [];
+  // CUSTOMER role은 자신의 tenant만 표시
+  if (!auth.isAdmin && auth.user?.customerCode) {
+    all = all.filter(b => b.id === auth.user!.customerCode);
+  }
   const f = filter.value === 'all' ? all : all.filter(b => b.status === filter.value);
   return [...f].sort((a, b) => {
     if (sort.value === 'risk') return b.riskScore - a.riskScore;
