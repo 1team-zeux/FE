@@ -16,6 +16,12 @@ export const useIacStore = defineStore('iac', () => {
   const topologyWorkflowId = ref<string | null>(null)
   const selectedTopologyId = ref<string | null>(null)
   const deployStatus = ref<DeployStatus>('idle')
+  // 마지막 Terraform planId — 핸드오프 페이지에서 verify 조회 시 사용
+  const lastPlanId = ref<string | null>(null)
+  // 배포 모드 — 토폴로지 확정 시점에 결정 ('full' = 전체, 'minimal' = EC2 1개 테스트)
+  const deployMode = ref<'full' | 'minimal'>('full')
+  // 적용 타겟 — Apply 시점에 결정 ('dry_run' = 로컬 시뮬레이션, 'github' = PR + Atlantis)
+  const deployTarget = ref<'dry_run' | 'github'>('dry_run')
   const chatbotTriggers = ref<ChatbotTrigger[]>([])
   const chatbotOpen = ref(false)
   const pdfFiles = ref<{ sla: File | null; infra: File | null }>({ sla: null, infra: null })
@@ -44,6 +50,18 @@ export const useIacStore = defineStore('iac', () => {
 
   function setDeployStatus(status: DeployStatus) {
     deployStatus.value = status
+  }
+
+  function setLastPlanId(id: string | null) {
+    lastPlanId.value = id
+  }
+
+  function setDeployMode(mode: 'full' | 'minimal') {
+    deployMode.value = mode
+  }
+
+  function setDeployTarget(target: 'dry_run' | 'github') {
+    deployTarget.value = target
   }
 
   function addChatbotTrigger(trigger: ChatbotTrigger) {
@@ -83,6 +101,9 @@ export const useIacStore = defineStore('iac', () => {
     topologyWorkflowId.value = null
     selectedTopologyId.value = null
     deployStatus.value = 'idle'
+    lastPlanId.value = null
+    deployMode.value = 'full'
+    deployTarget.value = 'dry_run'
     chatbotTriggers.value = []
     chatbotOpen.value = false
     pdfFiles.value = { sla: null, infra: null }
@@ -96,6 +117,9 @@ export const useIacStore = defineStore('iac', () => {
     topologyWorkflowId,
     selectedTopologyId,
     deployStatus,
+    lastPlanId,
+    deployMode,
+    deployTarget,
     chatbotTriggers,
     chatbotOpen,
     chatbotBadgeCount,
@@ -106,6 +130,9 @@ export const useIacStore = defineStore('iac', () => {
     setTopologyWorkflowId,
     setSelectedTopology,
     setDeployStatus,
+    setLastPlanId,
+    setDeployMode,
+    setDeployTarget,
     addChatbotTrigger,
     clearChatbotTriggers,
     toggleChatbot,

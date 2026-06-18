@@ -6,7 +6,7 @@ import { useIacStore, useTopologySession, useSelectTopology, TopologyEditor } fr
 
 const store = useIacStore()
 const router = useRouter()
-const { bundleDraft } = storeToRefs(store)
+const { bundleDraft, deployMode } = storeToRefs(store)
 const bundleId = computed(() => bundleDraft.value?.bundleId ?? null)
 
 if (!bundleId.value) {
@@ -23,8 +23,9 @@ const { mutate: select, isPending: isApproving } = useSelectTopology()
 const activeIndex = ref(0)
 const activeTopology = computed(() => topologies.value?.[activeIndex.value])
 
-function handleApprove() {
+function handleApprove(mode: 'full' | 'minimal') {
   if (!activeTopology.value) return
+  store.setDeployMode(mode)
   select(activeTopology.value.topologyId, {
     onSuccess() { router.push('/iac/deploy') },
   })
@@ -101,11 +102,29 @@ function handleApprove() {
           </svg>
           이전 단계
         </button>
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3">
           <p class="text-xs text-text-muted">노드를 드래그하거나 포트를 연결해 토폴로지를 수정할 수 있습니다.</p>
-          <button @click="handleApprove" :disabled="isApproving" class="btn-brand flex items-center gap-2">
+          <!-- 테스트 모드 (EC2 1개) — default VPC에 nginx 인스턴스만 -->
+          <button
+            @click="handleApprove('minimal')"
+            :disabled="isApproving"
+            class="flex items-center gap-1.5 px-3 py-2 text-sm font-medium border border-border rounded-lg hover:bg-bg-muted text-text-primary disabled:opacity-40 disabled:cursor-not-allowed"
+            title="default VPC에 EC2 1개(nginx)만 생성. 비용·검증 부담 적은 테스트용."
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+            </svg>
+            테스트 배포 (EC2 1개)
+          </button>
+          <!-- 전체 배포 — ECS + RDS + ALB + Bastion + S3 + CW -->
+          <button
+            @click="handleApprove('full')"
+            :disabled="isApproving"
+            class="btn-brand flex items-center gap-2"
+            title="ECS Fargate + RDS + ALB + Bastion + S3 + CloudWatch 전체 배포"
+          >
             <div v-if="isApproving" class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            {{ isApproving ? '처리 중...' : '이 토폴로지로 진행' }}
+            {{ isApproving ? '처리 중...' : '이 토폴로지로 진행 (전체 배포)' }}
           </button>
         </div>
       </div>

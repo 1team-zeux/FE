@@ -23,6 +23,13 @@ const router = createRouter({
         { path: 'dashboard/finops/:runId?',     name: 'finops',          component: () => import('@/pages/FinOpsPage.vue') },
         { path: 'admin/customers',              name: 'customers',        component: () => import('@/pages/CustomerManagementPage.vue'), meta: { requiresAdmin: true } },
         { path: 'guide',                        name: 'customer-guide',   component: () => import('@/pages/CustomerGuidePage.vue') },
+        // 장애 대응 섹션 (5 pages)
+        { path: 'incident/feed',                name: 'incident-feed',     component: () => import('@/pages/incident/AlarmFeedPage.vue') },
+        { path: 'incident/triage/:incidentId?', name: 'incident-triage',   component: () => import('@/pages/incident/TriagePage.vue') },
+        { path: 'incident/rca/:incidentId',     name: 'incident-rca',      component: () => import('@/pages/RootCausePage.vue') },
+        { path: 'incident/recovery/:incidentId',name: 'incident-recovery', component: () => import('@/pages/incident/RecoveryPage.vue') },
+        { path: 'incident/history',             name: 'incident-history',  component: () => import('@/pages/incident/IncidentHistoryPage.vue') },
+        { path: 'incident/compare/demo',        name: 'incident-compare-demo', component: () => import('@/pages/incident/CompareDemoPage.vue') },
       ],
     },
     {
@@ -33,6 +40,7 @@ const router = createRouter({
         { path: 'sla-review',   name: 'iac-sla-review',       component: () => import('@/pages/IacSlaReviewPage.vue') },
         { path: 'topology-select',   name: 'iac-topology-select',  component: () => import('@/pages/IacTopologySelectPage.vue') },
         { path: 'deploy',   name: 'iac-deploy',           component: () => import('@/pages/IacDeployPage.vue') },
+        { path: 'handoff',  name: 'iac-handoff',          component: () => import('@/pages/IacHandoffPage.vue') },
       ],
     },
   ],
@@ -40,7 +48,7 @@ const router = createRouter({
 
 router.beforeEach((to, from) => {
   // IaC 페이지 전환 애니메이션
-  const IAC_STEPS = ['document-upload', 'sla-review', 'topology-select', 'deploy']
+  const IAC_STEPS = ['document-upload', 'sla-review', 'topology-select', 'deploy', 'handoff']
   const toStep   = IAC_STEPS.indexOf(to.path.split('/iac/')[1] ?? '')
   const fromStep = IAC_STEPS.indexOf(from.path.split('/iac/')[1] ?? '')
   if (toStep >= 0 && fromStep >= 0) {

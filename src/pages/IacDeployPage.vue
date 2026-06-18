@@ -8,11 +8,12 @@ import {
   IacHclPanel, IacPlanPanel, IacApplyPanel, IacVerifyPanel,
 } from '@/features/iac'
 import AppStepper from '@/components/AppStepper.vue'
-import type { PlanResult } from '@/features/iac'
+import type { PlanResult, DeployMode } from '@/features/iac'
 
 const store = useIacStore()
 const router = useRouter()
-const { deployStatus, selectedTopologyId } = storeToRefs(store)
+// deployMode는 IacTopologySelectPage에서 확정 시 store에 저장됨
+const { deployStatus, selectedTopologyId, deployMode } = storeToRefs(store)
 
 const planId = ref<string | null>(null)
 const hclPreview = ref<string | null>(null)
@@ -22,7 +23,7 @@ const planPanelVisible = ref(false)
 
 const { mutate: generateCode } = useGenerateTerraform()
 const { mutate: runPlan, isPending: isPlanning } = useTerraformPlan()
-const { resources, isApplyDone, startApply, stopApply } = useTerraformApply()
+const { resources, githubEvents, isApplyDone, startApply, stopApply } = useTerraformApply()
 const { data: verifyData } = useTerraformVerify(planId)
 
 const STEPS = [
@@ -103,10 +104,12 @@ onMounted(() => {
 
 function handleGenerate() {
   if (!selectedTopologyId.value) return
-  generateCode(selectedTopologyId.value, {
+  generateCode({ topologyId: selectedTopologyId.value, mode: deployMode.value }, {
     onSuccess(data) {
       planId.value = data.planId
       hclPreview.value = data.hclPreview
+      // 핸드오프 페이지에서 verify 조회용 planId 저장
+      store.setLastPlanId(data.planId)
     },
   })
 }
@@ -123,10 +126,11 @@ function handlePlan() {
   })
 }
 
-function handleApply() {
+function handleApply(target: 'dry_run' | 'github' = 'dry_run') {
   if (!planId.value) return
+  store.setDeployTarget(target)
   const initialResources = planData.value?.items.map(i => i.address) ?? []
-  startApply(planId.value, initialResources)
+  startApply(planId.value, initialResources, target === 'github')
 }
 
 function handleVerifyStart() {
@@ -192,13 +196,24 @@ function handleBackStep() {
           <h1 class="text-xl font-bold text-text-primary">Terraform 배포</h1>
           <p class="text-xs text-text-secondary mt-0.5">인프라 코드를 생성하고 실제 리소스를 프로비저닝합니다.</p>
         </div>
-        <span v-if="deployStatus === 'done'"
-          class="flex items-center gap-1.5 text-xs font-medium text-status-ok bg-green-50 border border-green-200 px-3 py-1.5 rounded-full">
-          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-          </svg>
-          배포 완료
-        </span>
+        <div class="flex items-center gap-3">
+          <!-- 현재 배포 모드 배지 (토폴로지 페이지에서 선택됨, 여기선 표시만) -->
+          <span
+            :class="deployMode === 'minimal'
+              ? 'bg-amber-50 text-amber-700 border-amber-200'
+              : 'bg-blue-50 text-blue-700 border-blue-200'"
+            class="text-xs font-medium px-3 py-1.5 rounded-full border"
+          >
+            {{ deployMode === 'minimal' ? '테스트 배포 (EC2 1개)' : '전체 배포 (ECS+RDS+ALB+...)' }}
+          </span>
+          <span v-if="deployStatus === 'done'"
+            class="flex items-center gap-1.5 text-xs font-medium text-status-ok bg-green-50 border border-green-200 px-3 py-1.5 rounded-full">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+            </svg>
+            배포 완료
+          </span>
+        </div>
       </div>
       <AppStepper :steps="STEPS" :currentStep="currentStep" compact />
     </div>
@@ -234,6 +249,8 @@ function handleBackStep() {
         <div class="absolute inset-y-0 right-0 w-1/2 overflow-hidden" :style="applyPanelStyle">
           <IacApplyPanel
             :resources="resources"
+            :githubEvents="githubEvents"
+            :deployTarget="store.deployTarget"
             :failedDuringApply="failedDuringApply"
             :isApplyDone="isApplyDone"
             @retryApply="handleRetryApply"
@@ -258,6 +275,7 @@ function handleBackStep() {
           @retryVerify="store.setDeployStatus('verifying')"
           @editCode="handleEditCode"
           @reviewTopology="handleReviewTopology"
+          @complete="store.setDeployStatus('done')"
         />
       </div>
 
@@ -276,14 +294,14 @@ function handleBackStep() {
         이전 단계
       </button>
       <button
-        :disabled="deployStatus !== 'done'"
-        @click="router.push('/dashboard')"
+        :disabled="!['verifying', 'done'].includes(deployStatus)"
+        @click="router.push('/iac/handoff')"
         class="btn-brand min-w-[200px] flex items-center justify-center gap-2"
       >
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
         </svg>
-        모니터링 대시보드로 이동
+        고객사 정보 확인
       </button>
     </div>
 

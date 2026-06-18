@@ -5,8 +5,10 @@ import { api } from '@/services/api'
 import { useIacStore } from '../stores/iac.store'
 import type { Ref } from 'vue'
 
-const GENERATE_RETRY_DELAY_MS = 500
-const GENERATE_MAX_ATTEMPTS = 6
+// select 엔드포인트가 비동기 워크플로우 완료 전 반환할 경우의 race 방지용 retry.
+// 백엔드도 select를 동기로 만들었지만 방어층으로 충분한 여유 둔다 (45초 budget).
+const GENERATE_RETRY_DELAY_MS = 1500
+const GENERATE_MAX_ATTEMPTS = 30
 
 export interface ResourceStatus {
   resource: string
@@ -24,6 +26,7 @@ export interface PlanResult {
   planId: string
   summary: { add: number; change: number; destroy: number }
   items: PlanItem[]
+  planOutput?: string  // `terraform plan` 콘솔 출력 형태 (변경점 diff)
 }
 
 type GenerateTerraformResponse = { planId: string; hclPreview: string }
@@ -39,14 +42,21 @@ export function isApprovedTopologyPendingError(error: unknown) {
   return status === 404 && error.message.includes('Approved topology not found')
 }
 
-export async function generateTerraformWithRetry(topologyId: string, workflowId: string | null) {
+export type DeployMode = 'full' | 'minimal'
+
+export async function generateTerraformWithRetry(
+  topologyId: string,
+  workflowId: string | null,
+  mode: DeployMode = 'full',
+) {
   let lastError: unknown
 
   for (let attempt = 1; attempt <= GENERATE_MAX_ATTEMPTS; attempt += 1) {
     try {
-      const res = await api.post<GenerateTerraformResponse>('/terraform/generate', { 
+      const res = await api.post<GenerateTerraformResponse>('/terraform/generate', {
         topologyId,
-        workflow_id: workflowId
+        workflow_id: workflowId,
+        mode,
       })
       return res.data
     } catch (error) {
@@ -64,8 +74,8 @@ export async function generateTerraformWithRetry(topologyId: string, workflowId:
 export function useGenerateTerraform() {
   const store = useIacStore()
   return useMutation({
-    mutationFn: async (topologyId: string) => {
-      return generateTerraformWithRetry(topologyId, store.topologyWorkflowId)
+    mutationFn: async (args: { topologyId: string; mode?: DeployMode }) => {
+      return generateTerraformWithRetry(args.topologyId, store.topologyWorkflowId, args.mode ?? 'full')
     },
     onMutate() { store.setDeployStatus('generating') },
     onSuccess() { store.setDeployStatus('planning') },
@@ -82,32 +92,57 @@ export function useTerraformPlan() {
   })
 }
 
+export interface GithubProgress {
+  phase: string
+  detail: string
+  pr_number?: number | null
+  pr_url?: string | null
+  status?: string | null
+}
+
 export function useTerraformApply() {
   const store = useIacStore()
   const resources = ref<ResourceStatus[]>([])
   const isStreaming = ref(false)
   const isApplyDone = ref(false)
+  // GitHub 모드 진행 이벤트 로그
+  const githubEvents = ref<GithubProgress[]>([])
   let eventSource: EventSource | null = null
 
-  async function startApply(planId: string, initialResources: string[] = []) {
+  async function startApply(
+    planId: string,
+    initialResources: string[] = [],
+    useGithub = false,
+  ) {
     store.setDeployStatus('applying')
     isStreaming.value = true
     isApplyDone.value = false
-    resources.value = initialResources.map(resource => ({
-      resource,
-      status: 'pending' as const,
-      detail: '대기 중',
-    }))
+    githubEvents.value = []
+    resources.value = useGithub
+      ? []
+      : initialResources.map(resource => ({
+          resource,
+          status: 'pending' as const,
+          detail: '대기 중',
+        }))
 
-    eventSource = new EventSource(`/terraform/apply/stream?planId=${planId}`)
+    const qs = new URLSearchParams({ planId, useGithub: String(useGithub) }).toString()
+    eventSource = new EventSource(`/terraform/apply/stream?${qs}`)
 
     eventSource.onmessage = (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as ResourceStatus
-      const idx = resources.value.findIndex((r) => r.resource === data.resource)
+      const data = JSON.parse(e.data)
+      // GitHub 모드: phase 필드 존재
+      if ('phase' in data) {
+        githubEvents.value.push(data as GithubProgress)
+        return
+      }
+      // dry_run 모드: resource 필드 존재
+      const rs = data as ResourceStatus
+      const idx = resources.value.findIndex((r) => r.resource === rs.resource)
       if (idx >= 0) {
-        resources.value[idx] = data
+        resources.value[idx] = rs
       } else {
-        resources.value.push(data)
+        resources.value.push(rs)
       }
     }
 
@@ -116,7 +151,6 @@ export function useTerraformApply() {
       eventSource = null
       isStreaming.value = false
       isApplyDone.value = true
-      // 자동 검증 전환 없음 — 운영자가 "검증 시작" 버튼으로 직접 진행
     })
 
     eventSource.onerror = () => {
@@ -134,7 +168,7 @@ export function useTerraformApply() {
     store.setDeployStatus('idle')
   }
 
-  return { resources, isStreaming, isApplyDone, startApply, stopApply }
+  return { resources, githubEvents, isStreaming, isApplyDone, startApply, stopApply }
 }
 
 export interface PingResult {
@@ -145,10 +179,24 @@ export interface PingResult {
   detail: string
 }
 
+export interface HandoffInfo {
+  loginUrl: string
+  customerId: string
+  initialPassword: string
+  dbEndpoint?: string | null
+  dbPassword?: string | null
+  s3BucketName?: string | null
+  bastionPublicIp?: string | null
+  bastionSshPrivateKey?: string | null
+  ecsClusterName?: string | null
+  albDnsName?: string | null
+}
+
 export interface VerifyResult {
   verifyId: string
   overall: 'pass' | 'fail'
   pings: PingResult[]
+  handoff?: HandoffInfo | null
 }
 
 export function useTerraformVerify(planId: Ref<string | null>) {
@@ -163,6 +211,66 @@ export function useTerraformVerify(planId: Ref<string | null>) {
     },
     // verifying/done 상태일 때만 발동 — generate 직후 의도치 않은 호출 방지
     enabled: () => !!planId.value && (deployStatus.value === 'verifying' || deployStatus.value === 'done'),
+    retry: false,
+  })
+}
+
+// ── Handoff Live Healthcheck (실제 AWS 자원 라이브 핑) ──────────────
+
+export interface AlbCheck {
+  ok: boolean
+  url?: string | null
+  status_code?: number | null
+  latency_ms?: number | null
+  error?: string | null
+}
+
+export interface BastionCheck {
+  ok: boolean
+  public_ip?: string | null
+  port: number
+  latency_ms?: number | null
+  error?: string | null
+}
+
+export interface EcsTaskCount {
+  service: string
+  running: number
+  desired: number
+  status: string
+}
+
+export interface EcsCheck {
+  ok: boolean
+  cluster?: string | null
+  running: number
+  desired: number
+  tasks: EcsTaskCount[]
+  error?: string | null
+}
+
+export interface HandoffHealthcheck {
+  tenant_id: string
+  topology_id: string
+  checked_at: number
+  alb: AlbCheck
+  bastion_ssh: BastionCheck
+  ecs: EcsCheck
+}
+
+// 5초 polling. planId 로 조회 (backend 가 tenant_id+session_id 해석).
+export function useHandoffHealthcheckByPlan(
+  planId: Ref<string | null>,
+  enabled: Ref<boolean>,
+) {
+  return useQuery({
+    queryKey: ['iac-handoff-healthcheck', planId],
+    queryFn: async () => {
+      const res = await api.get(`/api/iac/handoff/by-plan/${planId.value}/healthcheck`)
+      return res.data as HandoffHealthcheck
+    },
+    enabled: () => enabled.value && !!planId.value,
+    refetchInterval: 5000,
     retry: false,
   })
 }

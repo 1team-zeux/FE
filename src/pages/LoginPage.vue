@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/features/auth/store/useAuthStore'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
-const email = ref('')
+// 핸드오프 페이지에서 ?email=admin@skt 형태로 진입하면 이메일 자동 채움
+const prefillEmail = (route.query.email as string | undefined) ?? ''
+const email = ref(prefillEmail)
 const password = ref('')
 const error = ref('')
 const loading = ref(false)

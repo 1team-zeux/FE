@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/auth': { target: AUTH_URL, changeOrigin: true },
         '/api/v1': { target: SLA_URL, changeOrigin: true },
+        '/api/triage': { target: SLA_URL, changeOrigin: true },
         '/tenants': { target: SLA_URL, changeOrigin: true },
         '/api/finops': { target: FINOPS_URL, changeOrigin: true },
         '/api/rca': { target: SLA_URL, changeOrigin: true },
