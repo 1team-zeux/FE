@@ -2,6 +2,7 @@
 import { ref, computed, nextTick } from 'vue'
 import { useChatbot } from '@/composables/useChatbot'
 import NimbusAvatar, { type NimbusVariant } from '@/components/NimbusAvatar.vue'
+import { queryOpsAssistant } from '@/features/assistant/api/opsAssistantApi'
 
 defineProps<{
   mode?: 'floating' | 'panel'
@@ -33,15 +34,31 @@ interface Message {
 }
 
 const messages = ref<Message[]>([
-  { role: 'assistant', content: '안녕하세요! IaC 온보딩을 도와드리겠습니다. 궁금한 점을 물어보세요.' },
+  {
+    role: 'assistant',
+    content:
+      '안녕하세요! ZeuX 운영 지식 어시스턴트 Nimbus입니다.\nRCA·FinOps·guard_status 등에 대해 물어보세요.',
+  },
 ])
 const inputText = ref('')
 const scrollEl = ref<HTMLElement | null>(null)
 const textareaEl = ref<HTMLTextAreaElement | null>(null)
 const isWaiting = ref(false)
 const pendingText = ref('')
+const showClap = ref(false)
+let clapTimer: ReturnType<typeof setTimeout> | null = null
+
+function triggerClap() {
+  showClap.value = true
+  if (clapTimer) clearTimeout(clapTimer)
+  clapTimer = setTimeout(() => {
+    showClap.value = false
+    clapTimer = null
+  }, 2800)
+}
 
 const nimbusVariant = computed<NimbusVariant>(() => {
+  if (showClap.value) return 'clap'
   if (isWaiting.value) return 'question'
   if (unreadCount.value > 0) return 'notify'
   if (badgeCount.value > 0) return 'question'
@@ -56,20 +73,35 @@ async function scrollToBottom() {
 async function sendMessage(e?: KeyboardEvent) {
   if (e?.isComposing) return
   const text = inputText.value.trim()
-  if (!text) return
+  if (!text || isWaiting.value) return
   messages.value.push({ role: 'user', content: text })
   inputText.value = ''
   if (textareaEl.value) textareaEl.value.style.height = 'auto'
   isWaiting.value = true
+  pendingText.value = ''
   await scrollToBottom()
-  setTimeout(async () => {
-    pendingText.value = '확인했습니다. 해당 필드를 검토해 드리겠습니다.'
-    await scrollToBottom()
-    await nextTick()
-    messages.value.push({ role: 'assistant', content: pendingText.value })
-    pendingText.value = ''
+  try {
+    const result = await queryOpsAssistant(text)
+    const answer =
+      result.answer?.trim() ||
+      '답변을 생성하지 못했습니다. sla-agent-service와 Chroma 인덱스를 확인해 주세요.'
+    messages.value.push({ role: 'assistant', content: answer })
+    triggerClap()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '알 수 없는 오류'
+    messages.value.push({
+      role: 'assistant',
+      content:
+        `지금은 운영 지식 API에 연결할 수 없습니다.\n\n` +
+        `${msg}\n\n` +
+        `• sla-agent-service (:8090) 실행 여부\n` +
+        `• docs/platform/rag ingest 및 ZEUX_CHROMA_PERSIST_DIR 확인`,
+    })
+  } finally {
     isWaiting.value = false
-  }, 600)
+    pendingText.value = ''
+    await scrollToBottom()
+  }
 }
 
 // ── 드래그 이동 ──────────────────────────────

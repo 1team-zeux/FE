@@ -1,4 +1,4 @@
-import type { FinOpsFinding, OptimizationCategory, OptimizationProposal } from '../types/finops.schema'
+import type { BacklogItem, FinOpsFinding, OptimizationCategory, OptimizationProposal } from '../types/finops.schema'
 
 const CATEGORY_LABELS: Record<OptimizationCategory, string> = {
   rightsizing: 'RightSizing',
@@ -292,28 +292,46 @@ export function resolveProposalNarrative(
   }
 }
 
-/** 제안 목록·카드용 짧은 제목 */
-export function proposalTitleFromFinding(finding: FinOpsFinding): string {
-  const blocked = finding.guard_status === 'blocked' || finding.guard_status === 'defer'
+export function proposalHeadlineFromFinding(finding: FinOpsFinding): string {
   const typeLabel = resourceTypeLabel(finding.resource_id, finding.resource_type)
-  if (blocked) {
-    return `${typeLabel} — SLA 검토 (${finding.resource_id})`
+  const actLabel = actionLabel(finding.recommended_action)
+  const patLabel = patternLabel(finding.pattern_id)
+
+  if (finding.guard_status === 'blocked' || finding.guard_status === 'defer') {
+    const subject = patLabel ?? typeLabel
+    return `${subject} · SLA 검토`
   }
-  const act = actionLabel(finding.recommended_action)
-  const pat = patternLabel(finding.pattern_id)
-  if (pat) return `${typeLabel} ${act} — ${finding.resource_id}`
-  return `${typeLabel} ${act} — ${finding.resource_id}`
+  return patLabel ? `${patLabel} · ${actLabel}` : `${typeLabel} · ${actLabel}`
+}
+
+export function proposalHeadlineFromBacklog(item: BacklogItem): string {
+  const typeLabel = resourceTypeLabel(item.resource_id, item.resource_type)
+  const actLabel = actionLabel(item.recommended_action)
+  const patLabel = patternLabel(item.pattern_id)
+  return patLabel ? `${patLabel} · ${actLabel}` : `${typeLabel} · ${actLabel}`
+}
+
+export function proposalResourceId(
+  finding: FinOpsFinding | null,
+  proposal: OptimizationProposal,
+): string {
+  return finding?.resource_id ?? proposal.resource_id ?? proposal.service_name
+}
+
+/** 제안 목록·카드용 짧은 제목 (리소스 ID 제외) */
+export function proposalTitleFromFinding(finding: FinOpsFinding): string {
+  return proposalHeadlineFromFinding(finding)
 }
 
 export function problemStatementFromFinding(finding: FinOpsFinding): string {
   return buildProblemFromPattern(finding).replace(/\*\*/g, '')
 }
 
-/** 제안 목록·카드용 짧은 제목 (finding + proposal) */
+/** 제안 목록·카드용 짧은 제목 (finding + proposal, 리소스 ID 제외) */
 export function proposalDisplayTitle(
   finding: FinOpsFinding | null,
   proposal: OptimizationProposal,
 ): string {
-  const n = resolveProposalNarrative(finding, proposal)
-  return `${n.resourceTypeLabel} ${n.actionLabel} — ${n.resourceId}`
+  if (finding) return proposalHeadlineFromFinding(finding)
+  return resolveProposalNarrative(finding, proposal).headline
 }

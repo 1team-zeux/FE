@@ -22,6 +22,10 @@ import {
   type TopologyLayer,
   type TopologyView,
 } from '../utils/findingInspector'
+import {
+  proposalDisplayTitle,
+  proposalResourceId,
+} from '../utils/proposalNarrative'
 import FinOpsFindingSummary from './FinOpsFindingSummary.vue'
 import FinOpsFindingInspector from './FinOpsFindingInspector.vue'
 
@@ -51,6 +55,25 @@ const filtered = computed(() =>
   sortBySavings(filterByCategory(allProposals.value, activeCategory.value)),
 )
 const totalKrw = computed(() => totalSavingsKrw(allProposals.value))
+
+const findingsByResourceId = computed(() => {
+  const list = props.run.findings_snapshot?.findings ?? []
+  return new Map(list.map((f) => [f.resource_id, f]))
+})
+
+function cardTitle(proposal: OptimizationProposal): string {
+  const finding = proposal.resource_id
+    ? findingsByResourceId.value.get(proposal.resource_id) ?? null
+    : null
+  return proposalDisplayTitle(finding, proposal)
+}
+
+function cardResourceId(proposal: OptimizationProposal): string {
+  const finding = proposal.resource_id
+    ? findingsByResourceId.value.get(proposal.resource_id) ?? null
+    : null
+  return proposalResourceId(finding, proposal)
+}
 
 const selected = computed(() =>
   filtered.value.find((p) => p.id === selectedId.value) ?? filtered.value[0] ?? null,
@@ -240,7 +263,8 @@ const priorityClass = (band?: string) =>
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <span class="text-[10px] font-bold text-gray-400 uppercase">{{ CATEGORY_LABELS[p.category] }}</span>
-              <p class="font-bold text-text-primary text-sm mt-0.5 truncate">{{ p.service_name }}</p>
+              <p class="font-bold text-text-primary text-sm mt-0.5 truncate">{{ cardTitle(p) }}</p>
+              <p class="text-[10px] font-mono text-gray-400 mt-0.5 truncate">{{ cardResourceId(p) }}</p>
             </div>
             <div class="text-right shrink-0">
               <div class="text-base font-bold text-brand">{{ formatKrwCompact(p.monthly_savings_krw) }}</div>

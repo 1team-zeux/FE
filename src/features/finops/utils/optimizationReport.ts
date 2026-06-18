@@ -11,7 +11,7 @@ import type {
 import { resolveExecutiveReport } from './executiveReport'
 import { findingToProposalMetrics } from './evidenceMetrics'
 import { findingToTopologyMetrics } from './topologyMetrics'
-import { humanizeFindingReason, proposalTitleFromFinding, resourceTypeLabel } from './proposalNarrative'
+import { humanizeFindingReason, proposalHeadlineFromBacklog, proposalHeadlineFromFinding, resourceTypeLabel } from './proposalNarrative'
 
 export const CATEGORY_LABELS: Record<OptimizationCategory, string> = {
   rightsizing: 'RightSizing',
@@ -58,9 +58,7 @@ function findingToProposal(item: FinOpsFinding, index: number): OptimizationProp
     id: `finding-${item.resource_id}-${index}`,
     category,
     service_name: item.resource_id,
-    title: blocked
-      ? `${resourceTypeLabel(item.resource_id, item.resource_type)} — ${item.guard_reason ?? 'SLA guard 검토 필요'}`
-      : proposalTitleFromFinding(item),
+    title: proposalHeadlineFromFinding(item),
     monthly_savings_krw: usdToKrw(savingsUsd),
     monthly_savings_usd: savingsUsd || undefined,
     priority_band: blocked ? 'P2' : undefined,
@@ -92,12 +90,7 @@ function backlogToProposal(item: BacklogItem, index: number): OptimizationPropos
   const category = patternToCategory(item.pattern_id, item.recommended_action)
   const savingsUsd = item.monthly_waste_usd ?? 0
   const action = item.recommended_action ?? 'optimize'
-  const title =
-    category === 'rightsizing'
-      ? `${item.resource_id}: 인스턴스 다운사이즈 (${action})`
-      : category === 'unused'
-        ? `${item.resource_id}: 미사용 자원 ${action}`
-        : `${item.resource_id}: ${action}`
+  const title = proposalHeadlineFromBacklog(item)
 
   return {
     id: `gen-${item.resource_id}-${index}`,

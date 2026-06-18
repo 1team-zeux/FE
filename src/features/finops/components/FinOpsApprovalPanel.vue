@@ -74,7 +74,8 @@ function goTerraform() {
       class="mb-4 p-3 rounded-lg bg-brand/5 border border-brand/20 text-[12px]"
     >
       <span class="font-bold text-brand">선택된 제안:</span>
-      {{ adoptedProposal.service_name }} — {{ adoptedProposal.title }}
+      {{ adoptedProposal.title }}
+      <span class="text-gray-400 font-mono text-[11px]">{{ adoptedProposal.resource_id ?? adoptedProposal.service_name }}</span>
       <span class="text-gray-500">({{ adoptedProposal.iac_change_label ?? adoptedProposal.recommended_action }})</span>
     </div>
 
