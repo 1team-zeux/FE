@@ -3,6 +3,7 @@ import type { MaybeRef } from 'vue'
 import { computed, unref } from 'vue'
 import { api } from '@/services/api'
 import { FinOpsRunDetailResponseSchema } from '../types/finops.schema'
+import { formatZodIssues, parseFinOpsRun } from '../utils/parseFinOpsRun'
 
 export const useFinOpsRunQuery = (runId: MaybeRef<string | undefined>) => {
   const id = computed(() => unref(runId))
@@ -13,12 +14,18 @@ export const useFinOpsRunQuery = (runId: MaybeRef<string | undefined>) => {
       const rid = id.value
       if (!rid) throw new Error('run_id required')
       const { data } = await api.get(`/api/finops/runs/${rid}`)
-      const result = FinOpsRunDetailResponseSchema.safeParse(data)
-      if (!result.success) {
-        console.error('[FinOps] run detail parse error', result.error.format())
-        return data?.run ?? data
+      const strict = FinOpsRunDetailResponseSchema.safeParse(data)
+      if (strict.success) {
+        return strict.data.run
       }
-      return result.data.run
+      const relaxed = parseFinOpsRun((data as { run?: unknown })?.run ?? data)
+      if (relaxed) {
+        if (import.meta.env.DEV) {
+          console.warn('[FinOps] run detail parse used relaxed fallback', formatZodIssues(strict.error))
+        }
+        return relaxed
+      }
+      throw new Error('FinOps run response could not be parsed')
     },
     enabled: computed(() => Boolean(id.value)),
   })

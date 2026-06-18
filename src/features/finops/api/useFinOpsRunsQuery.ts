@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/vue-query'
 import type { MaybeRef } from 'vue'
 import { computed, unref } from 'vue'
-import { type z } from 'zod'
 import { api } from '@/services/api'
+import { formatZodIssues, parseFinOpsRunsResponse } from '../utils/parseFinOpsRun'
 import { FinOpsRunsResponseSchema } from '../types/finops.schema'
 
 export interface FinOpsRunsFilters {
@@ -24,13 +24,15 @@ export const useFinOpsRunsQuery = (filters?: MaybeRef<FinOpsRunsFilters | undefi
           limit: f.value?.limit ?? 50,
         },
       })
-      const result = FinOpsRunsResponseSchema.safeParse(data)
-      if (!result.success) {
-        console.error('[FinOps] runs parse error', result.error.format())
-        // 파싱 실패 시 스키마 검증을 건너뛰고 원본 배열 반환
-        return (data?.runs ?? []) as z.infer<typeof FinOpsRunsResponseSchema>['runs']
+      const strict = FinOpsRunsResponseSchema.safeParse(data)
+      if (strict.success) {
+        return strict.data.runs
       }
-      return result.data.runs
+      const relaxed = parseFinOpsRunsResponse(data)
+      if (import.meta.env.DEV) {
+        console.warn('[FinOps] runs parse used relaxed fallback', formatZodIssues(strict.error))
+      }
+      return relaxed
     },
     refetchInterval: 60_000,
   })
