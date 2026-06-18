@@ -10,6 +10,7 @@ import {
   type TopologyLayer,
   type TopologyView,
 } from '../utils/findingInspector'
+import { resolveProposalNarrative } from '../utils/proposalNarrative'
 
 const props = defineProps<{
   open: boolean
@@ -34,7 +35,8 @@ const panels: InspectorPanel[] = ['observability', 'topology', 'policy']
 
 const title = computed(() => {
   const base = INSPECTOR_PANEL_LABELS[props.panel]
-  return `${props.proposal.service_name} · ${base}`
+  const headline = resolveProposalNarrative(props.finding, props.proposal).headline
+  return `${headline} · ${base}`
 })
 
 watch(

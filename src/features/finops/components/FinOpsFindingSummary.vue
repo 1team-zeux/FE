@@ -62,8 +62,8 @@ function onDrill(panel: InspectorPanel) {
         <h3 class="text-lg font-bold text-text-primary mt-0.5 leading-snug">
           {{ narrative.headline }}
         </h3>
-        <p class="text-[12px] font-mono text-gray-400 mt-1">
-          {{ narrative.resourceTypeLabel }} · <span class="text-gray-500">{{ narrative.resourceId }}</span>
+        <p v-if="narrative.resourceId" class="text-[10px] font-mono text-gray-400 mt-1 truncate">
+          {{ narrative.resourceId }}
         </p>
         <p class="text-sm text-text-primary mt-2 leading-relaxed">
           {{ narrative.summary }}
