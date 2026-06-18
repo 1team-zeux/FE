@@ -17,7 +17,7 @@ export function useAlarmsQuery(tenantId: string) {
   return useQuery({
     queryKey: ['alarms', tenantId],
     queryFn: async () => {
-      const res = await api.get(`/monitoring/api/v1/tenants/${encodeURIComponent(tenantId)}/alarms`);
+      const res = await api.get(`/api/v1/tenants/${encodeURIComponent(tenantId)}/alarms`);
       return (res.data.alarms ?? []) as AlarmItem[];
     },
     enabled: !!tenantId,
