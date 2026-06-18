@@ -22,7 +22,7 @@ const summary = computed(() => {
   const slos = list.map(s => s.availability ?? 0)
   const budgets = list.map(s => s.budgetRemaining ?? 0)
   // burn: 'Fast'|'Slow'|null → numeric 근사
-  const burnRates = list.map(s => s.burn === 'Fast' ? 2.5 : s.burn === 'Slow' ? 1.2 : 1.0)
+  const burnRates = list.map(s => parseFloat(s.burn) || 1.0)
   return {
     compliance: avg(slos).toFixed(2),
     budget: avg(budgets).toFixed(0),
@@ -215,8 +215,8 @@ const statusBadgeCls = (s: string) => ({
               <!-- Burn Rate -->
               <div class="flex items-center justify-between">
                 <span class="text-sm text-text-muted">Burn Rate</span>
-                <span class="text-sm font-semibold" :class="svc.burn ? 'text-status-warning' : 'text-status-ok'">
-                  {{ svc.burn ?? 'Stable' }}
+                <span class="text-sm font-semibold" :class="parseFloat(svc.burn) > 1 ? (parseFloat(svc.burn) > 3 ? 'text-status-critical' : 'text-status-warning') : 'text-status-ok'">
+                  {{ svc.burn }}
                 </span>
               </div>
             </div>

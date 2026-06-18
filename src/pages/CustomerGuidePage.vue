@@ -1,14 +1,27 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useCustomerSetupQuery } from '@/features/customer/api/useCustomerSetupQuery'
 import { useInfraQuery } from '@/features/customer/api/useInfraQuery'
 import { useAuthStore } from '@/features/auth/store/useAuthStore'
 
 const auth = useAuthStore()
-const { data: setup, isLoading, error } = useCustomerSetupQuery()
+const router = useRouter()
+const { data: setup, isPending, isError } = useCustomerSetupQuery()
 
 const customerCode = computed(() => auth.user?.customerCode ?? '')
 const { data: infra } = useInfraQuery(customerCode)
+
+// 에이전트 활성화 감지 → 고객사 대시보드로 자동 이동
+watch(
+  () => infra.value?.agent_active,
+  (active) => {
+    if (active && customerCode.value) {
+      router.push(`/dashboard/bu/${customerCode.value}`)
+    }
+  },
+  { immediate: true },
+)
 
 const copied = ref<string | null>(null)
 function copyText(text: string, key: string) {
@@ -57,14 +70,14 @@ const allDone = computed(() => checked.value.step1 && checked.value.step2 && che
     </div>
 
     <!-- 로딩 -->
-    <div v-if="isLoading" class="flex items-center justify-center py-20">
+    <div v-if="isPending" class="flex items-center justify-center py-20">
       <svg class="animate-spin w-6 h-6 text-[#2980B9]" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
       </svg>
     </div>
 
-    <div v-else-if="error" class="bg-red-50 border border-red-100 rounded-xl p-4 text-sm text-red-600">
+    <div v-else-if="isError" class="bg-red-50 border border-red-100 rounded-xl p-4 text-sm text-red-600">
       설치 정보를 불러오지 못했습니다. 관리자에게 문의하세요.
     </div>
 

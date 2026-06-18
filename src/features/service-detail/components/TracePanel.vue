@@ -16,15 +16,19 @@ const TraceSchema = z.object({
 });
 const TracesSchema = z.object({ traces: z.array(TraceSchema) });
 
-// 서비스 → bar 색
+// 서비스 → bar 색 (simulator service.name 포함)
 const SVC_COLOR: Record<string, string> = {
-  'frontend':           '#92400E',
-  'api-gateway':        '#374151',
-  'subscription-svc':   '#0F766E',
-  'chatbot-svc':        '#0F766E',
-  'mariadb':            '#D97706',
-  'redis':              '#B91C1C',
-  'llm-backend':        '#6D28D9',
+  'frontend':              '#92400E',
+  'api-gateway':           '#374151',
+  'subscription-svc':      '#0F766E',
+  'subscription-api':      '#0F766E',
+  'chatbot-svc':           '#0369A1',
+  'ai-chatbot-service':    '#0369A1',
+  'customer-portal-web':   '#92400E',
+  'mariadb':               '#D97706',
+  'redis':                 '#B91C1C',
+  'llm-backend':           '#6D28D9',
+  'llm-api':               '#6D28D9',
 };
 const barColor = (svc: string, err: boolean) => err ? '#EF4444' : (SVC_COLOR[svc] ?? '#6B7280');
 
