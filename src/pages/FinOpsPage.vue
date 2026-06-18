@@ -13,12 +13,15 @@ import {
   useFinOpsRunStream,
   downloadExecutiveReportMarkdown,
 } from '@/features/finops'
+import { useFinOpsTenantServicesQuery } from '@/features/finops/api/useFinOpsTenantServicesQuery'
 import type { OptimizationProposal } from '@/features/finops/types/finops.schema'
+import { useCustomersQuery } from '@/features/customer/api/useCustomersQuery'
 
 const route = useRoute()
 const router = useRouter()
 
 const tenantFilter = ref('')
+const serviceFilter = ref('')
 const detailTab = ref<'optimization' | 'report'>('optimization')
 const showExportMenu = ref(false)
 const showConsole = ref(false)
@@ -34,10 +37,48 @@ const { data: runs, isLoading, isError, refetch } = useFinOpsRunsQuery(
   })),
 )
 
+const { data: customers } = useCustomersQuery()
+
 const tenantOptions = computed(() => {
-  const ids = [...new Set((runs.value ?? []).map((r) => r.tenant_id).filter(Boolean))]
-  return ids.sort((a, b) => a.localeCompare(b, 'ko'))
+  const byId = new Map<string, string>()
+  for (const customer of customers.value ?? []) {
+    if (customer.customer_code) {
+      byId.set(customer.customer_code, customer.customer_name || customer.customer_code)
+    }
+  }
+  for (const run of runs.value ?? []) {
+    if (run.tenant_id && !byId.has(run.tenant_id)) {
+      byId.set(run.tenant_id, run.tenant_id)
+    }
+  }
+  return [...byId.entries()]
+    .map(([id, label]) => ({ id, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'ko'))
 })
+
+const activeTenantId = computed(() => tenantFilter.value.trim())
+
+const { data: tenantServices } = useFinOpsTenantServicesQuery(activeTenantId)
+
+const serviceOptions = computed(() => tenantServices.value ?? [])
+
+watch(
+  [activeTenantId, serviceOptions],
+  ([tenantId, services]) => {
+    if (!tenantId) {
+      serviceFilter.value = ''
+      return
+    }
+    if (!services.length) {
+      serviceFilter.value = ''
+      return
+    }
+    if (!services.some((svc) => svc.serviceId === serviceFilter.value)) {
+      serviceFilter.value = services[0].serviceId
+    }
+  },
+  { immediate: true },
+)
 
 const { lines, isStreaming, isDone, donePayload, start: startStream, stop: stopStream } = useFinOpsRunStream()
 
@@ -91,10 +132,14 @@ const onTriggerRun = () => {
   stopStream()
   showConsole.value = true
   reportReveal.value = false
+  const tenantId = activeTenantId.value
+  const serviceId = serviceFilter.value || serviceOptions.value[0]?.serviceId
+  if (!tenantId || !serviceId) return
+
   startStream({
-    tenantId: tenantFilter.value || 'skala-commerce',
-    teamId: 'platform-team',
-    serviceId: 'payment-api',
+    tenantId,
+    teamId: tenantId,
+    serviceId,
     force: true,
   })
 }
@@ -132,9 +177,20 @@ const onViewRcaDetail = () => {
           v-model="tenantFilter"
           class="text-[12px] border border-border rounded-md px-2.5 py-1.5 bg-bg-card text-text-primary cursor-pointer focus:outline-none focus:border-brand"
         >
-          <option value="">모든 고객사</option>
-          <option v-for="tenantId in tenantOptions" :key="tenantId" :value="tenantId">
-            {{ tenantId }}
+          <option value="">모든 고객사 (이력)</option>
+          <option v-for="tenant in tenantOptions" :key="tenant.id" :value="tenant.id">
+            {{ tenant.label }}
+          </option>
+        </select>
+        <select
+          v-model="serviceFilter"
+          class="text-[12px] border border-border rounded-md px-2.5 py-1.5 bg-bg-card text-text-primary cursor-pointer focus:outline-none focus:border-brand disabled:opacity-50"
+          :disabled="!activeTenantId || serviceOptions.length === 0"
+        >
+          <option v-if="!activeTenantId" value="">고객사를 선택하세요</option>
+          <option v-else-if="serviceOptions.length === 0" value="">등록된 서비스 없음</option>
+          <option v-for="svc in serviceOptions" :key="svc.serviceId" :value="svc.serviceId">
+            {{ svc.serviceName }}
           </option>
         </select>
       </div>
@@ -160,7 +216,7 @@ const onViewRcaDetail = () => {
         <button
           type="button"
           class="px-3 py-1.5 rounded-md bg-brand text-white text-sm font-bold hover:brightness-110 disabled:opacity-50"
-          :disabled="isStreaming"
+          :disabled="isStreaming || !activeTenantId || !serviceFilter"
           @click="onTriggerRun"
         >
           {{ isStreaming ? '분석 중…' : '분석 실행' }}

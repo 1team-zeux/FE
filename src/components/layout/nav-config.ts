@@ -13,6 +13,21 @@ export interface BottomNavItem {
   icon: string
 }
 
+/** Pick the most specific nav prefix for the current path (avoids /dashboard matching /dashboard/finops). */
+export function resolveNavMatch(path: string, candidates: string[]): string | null {
+  const normalized = path.replace(/\/$/, '') || '/'
+  const matching = candidates.filter((prefix) => {
+    if (normalized === prefix) return true
+    return normalized.startsWith(`${prefix}/`)
+  })
+  if (!matching.length) return null
+  return matching.reduce((best, current) => (current.length > best.length ? current : best))
+}
+
+export function isNavMatchActive(path: string, match: string, candidates: string[]): boolean {
+  return resolveNavMatch(path, candidates) === match
+}
+
 export const topTabs: NavItem[] = [
   {
     label: 'IaC 온보딩', match: '/iac', to: '/iac/1',
