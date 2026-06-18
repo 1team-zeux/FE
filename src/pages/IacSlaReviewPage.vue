@@ -41,7 +41,6 @@ const { mutate: saveBundle, isPending: isSaving } = useSaveSlaBundle()
 
 const leftScrollRef = ref<HTMLElement | null>(null)
 const currentGuideFieldId = ref<string | null>(null)
-const iconPos = ref<{ top: number; left: number } | null>(null)
 let scrollRafId: number | null = null
 
 function cancelScrollRaf() {
@@ -91,22 +90,6 @@ function firstUnconfirmedField(excludeId?: string): string | null {
   return null
 }
 
-function updateIconPos() {
-  if (!currentGuideFieldId.value || !leftScrollRef.value) {
-    iconPos.value = null
-    return
-  }
-  const el = document.getElementById(currentGuideFieldId.value)
-  if (!el) return
-  const c = leftScrollRef.value
-  const eRect = el.getBoundingClientRect()
-  const cRect = c.getBoundingClientRect()
-  iconPos.value = {
-    top: eRect.top - cRect.top + c.scrollTop + 20,
-    left: eRect.left - cRect.left - 35,
-  }
-}
-
 const confirmedCount = computed(() => bundleData.value?.confirmedCount ?? 0)
 const totalRequired = computed(() => bundleData.value?.totalRequiredCount ?? 0)
 const canSave = computed(() => confirmedCount.value >= totalRequired.value && totalRequired.value > 0)
@@ -123,7 +106,6 @@ function handleConfirm(fieldId: string, value: string | number | null) {
         lerpScrollTo(leftScrollRef.value, target)
       }
     }
-    updateIconPos()
   })
 }
 
@@ -154,7 +136,6 @@ watch([bundleData, currentGuideFieldId], () => {
   if (bundleData.value && !currentGuideFieldId.value) {
     currentGuideFieldId.value = firstUnconfirmedField()
   }
-  nextTick(updateIconPos)
 })
 
 onUnmounted(() => {
@@ -205,19 +186,6 @@ onUnmounted(() => {
           <p class="text-sm font-medium text-text-secondary">AI 분석 결과를 불러오는 중...</p>
         </div>
         <div v-else-if="bundleData" ref="leftScrollRef" class="flex-1 overflow-y-auto custom-scrollbar p-6 relative">
-          <Transition name="fade">
-            <img
-              v-if="iconPos"
-              src="@/assets/images/chatbot.png"
-              alt="AI Guide"
-              class="absolute z-30 w-7 h-7 rounded-full shadow-lg ring-2 ring-white object-cover pointer-events-none"
-              :style="{
-                top: `${iconPos.top}px`,
-                left: `${iconPos.left}px`,
-                transition: 'top 0.4s cubic-bezier(0.4,0,0.2,1), left 0.4s cubic-bezier(0.4,0,0.2,1)',
-              }"
-            />
-          </Transition>
           <div v-for="section in sections" :key="section.id" class="mb-10 last:mb-20">
             <h2 class="text-sm font-bold text-text-primary mb-4 flex items-center gap-2">
               <span class="w-1 h-4 bg-brand rounded-full" />
