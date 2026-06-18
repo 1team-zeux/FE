@@ -87,6 +87,17 @@ const showTypingHeader = computed(() => isTyping.value)
     <div v-if="showInitialLoading" class="flex-1 flex flex-col items-center justify-center gap-4">
       <div class="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin" />
       <p class="text-text-secondary">Terraform HCL 코드 생성 중...</p>
+      <p class="text-xs text-text-muted">최대 45초까지 대기합니다 (approved_topology 저장 대기)</p>
+    </div>
+
+    <!-- 생성 실패 -->
+    <div v-else-if="!hclPreview && !isGenerating" class="flex-1 flex flex-col items-center justify-center gap-3 px-8 text-center">
+      <svg class="w-12 h-12 text-status-critical" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+      </svg>
+      <p class="text-base font-semibold text-text-primary">Terraform 코드 생성 실패</p>
+      <p class="text-sm text-text-secondary">토폴로지가 아직 저장되지 않았거나 백엔드 응답이 없습니다.</p>
+      <p class="text-xs text-text-muted">토폴로지 선택 페이지로 돌아가 다시 시도해 주세요.</p>
     </div>
 
     <!-- HCL 코드 (타이핑 애니메이션 + 정적 표시 공통) -->

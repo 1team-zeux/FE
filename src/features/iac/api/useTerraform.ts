@@ -5,8 +5,10 @@ import { api } from '@/services/api'
 import { useIacStore } from '../stores/iac.store'
 import type { Ref } from 'vue'
 
-const GENERATE_RETRY_DELAY_MS = 500
-const GENERATE_MAX_ATTEMPTS = 6
+// select 엔드포인트가 비동기 워크플로우 완료 전 반환할 경우의 race 방지용 retry.
+// 백엔드도 select를 동기로 만들었지만 방어층으로 충분한 여유 둔다 (45초 budget).
+const GENERATE_RETRY_DELAY_MS = 1500
+const GENERATE_MAX_ATTEMPTS = 30
 
 export interface ResourceStatus {
   resource: string
