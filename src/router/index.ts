@@ -23,6 +23,13 @@ const router = createRouter({
         { path: 'dashboard/finops/:runId?',     name: 'finops',          component: () => import('@/pages/FinOpsPage.vue') },
         { path: 'admin/customers',              name: 'customers',        component: () => import('@/pages/CustomerManagementPage.vue'), meta: { requiresAdmin: true } },
         { path: 'guide',                        name: 'customer-guide',   component: () => import('@/pages/CustomerGuidePage.vue') },
+        // 장애 대응 섹션 (5 pages)
+        { path: 'incident/feed',                name: 'incident-feed',     component: () => import('@/pages/incident/AlarmFeedPage.vue') },
+        { path: 'incident/triage/:incidentId?', name: 'incident-triage',   component: () => import('@/pages/incident/TriagePage.vue') },
+        { path: 'incident/rca/:incidentId',     name: 'incident-rca',      component: () => import('@/pages/RootCausePage.vue') },
+        { path: 'incident/recovery/:incidentId',name: 'incident-recovery', component: () => import('@/pages/incident/RecoveryPage.vue') },
+        { path: 'incident/history',             name: 'incident-history',  component: () => import('@/pages/incident/IncidentHistoryPage.vue') },
+        { path: 'incident/compare/demo',        name: 'incident-compare-demo', component: () => import('@/pages/incident/CompareDemoPage.vue') },
       ],
     },
     {
