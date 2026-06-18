@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onUnmounted } from 'vue'
+import { ref, computed, watch, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import {
@@ -8,7 +8,6 @@ import {
   IacPdfViewer,
   FormField
 } from '@/features/iac'
-import type { ConfidenceLevel, ActivationStatus, SourceType, AiSuggestion, Evidence } from '@/features/iac'
 
 const router = useRouter()
 const iacStore = useIacStore()
@@ -16,7 +15,7 @@ const { uploadSessionId, activeDocumentId, pdfFiles, bundleDraft } = storeToRefs
 
 // Redirect back if session or files are missing
 if (!uploadSessionId.value || !pdfFiles.value.sla) {
-  router.replace('/iac/1')
+  router.replace('/iac/document-upload')
 }
 
 const { data: bundleData, isLoading, error: apiError } = useSlaBundleDraft(uploadSessionId)
@@ -36,8 +35,6 @@ const sections = [
 
 const { mutate: confirmField } = useConfirmField()
 const { mutate: saveBundle, isPending: isSaving } = useSaveSlaBundle()
-
-// ── Local Navigation & Guide Logic ───────────────────────────────────────────
 
 const leftScrollRef = ref<HTMLElement | null>(null)
 const currentGuideFieldId = ref<string | null>(null)
@@ -95,29 +92,37 @@ const totalRequired = computed(() => bundleData.value?.totalRequiredCount ?? 0)
 const canSave = computed(() => confirmedCount.value >= totalRequired.value && totalRequired.value > 0)
 
 function handleConfirm(fieldId: string, value: string | number | null) {
-  confirmField({ bundleId: bundleData.value!.bundleId, fieldId, value })
-  nextTick(() => {
-    const nextId = firstUnconfirmedField(fieldId)
-    currentGuideFieldId.value = nextId
-    if (nextId && leftScrollRef.value) {
-      const el = document.getElementById(nextId)
-      if (el) {
-        const target = el.offsetTop - leftScrollRef.value.clientHeight / 2 + el.clientHeight / 2
-        lerpScrollTo(leftScrollRef.value, target)
+  confirmField(
+    { bundleId: bundleData.value!.bundleId, fieldId, value },
+    {
+      onSuccess: () => {
+        nextTick(() => {
+          const nextId = firstUnconfirmedField(fieldId)
+          currentGuideFieldId.value = nextId
+          if (nextId && leftScrollRef.value) {
+            const el = document.getElementById(nextId)
+            if (el) {
+              const target = el.offsetTop - leftScrollRef.value.clientHeight / 2 + el.clientHeight / 2
+              lerpScrollTo(leftScrollRef.value, target)
+            }
+          }
+        })
       }
     }
-  })
+  )
 }
 
 function scrollToFirstUnconfirmed() {
-  if (!leftScrollRef.value) return
-  const nextId = firstUnconfirmedField()
-  if (!nextId) return
-  const el = document.getElementById(nextId)
+  if (!leftScrollRef.value || !bundleData.value) return
+  const allFields = [
+    ...bundleData.value.bundleFields,
+    ...bundleData.value.slaItems.map(i => ({ ...i, fieldId: i.slaItemId })),
+  ]
+  const next = allFields.find(f => f.activationStatus !== 'inactive' && (f.confidence === '추정' || f.confidence === '모호'))
+  if (!next) return
+  const el = document.getElementById(next.fieldId)
   if (!el) return
-  const target = el.offsetTop - leftScrollRef.value.clientHeight / 2 + el.clientHeight / 2
-  lerpScrollTo(leftScrollRef.value, target)
-  currentGuideFieldId.value = nextId
+  lerpScrollTo(leftScrollRef.value, el.offsetTop - leftScrollRef.value.clientHeight / 2 + el.clientHeight / 2)
 }
 
 async function handleNext() {
@@ -127,7 +132,7 @@ async function handleNext() {
       if (bundleDraft.value) {
         iacStore.setBundleDraft({ ...bundleDraft.value, bundleId: data.bundleId })
       }
-      router.push('/iac/3')
+      router.push('/iac/topology-select')
     },
   })
 }
@@ -179,7 +184,7 @@ onUnmounted(() => {
     <main class="flex-1 flex overflow-hidden">
       <section class="w-3/5 flex flex-col bg-white border-r border-border overflow-hidden relative">
         <div v-if="apiError" class="absolute inset-0 flex flex-col items-center justify-center bg-white z-20 p-8 text-center">
-          <button @click="router.replace('/iac/1')" class="btn-brand">다시 시도하기</button>
+          <button @click="router.replace('/iac/document-upload')" class="btn-brand">다시 시도하기</button>
         </div>
         <div v-if="isLoading" class="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10">
           <div class="w-10 h-10 border-4 border-brand border-t-transparent rounded-full animate-spin mb-4" />
@@ -233,7 +238,7 @@ onUnmounted(() => {
           </button>
         </div>
       </section>
-      <!-- Right: PDF Viewer -->
+      
       <section class="w-2/5 h-full relative overflow-hidden bg-bg-muted shadow-inner border-l border-border">
         <div class="absolute inset-0 z-0">
           <IacPdfViewer v-if="pdfFiles.sla" :file="pdfFiles.sla" document-id="doc1_contract" />
@@ -260,7 +265,4 @@ onUnmounted(() => {
 }
 .pdf-slide-enter-from, .pdf-slide-leave-to { transform: translateX(100%); }
 .pdf-slide-enter-to, .pdf-slide-leave-from { transform: translateX(0); }
-
-.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
-.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

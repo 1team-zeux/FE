@@ -169,7 +169,7 @@ function handleReviewTopology() {
   hclPreview.value = null
   planData.value = null
   planPanelVisible.value = false
-  router.push('/iac/3')
+  router.push('/iac/topology-select')
 }
 
 function handleBackStep() {
@@ -178,7 +178,7 @@ function handleBackStep() {
   hclPreview.value = null
   planData.value = null
   planPanelVisible.value = false
-  router.push('/iac/3')
+  router.push('/iac/topology-select')
 }
 </script>
 

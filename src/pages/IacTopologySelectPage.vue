@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useIacStore, useTopologySession, useSelectTopology, TopologyEditor } from '@/features/iac'
@@ -10,8 +10,12 @@ const { bundleDraft } = storeToRefs(store)
 const bundleId = computed(() => bundleDraft.value?.bundleId ?? null)
 
 if (!bundleId.value) {
-  router.replace('/iac/2')
+  router.replace('/iac/sla-review')
 }
+
+onMounted(() => {
+  store.setTopologyWorkflowId(null)
+})
 
 const { topologies, isLoading, hasFailed, retrySession } = useTopologySession(bundleId)
 const { mutate: select, isPending: isApproving } = useSelectTopology()
@@ -22,7 +26,7 @@ const activeTopology = computed(() => topologies.value?.[activeIndex.value])
 function handleApprove() {
   if (!activeTopology.value) return
   select(activeTopology.value.topologyId, {
-    onSuccess() { router.push('/iac/4') },
+    onSuccess() { router.push('/iac/deploy') },
   })
 }
 </script>
@@ -91,7 +95,7 @@ function handleApprove() {
 
       <!-- 푸터 -->
       <div class="px-6 py-4 flex items-center justify-between shrink-0">
-        <button @click="router.push('/iac/2')" class="flex items-center gap-1.5 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-bg-muted rounded-lg transition-colors">
+        <button @click="router.push('/iac/sla-review')" class="flex items-center gap-1.5 px-3 py-2 text-sm text-text-secondary hover:text-text-primary hover:bg-bg-muted rounded-lg transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
           </svg>
