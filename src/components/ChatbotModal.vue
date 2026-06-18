@@ -5,6 +5,7 @@ import { useChatbot } from '@/composables/useChatbot'
 import { useAlarmsQuery } from '@/composables/useAlarmsQuery'
 import NimbusAvatar, { type NimbusVariant } from '@/components/NimbusAvatar.vue'
 import { queryOpsAssistant } from '@/features/assistant/api/opsAssistantApi'
+import { useAssistantPageContext } from '@/features/assistant/assistantContext'
 
 defineProps<{
   mode?: 'floating' | 'panel'
@@ -12,6 +13,7 @@ defineProps<{
 
 const router = useRouter()
 const { isOpen, badgeCount, toggle, clearTriggers } = useChatbot()
+const assistantPageContext = useAssistantPageContext()
 
 type Tab = 'chat' | 'notification'
 const activeTab = ref<Tab>('chat')
@@ -54,6 +56,7 @@ function onNotifClick(notif: { id: string; nav_service: string; nav_tab: string 
 interface Message {
   role: 'user' | 'assistant'
   content: string
+  liveContextUsed?: boolean
 }
 
 const messages = ref<Message[]>([
@@ -104,11 +107,15 @@ async function sendMessage(e?: KeyboardEvent) {
   pendingText.value = ''
   await scrollToBottom()
   try {
-    const result = await queryOpsAssistant(text)
+    const result = await queryOpsAssistant(text, assistantPageContext.value)
     const answer =
       result.answer?.trim() ||
       '답변을 생성하지 못했습니다. sla-agent-service와 Chroma 인덱스를 확인해 주세요.'
-    messages.value.push({ role: 'assistant', content: answer })
+    messages.value.push({
+      role: 'assistant',
+      content: answer,
+      liveContextUsed: result.live_context_used === true,
+    })
     triggerClap()
   } catch (err) {
     const msg = err instanceof Error ? err.message : '알 수 없는 오류'
@@ -260,6 +267,10 @@ function stopResize() {
               :class="activeTab === 'chat' ? 'text-brand' : 'text-text-muted hover:text-text-primary'"
             >
               채팅창
+              <span
+                v-if="assistantPageContext?.source === 'finops'"
+                class="ml-1 text-[9px] font-bold text-brand/80"
+              >· FinOps</span>
               <span v-if="activeTab === 'chat'" class="absolute bottom-0 left-0 right-0 h-0.5 bg-brand rounded-t-sm" />
             </button>
             <button
@@ -287,6 +298,12 @@ function stopResize() {
                   <div class="px-3 py-2 text-xs text-text-primary leading-relaxed whitespace-pre-wrap select-text">
                     {{ msg.content }}
                   </div>
+                  <span
+                    v-if="msg.liveContextUsed"
+                    class="self-start px-2 py-0.5 rounded-full text-[9px] font-bold bg-brand/10 text-brand border border-brand/20"
+                  >
+                    FinOps live
+                  </span>
                 </div>
                 <div v-else class="max-w-[88%] px-3 py-2 rounded-xl text-xs bg-bg-muted text-text-primary border border-border leading-relaxed whitespace-pre-wrap select-text">
                   {{ msg.content }}

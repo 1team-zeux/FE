@@ -37,6 +37,7 @@ const { mutate: confirmField } = useConfirmField()
 const { mutate: saveBundle, isPending: isSaving } = useSaveSlaBundle()
 
 const leftScrollRef = ref<HTMLElement | null>(null)
+const currentGuideFieldId = ref<string | null>(null)
 let scrollRafId: number | null = null
 
 function cancelScrollRaf() {
@@ -72,6 +73,20 @@ watch(leftScrollRef, (el) => {
   }
 })
 
+function firstUnconfirmedField(excludeId?: string): string | null {
+  if (!bundleDraft.value) return null
+  const allFields = [
+    ...bundleDraft.value.bundleFields,
+    ...bundleDraft.value.slaItems.map(i => ({ ...i, fieldId: i.slaItemId }))
+  ]
+  for (const f of allFields) {
+    if (f.fieldId === excludeId) continue
+    if (f.activationStatus === 'inactive') continue
+    if (f.confidence === '추정' || f.confidence === '모호') return f.fieldId
+  }
+  return null
+}
+
 const confirmedCount = computed(() => bundleData.value?.confirmedCount ?? 0)
 const totalRequired = computed(() => bundleData.value?.totalRequiredCount ?? 0)
 const canSave = computed(() => confirmedCount.value >= totalRequired.value && totalRequired.value > 0)
@@ -79,7 +94,21 @@ const canSave = computed(() => confirmedCount.value >= totalRequired.value && to
 function handleConfirm(fieldId: string, value: string | number | null) {
   confirmField(
     { bundleId: bundleData.value!.bundleId, fieldId, value },
-    { onSuccess: () => nextTick(scrollToFirstUnconfirmed) },
+    {
+      onSuccess: () => {
+        nextTick(() => {
+          const nextId = firstUnconfirmedField(fieldId)
+          currentGuideFieldId.value = nextId
+          if (nextId && leftScrollRef.value) {
+            const el = document.getElementById(nextId)
+            if (el) {
+              const target = el.offsetTop - leftScrollRef.value.clientHeight / 2 + el.clientHeight / 2
+              lerpScrollTo(leftScrollRef.value, target)
+            }
+          }
+        })
+      }
+    }
   )
 }
 
@@ -107,6 +136,12 @@ async function handleNext() {
     },
   })
 }
+
+watch([bundleData, currentGuideFieldId], () => {
+  if (bundleData.value && !currentGuideFieldId.value) {
+    currentGuideFieldId.value = firstUnconfirmedField()
+  }
+})
 
 onUnmounted(() => {
   iacStore.setActiveField(null)
@@ -203,7 +238,7 @@ onUnmounted(() => {
           </button>
         </div>
       </section>
-      <!-- Right: PDF Viewer -->
+      
       <section class="w-2/5 h-full relative overflow-hidden bg-bg-muted shadow-inner border-l border-border">
         <div class="absolute inset-0 z-0">
           <IacPdfViewer v-if="pdfFiles.sla" :file="pdfFiles.sla" document-id="doc1_contract" />
@@ -230,5 +265,4 @@ onUnmounted(() => {
 }
 .pdf-slide-enter-from, .pdf-slide-leave-to { transform: translateX(100%); }
 .pdf-slide-enter-to, .pdf-slide-leave-from { transform: translateX(0); }
-
 </style>
