@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { mainNav, bottomNav } from './layout/nav-config'
+import { mainNav, bottomNav, isNavMatchActive } from './layout/nav-config'
 import { useAuthStore } from '@/features/auth/store/useAuthStore'
 
 
@@ -22,6 +22,12 @@ const currentIacStep = computed(() => {
   const match = route.path.match(/\/iac\/(\d)/)
   return match ? parseInt(match[1]) : 0
 })
+
+const mainNavMatches = computed(() => mainNav.map((item) => item.match))
+
+function isMainNavActive(match: string): boolean {
+  return isNavMatchActive(route.path, match, mainNavMatches.value)
+}
 </script>
 
 <template>
@@ -34,7 +40,7 @@ const currentIacStep = computed(() => {
             @click="navigate"
             :class="[
               'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors',
-              route.path.startsWith(item.match)
+              isMainNavActive(item.match)
                 ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand)] font-semibold'
                 : 'text-text-secondary hover:bg-gray-50 hover:text-text-primary font-medium',
             ]"
