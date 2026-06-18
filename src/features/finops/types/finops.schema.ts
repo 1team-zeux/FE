@@ -74,7 +74,7 @@ export const TopologyProposalImpactSchema = z.object({
       }),
     )
     .optional(),
-  impact_level: z.enum(['low', 'medium', 'high']),
+  impact_level: z.union([z.enum(['low', 'medium', 'high']), z.string()]),
   summary: z.string(),
   graph_source: z.string().optional(),
 })
@@ -127,7 +127,7 @@ export const TopologyDesignProposalImpactSchema = z.object({
   ),
   broken_edges: z.array(TopologyDesignEdgeSchema).optional(),
   affected_design_nodes: z.array(TopologyDesignNodeSchema).optional(),
-  impact_level: z.enum(['low', 'medium', 'high']),
+  impact_level: z.union([z.enum(['low', 'medium', 'high']), z.string()]),
   summary: z.string(),
   diagram_source: z.string().optional(),
 })
@@ -377,15 +377,15 @@ export const DataQualitySummarySchema = z.object({
 })
 
 export const FinOpsRunSchema = z.object({
-  id: z.string(),
-  run_id: z.string(),
+  id: z.coerce.string(),
+  run_id: z.coerce.string(),
   batch_id: z.string().nullable().optional(),
-  tenant_id: z.string(),
+  tenant_id: z.coerce.string(),
   team_id: z.string().nullable().optional(),
-  service_id: z.string(),
+  service_id: z.coerce.string(),
   service_name: z.string().nullable().optional(),
   schedule_window: z.string().nullable().optional(),
-  status: z.string(),
+  status: z.coerce.string(),
   report_artifact_uri: z.string().nullable().optional(),
   findings_count: z.coerce.number().nullable().optional(),
   eligible_count: z.coerce.number().nullable().optional(),
@@ -394,8 +394,8 @@ export const FinOpsRunSchema = z.object({
   approval_reviewer: z.string().nullable().optional(),
   approval_comment: z.string().nullable().optional(),
   approval_reviewed_at: z.string().nullable().optional(),
-  findings_snapshot: FindingsSnapshotSchema.nullable().optional(),
-  data_quality_summary: DataQualitySummarySchema.nullable().optional(),
+  findings_snapshot: FindingsSnapshotSchema.nullable().optional().catch(undefined),
+  data_quality_summary: DataQualitySummarySchema.nullable().optional().catch(undefined),
   started_at: z.string().nullable().optional(),
   finished_at: z.string().nullable().optional(),
   created_at: z.string().nullable().optional(),
