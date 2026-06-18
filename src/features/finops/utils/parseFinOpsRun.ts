@@ -3,7 +3,7 @@ import {
   DataQualitySummarySchema,
   FindingsSnapshotSchema,
   type FinOpsRun,
-} from './finops.schema'
+} from '../types/finops.schema'
 
 /** API run row — coerce common BE type drift; skip nested snapshot in strict pass. */
 const FinOpsRunCoreSchema = z.object({
