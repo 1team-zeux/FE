@@ -16,6 +16,8 @@ export const useIacStore = defineStore('iac', () => {
   const topologyWorkflowId = ref<string | null>(null)
   const selectedTopologyId = ref<string | null>(null)
   const deployStatus = ref<DeployStatus>('idle')
+  // 마지막 Terraform planId — 핸드오프 페이지에서 verify 조회 시 사용
+  const lastPlanId = ref<string | null>(null)
   const chatbotTriggers = ref<ChatbotTrigger[]>([])
   const chatbotOpen = ref(false)
   const pdfFiles = ref<{ sla: File | null; infra: File | null }>({ sla: null, infra: null })
@@ -44,6 +46,10 @@ export const useIacStore = defineStore('iac', () => {
 
   function setDeployStatus(status: DeployStatus) {
     deployStatus.value = status
+  }
+
+  function setLastPlanId(id: string | null) {
+    lastPlanId.value = id
   }
 
   function addChatbotTrigger(trigger: ChatbotTrigger) {
@@ -83,6 +89,7 @@ export const useIacStore = defineStore('iac', () => {
     topologyWorkflowId.value = null
     selectedTopologyId.value = null
     deployStatus.value = 'idle'
+    lastPlanId.value = null
     chatbotTriggers.value = []
     chatbotOpen.value = false
     pdfFiles.value = { sla: null, infra: null }
@@ -96,6 +103,7 @@ export const useIacStore = defineStore('iac', () => {
     topologyWorkflowId,
     selectedTopologyId,
     deployStatus,
+    lastPlanId,
     chatbotTriggers,
     chatbotOpen,
     chatbotBadgeCount,
@@ -106,6 +114,7 @@ export const useIacStore = defineStore('iac', () => {
     setTopologyWorkflowId,
     setSelectedTopology,
     setDeployStatus,
+    setLastPlanId,
     addChatbotTrigger,
     clearChatbotTriggers,
     toggleChatbot,

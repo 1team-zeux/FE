@@ -40,6 +40,7 @@ const router = createRouter({
         { path: 'sla-review',   name: 'iac-sla-review',       component: () => import('@/pages/IacSlaReviewPage.vue') },
         { path: 'topology-select',   name: 'iac-topology-select',  component: () => import('@/pages/IacTopologySelectPage.vue') },
         { path: 'deploy',   name: 'iac-deploy',           component: () => import('@/pages/IacDeployPage.vue') },
+        { path: 'handoff',  name: 'iac-handoff',          component: () => import('@/pages/IacHandoffPage.vue') },
       ],
     },
   ],
@@ -47,7 +48,7 @@ const router = createRouter({
 
 router.beforeEach((to, from) => {
   // IaC 페이지 전환 애니메이션
-  const IAC_STEPS = ['document-upload', 'sla-review', 'topology-select', 'deploy']
+  const IAC_STEPS = ['document-upload', 'sla-review', 'topology-select', 'deploy', 'handoff']
   const toStep   = IAC_STEPS.indexOf(to.path.split('/iac/')[1] ?? '')
   const fromStep = IAC_STEPS.indexOf(from.path.split('/iac/')[1] ?? '')
   if (toStep >= 0 && fromStep >= 0) {

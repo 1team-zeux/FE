@@ -145,10 +145,24 @@ export interface PingResult {
   detail: string
 }
 
+export interface HandoffInfo {
+  loginUrl: string
+  customerId: string
+  initialPassword: string
+  dbEndpoint?: string | null
+  dbPassword?: string | null
+  s3BucketName?: string | null
+  bastionPublicIp?: string | null
+  bastionSshPrivateKey?: string | null
+  ecsClusterName?: string | null
+  albDnsName?: string | null
+}
+
 export interface VerifyResult {
   verifyId: string
   overall: 'pass' | 'fail'
   pings: PingResult[]
+  handoff?: HandoffInfo | null
 }
 
 export function useTerraformVerify(planId: Ref<string | null>) {
