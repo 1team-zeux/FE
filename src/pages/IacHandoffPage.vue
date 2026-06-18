@@ -68,10 +68,50 @@ function downloadPem() {
   URL.revokeObjectURL(url)
 }
 
+// 전체 정보 PDF 다운로드 (마크다운 정리, 색 X)
+async function downloadPdf() {
+  const el = document.getElementById('handoff-print-content')
+  if (!el) return
+  // 동적 import — 초기 번들 크기 영향 최소화
+  const html2pdf = (await import('html2pdf.js')).default
+  const customerId = (handoff.value?.customerId || 'demo').replace(/[^a-z0-9@.]/gi, '-')
+  const filename = `handoff-${customerId}-${new Date().toISOString().slice(0, 10)}.pdf`
+  // 임시로 보이게 → 캡처 → 다시 숨김
+  el.style.display = 'block'
+  try {
+    await html2pdf().set({
+      margin: 15,
+      filename,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['avoid-all', 'css'] },
+    }).from(el).save()
+  } finally {
+    el.style.display = 'none'
+  }
+}
+
+// 고객사 로그인 페이지 열기 (customer_id 이메일 자동 채움)
+function openCustomerLogin() {
+  const customerId = handoff.value?.customerId
+  if (!customerId) return
+  const url = `/login?email=${encodeURIComponent(customerId)}`
+  window.open(url, '_blank', 'noopener')
+}
+
 // 재핑
 function rePing() {
   verifyQuery.refetch()
 }
+
+// PDF용 발행 일시 (markdown 본문에서 사용)
+const issuedAt = computed(() => {
+  return new Date().toLocaleString('ko-KR', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  })
+})
 </script>
 
 <template>
@@ -82,15 +122,27 @@ function rePing() {
         <h1 class="text-xl font-bold text-text-primary">배포 완료 — 고객사 정보 전달</h1>
         <p class="text-sm text-text-secondary mt-0.5">아래 정보를 안전하게 고객사에 전달하세요. 비밀번호와 SSH 키는 한 번만 표시됩니다.</p>
       </div>
-      <button
-        @click="router.push('/dashboard')"
-        class="flex items-center gap-2 px-4 py-2 bg-[#2980B9] hover:bg-[#2471a3] text-white text-sm font-semibold rounded-xl transition-colors"
-      >
-        모니터링 대시보드로 이동
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-        </svg>
-      </button>
+      <div class="flex items-center gap-2">
+        <!-- 전체 정보 .pdf 다운로드 (마크다운 정리, 색 X) -->
+        <button
+          @click="downloadPdf"
+          class="flex items-center gap-2 px-4 py-2 bg-white border border-border hover:bg-bg-muted text-text-primary text-sm font-semibold rounded-xl transition-colors"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          전체 정보 .pdf 다운로드
+        </button>
+        <button
+          @click="router.push('/dashboard')"
+          class="flex items-center gap-2 px-4 py-2 bg-[#2980B9] hover:bg-[#2471a3] text-white text-sm font-semibold rounded-xl transition-colors"
+        >
+          모니터링 대시보드로 이동
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+          </svg>
+        </button>
+      </div>
     </div>
 
     <!-- 인프라 상태 (라이브 핑) -->
@@ -148,11 +200,24 @@ function rePing() {
 
     <!-- 고객사 접속 정보 -->
     <div class="bg-blue-50 border border-blue-100 rounded-2xl p-5">
-      <div class="flex items-center gap-2 mb-4">
-        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
-        </svg>
-        <h2 class="text-base font-semibold text-blue-900">고객사 접속 정보</h2>
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+          </svg>
+          <h2 class="text-base font-semibold text-blue-900">고객사 접속 정보</h2>
+        </div>
+        <!-- 고객사 ID 미리 채워진 로그인 페이지를 새 탭으로 -->
+        <button
+          @click="openCustomerLogin"
+          class="flex items-center gap-1.5 text-xs font-semibold text-blue-700 hover:text-blue-900 hover:bg-blue-100 px-3 py-1.5 rounded-lg border border-blue-200 transition-colors"
+          title="고객사 ID가 미리 채워진 로그인 페이지를 새 탭으로 엽니다"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+          </svg>
+          로그인 페이지 열기
+        </button>
       </div>
       <div class="space-y-2.5">
         <!-- 로그인 URL -->
@@ -334,6 +399,58 @@ function rePing() {
           </button>
         </div>
       </div>
+    </div>
+
+    <!-- PDF 다운로드용 마크다운 정리 콘텐츠 (평소 hidden, html2pdf 캡처 직전 잠시 보임) -->
+    <div
+      id="handoff-print-content"
+      style="display: none; font-family: 'Helvetica Neue', Arial, sans-serif; color: #000000; background: #ffffff; padding: 20px 24px; line-height: 1.5;"
+    >
+      <h1 style="font-size: 22pt; margin: 0 0 8px 0; padding-bottom: 8px; border-bottom: 1.5pt solid #000000; color: #000000;">
+        고객사 정보 전달
+      </h1>
+      <p style="font-size: 10pt; margin: 0 0 24px 0; color: #000000;">
+        고객사: <strong>{{ handoff?.customerId ?? '-' }}</strong> · 발행 일시: {{ issuedAt }}
+      </p>
+
+      <h2 style="font-size: 14pt; margin: 18px 0 8px 0; padding-bottom: 4px; border-bottom: 0.5pt solid #000000; color: #000000;">
+        1. 접속 정보
+      </h2>
+      <ul style="margin: 0 0 12px 0; padding-left: 20px; font-size: 11pt; color: #000000;">
+        <li style="margin-bottom: 4px;">로그인 URL: <code>{{ handoff?.loginUrl ?? '-' }}</code></li>
+        <li style="margin-bottom: 4px;">고객사 ID: <code>{{ handoff?.customerId ?? '-' }}</code></li>
+        <li style="margin-bottom: 4px;">초기 비밀번호: <code>{{ handoff?.initialPassword ?? '-' }}</code></li>
+      </ul>
+
+      <h2 style="font-size: 14pt; margin: 18px 0 8px 0; padding-bottom: 4px; border-bottom: 0.5pt solid #000000; color: #000000;">
+        2. 운영자 SSH 접근 (Bastion)
+      </h2>
+      <ul style="margin: 0 0 12px 0; padding-left: 20px; font-size: 11pt; color: #000000;">
+        <li style="margin-bottom: 4px;">Bastion 퍼블릭 IP: <code>{{ handoff?.bastionPublicIp ?? '-' }}</code></li>
+        <li style="margin-bottom: 4px;">SSH 명령어: <code>ssh -i bastion-{{ handoff?.customerId ?? 'demo' }}.pem ec2-user@{{ handoff?.bastionPublicIp ?? '...' }}</code></li>
+        <li style="margin-bottom: 4px;">SSH 개인키 파일: 별도 <code>.pem</code> 다운로드 사용 (PDF에 포함되지 않음)</li>
+      </ul>
+
+      <h2 style="font-size: 14pt; margin: 18px 0 8px 0; padding-bottom: 4px; border-bottom: 0.5pt solid #000000; color: #000000;">
+        3. 데이터베이스 (RDS PostgreSQL)
+      </h2>
+      <ul style="margin: 0 0 12px 0; padding-left: 20px; font-size: 11pt; color: #000000;">
+        <li style="margin-bottom: 4px;">엔드포인트: <code>{{ handoff?.dbEndpoint ?? '-' }}</code></li>
+        <li style="margin-bottom: 4px;">비밀번호: <code>{{ handoff?.dbPassword ?? '-' }}</code></li>
+      </ul>
+
+      <h2 style="font-size: 14pt; margin: 18px 0 8px 0; padding-bottom: 4px; border-bottom: 0.5pt solid #000000; color: #000000;">
+        4. 인프라 리소스 (참고)
+      </h2>
+      <ul style="margin: 0 0 12px 0; padding-left: 20px; font-size: 11pt; color: #000000;">
+        <li style="margin-bottom: 4px;">ALB DNS: <code>{{ handoff?.albDnsName ?? '-' }}</code></li>
+        <li style="margin-bottom: 4px;">ECS Cluster: <code>{{ handoff?.ecsClusterName ?? '-' }}</code></li>
+        <li style="margin-bottom: 4px;">S3 Bucket: <code>{{ handoff?.s3BucketName ?? '-' }}</code></li>
+      </ul>
+
+      <p style="font-size: 9pt; margin: 24px 0 0 0; padding-top: 8px; border-top: 0.3pt solid #000000; color: #000000;">
+        본 문서는 ZeuX IaC 시스템에서 자동 생성되었습니다. 비밀번호는 첫 로그인 후 즉시 변경하시기 바랍니다.
+      </p>
     </div>
   </div>
 </template>

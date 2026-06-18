@@ -90,32 +90,57 @@ export function useTerraformPlan() {
   })
 }
 
+export interface GithubProgress {
+  phase: string
+  detail: string
+  pr_number?: number | null
+  pr_url?: string | null
+  status?: string | null
+}
+
 export function useTerraformApply() {
   const store = useIacStore()
   const resources = ref<ResourceStatus[]>([])
   const isStreaming = ref(false)
   const isApplyDone = ref(false)
+  // GitHub 모드 진행 이벤트 로그
+  const githubEvents = ref<GithubProgress[]>([])
   let eventSource: EventSource | null = null
 
-  async function startApply(planId: string, initialResources: string[] = []) {
+  async function startApply(
+    planId: string,
+    initialResources: string[] = [],
+    useGithub = false,
+  ) {
     store.setDeployStatus('applying')
     isStreaming.value = true
     isApplyDone.value = false
-    resources.value = initialResources.map(resource => ({
-      resource,
-      status: 'pending' as const,
-      detail: '대기 중',
-    }))
+    githubEvents.value = []
+    resources.value = useGithub
+      ? []
+      : initialResources.map(resource => ({
+          resource,
+          status: 'pending' as const,
+          detail: '대기 중',
+        }))
 
-    eventSource = new EventSource(`/terraform/apply/stream?planId=${planId}`)
+    const qs = new URLSearchParams({ planId, useGithub: String(useGithub) }).toString()
+    eventSource = new EventSource(`/terraform/apply/stream?${qs}`)
 
     eventSource.onmessage = (e: MessageEvent) => {
-      const data = JSON.parse(e.data) as ResourceStatus
-      const idx = resources.value.findIndex((r) => r.resource === data.resource)
+      const data = JSON.parse(e.data)
+      // GitHub 모드: phase 필드 존재
+      if ('phase' in data) {
+        githubEvents.value.push(data as GithubProgress)
+        return
+      }
+      // dry_run 모드: resource 필드 존재
+      const rs = data as ResourceStatus
+      const idx = resources.value.findIndex((r) => r.resource === rs.resource)
       if (idx >= 0) {
-        resources.value[idx] = data
+        resources.value[idx] = rs
       } else {
-        resources.value.push(data)
+        resources.value.push(rs)
       }
     }
 
@@ -124,7 +149,6 @@ export function useTerraformApply() {
       eventSource = null
       isStreaming.value = false
       isApplyDone.value = true
-      // 자동 검증 전환 없음 — 운영자가 "검증 시작" 버튼으로 직접 진행
     })
 
     eventSource.onerror = () => {
@@ -142,7 +166,7 @@ export function useTerraformApply() {
     store.setDeployStatus('idle')
   }
 
-  return { resources, isStreaming, isApplyDone, startApply, stopApply }
+  return { resources, githubEvents, isStreaming, isApplyDone, startApply, stopApply }
 }
 
 export interface PingResult {

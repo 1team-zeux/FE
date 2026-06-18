@@ -23,7 +23,7 @@ const planPanelVisible = ref(false)
 
 const { mutate: generateCode } = useGenerateTerraform()
 const { mutate: runPlan, isPending: isPlanning } = useTerraformPlan()
-const { resources, isApplyDone, startApply, stopApply } = useTerraformApply()
+const { resources, githubEvents, isApplyDone, startApply, stopApply } = useTerraformApply()
 const { data: verifyData } = useTerraformVerify(planId)
 
 const STEPS = [
@@ -126,10 +126,11 @@ function handlePlan() {
   })
 }
 
-function handleApply() {
+function handleApply(target: 'dry_run' | 'github' = 'dry_run') {
   if (!planId.value) return
+  store.setDeployTarget(target)
   const initialResources = planData.value?.items.map(i => i.address) ?? []
-  startApply(planId.value, initialResources)
+  startApply(planId.value, initialResources, target === 'github')
 }
 
 function handleVerifyStart() {
@@ -248,6 +249,8 @@ function handleBackStep() {
         <div class="absolute inset-y-0 right-0 w-1/2 overflow-hidden" :style="applyPanelStyle">
           <IacApplyPanel
             :resources="resources"
+            :githubEvents="githubEvents"
+            :deployTarget="store.deployTarget"
             :failedDuringApply="failedDuringApply"
             :isApplyDone="isApplyDone"
             @retryApply="handleRetryApply"

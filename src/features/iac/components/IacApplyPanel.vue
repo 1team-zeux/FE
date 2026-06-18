@@ -1,12 +1,48 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { ResourceStatus } from '../api/useTerraform'
+import type { ResourceStatus, GithubProgress } from '../api/useTerraform'
 
 const props = defineProps<{
   resources: ResourceStatus[]
+  githubEvents?: GithubProgress[]
+  deployTarget?: 'dry_run' | 'github'
   failedDuringApply: boolean
   isApplyDone: boolean
 }>()
+
+const isGithubMode = computed(() => props.deployTarget === 'github')
+
+const latestGithubEvent = computed(() => {
+  const events = props.githubEvents ?? []
+  return events.length > 0 ? events[events.length - 1] : null
+})
+
+const githubPrUrl = computed(() => {
+  const events = props.githubEvents ?? []
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].pr_url) return events[i].pr_url
+  }
+  return null
+})
+
+const githubPrNumber = computed(() => {
+  const events = props.githubEvents ?? []
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].pr_number) return events[i].pr_number
+  }
+  return null
+})
+
+const githubPhaseLabel: Record<string, string> = {
+  PR_CREATING: 'PR 생성 중',
+  PR_CREATED: 'PR 생성됨',
+  ATLANTIS_PLAN: 'Atlantis plan',
+  ATLANTIS_PLAN_READY: 'plan 완료',
+  ATLANTIS_APPLY: 'Atlantis apply',
+  APPLIED: '배포 완료',
+  FAILED: '실패',
+  TIMEOUT: 'Timeout',
+}
 
 const emit = defineEmits<{
   retryApply: []
@@ -72,8 +108,77 @@ function formatSeconds(s: number) {
 <template>
   <div class="h-full flex flex-col pl-4 pr-8 pt-3 pb-4 overflow-hidden">
 
-    <!-- Apply 진행 중 -->
-    <template v-if="!failedDuringApply">
+    <!-- GitHub PR + Atlantis 모드 — 단계별 진행 로그 표시 -->
+    <template v-if="isGithubMode">
+      <div class="shrink-0 mb-3">
+        <div class="flex items-center justify-between mb-1.5">
+          <p class="text-xs font-bold uppercase tracking-widest border-l-[3px] border-gray-900 pl-3 text-gray-900 flex items-center gap-2">
+            <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.4 3-.405 1.02.005 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+            </svg>
+            GitHub PR + Atlantis
+          </p>
+          <span v-if="latestGithubEvent" class="text-[10px] font-mono text-text-secondary">
+            {{ githubPhaseLabel[latestGithubEvent.phase] ?? latestGithubEvent.phase }}
+          </span>
+        </div>
+      </div>
+
+      <!-- PR URL 카드 -->
+      <div v-if="githubPrUrl" class="shrink-0 mb-3 rounded-xl border border-border bg-bg-muted p-3 flex items-center justify-between">
+        <div class="min-w-0">
+          <p class="text-[10px] text-text-secondary">Pull Request</p>
+          <p class="text-sm font-mono font-semibold truncate">PR #{{ githubPrNumber }}</p>
+        </div>
+        <a
+          :href="githubPrUrl"
+          target="_blank"
+          rel="noopener"
+          class="shrink-0 px-3 py-1.5 bg-gray-900 hover:bg-gray-800 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5"
+        >
+          GitHub에서 보기
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+          </svg>
+        </a>
+      </div>
+
+      <!-- 단계별 이벤트 로그 -->
+      <div class="flex-1 overflow-y-auto rounded-xl border border-border p-3 space-y-1.5">
+        <div
+          v-for="(event, i) in githubEvents ?? []"
+          :key="i"
+          class="flex items-start gap-2 text-xs"
+        >
+          <span class="shrink-0 mt-1 w-1.5 h-1.5 rounded-full"
+            :class="event.phase === 'FAILED' ? 'bg-red-500' : event.phase === 'APPLIED' ? 'bg-green-500' : 'bg-brand animate-pulse'"></span>
+          <div class="flex-1 min-w-0">
+            <p class="text-[10px] font-mono text-text-muted">{{ githubPhaseLabel[event.phase] ?? event.phase }}</p>
+            <p class="text-text-primary truncate">{{ event.detail }}</p>
+          </div>
+        </div>
+        <div v-if="!githubEvents?.length" class="text-center text-xs text-text-muted py-8">
+          GitHub 흐름 시작 대기 중...
+        </div>
+      </div>
+
+      <!-- 검증 시작 버튼 (apply 완료 시) -->
+      <div class="shrink-0 pt-3 flex justify-end">
+        <button
+          v-if="isApplyDone"
+          @click="emit('verifyStart')"
+          class="btn-brand flex items-center gap-1.5 text-xs"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          검증 시작
+        </button>
+      </div>
+    </template>
+
+    <!-- dry_run 모드 — 기존 리소스별 상태 -->
+    <template v-else-if="!failedDuringApply">
 
       <!-- 헤더 -->
       <div class="shrink-0 mb-3">
