@@ -1,6 +1,9 @@
 import { z } from 'zod'
 
-export const GuardStatusSchema = z.enum(['eligible', 'defer', 'blocked'])
+export const GuardStatusSchema = z.union([
+  z.enum(['eligible', 'defer', 'blocked']),
+  z.string(),
+])
 export const PriorityBandSchema = z.enum(['P0', 'P1', 'P2'])
 
 export const LogSampleSchema = z.object({
@@ -154,7 +157,7 @@ export const TopologyContextSchema = z.object({
 
 export const FinOpsFindingSchema = z.object({
   finding_id: z.string().optional(),
-  resource_id: z.string(),
+  resource_id: z.union([z.string(), z.null()]).transform((v) => v ?? ''),
   resource_type: z.string().optional(),
   pattern_id: z.string().optional(),
   recommended_action: z.string().optional(),
@@ -165,13 +168,17 @@ export const FinOpsFindingSchema = z.object({
   monthly_cost_usd: z.number().nullable().optional(),
   data_source: z.string().optional(),
   reason: z.string().nullable().optional(),
-  evidence: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])).optional(),
-  confidence_score: z.number().nullable().optional(),
+  evidence: z
+    .record(z.string(), z.union([z.number(), z.boolean(), z.string(), z.null()]))
+    .optional(),
+  confidence_score: z.coerce.number().nullable().optional(),
   utilization_source: z.string().optional(),
-  utilization: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])).optional(),
-  metric_series: z.array(z.number()).optional(),
+  utilization: z
+    .record(z.string(), z.union([z.number(), z.boolean(), z.string(), z.null()]))
+    .optional(),
+  metric_series: z.array(z.coerce.number()).optional(),
   metric_series_timestamps: z.array(z.string()).optional(),
-  metric_series_source: z.enum(['prometheus', 'synthetic']).optional(),
+  metric_series_source: z.union([z.enum(['prometheus', 'synthetic']), z.string()]).optional(),
   metric_label: z.string().optional(),
   metric_threshold: z.number().optional(),
   promql: z.string().optional(),
@@ -324,15 +331,17 @@ export const ExecutiveReportSchema = z.object({
   blocked_defer: z.array(FinOpsFindingSchema).optional(),
   rca_summary: z
     .object({
-      hint_count: z.number(),
+      hint_count: z.coerce.number(),
       hints: z.array(
         z.object({
           cause_type: z.string().optional(),
-          confidence: z.number().optional(),
+          confidence: z.coerce.number().optional(),
           rationale: z.string().optional(),
         }),
       ),
-      rules_applied: z.array(z.string()),
+      rules_applied: z
+        .array(z.union([z.string(), z.null()]))
+        .transform((items) => items.filter((item): item is string => typeof item === 'string')),
       rca_informed: z.boolean(),
     })
     .nullable()
@@ -341,15 +350,15 @@ export const ExecutiveReportSchema = z.object({
 })
 
 export const FindingsSnapshotSchema = z.object({
-  findings_count: z.number(),
-  guarded_count: z.number(),
-  eligible_count: z.number(),
+  findings_count: z.coerce.number(),
+  guarded_count: z.coerce.number(),
+  eligible_count: z.coerce.number(),
   guard_summary: z.object({
-    eligible: z.number(),
-    defer: z.number(),
-    blocked: z.number(),
+    eligible: z.coerce.number(),
+    defer: z.coerce.number(),
+    blocked: z.coerce.number(),
   }),
-  total_monthly_waste_usd: z.number(),
+  total_monthly_waste_usd: z.coerce.number(),
   executive_report: ExecutiveReportSchema.optional(),
   findings: z.array(FinOpsFindingSchema),
 })
@@ -378,8 +387,8 @@ export const FinOpsRunSchema = z.object({
   schedule_window: z.string().nullable().optional(),
   status: z.string(),
   report_artifact_uri: z.string().nullable().optional(),
-  findings_count: z.number().nullable().optional(),
-  eligible_count: z.number().nullable().optional(),
+  findings_count: z.coerce.number().nullable().optional(),
+  eligible_count: z.coerce.number().nullable().optional(),
   error_message: z.string().nullable().optional(),
   approval_status: z.string().nullable().optional(),
   approval_reviewer: z.string().nullable().optional(),
