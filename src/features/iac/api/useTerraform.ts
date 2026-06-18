@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { useMutation, useQuery } from '@tanstack/vue-query'
+import { storeToRefs } from 'pinia'
 import { api } from '@/services/api'
 import { useIacStore } from '../stores/iac.store'
 import type { Ref } from 'vue'
@@ -26,7 +27,10 @@ export function useGenerateTerraform() {
   const store = useIacStore()
   return useMutation({
     mutationFn: async (topologyId: string) => {
-      const res = await api.post<{ planId: string; hclPreview: string }>('/terraform/generate', { topologyId })
+      const res = await api.post<{ planId: string; hclPreview: string }>('/terraform/generate', { 
+        topologyId,
+        workflow_id: store.topologyWorkflowId 
+      })
       return res.data
     },
     onMutate() { store.setDeployStatus('generating') },
@@ -114,12 +118,17 @@ export interface VerifyResult {
 }
 
 export function useTerraformVerify(planId: Ref<string | null>) {
+  const store = useIacStore()
+  const { deployStatus } = storeToRefs(store)
+
   return useQuery({
     queryKey: ['terraform-verify', planId],
     queryFn: async () => {
       const res = await api.get(`/terraform/verify/${planId.value}`)
       return res.data as VerifyResult
     },
-    enabled: () => !!planId.value,
+    // verifying/done 상태일 때만 발동 — generate 직후 의도치 않은 호출 방지
+    enabled: () => !!planId.value && (deployStatus.value === 'verifying' || deployStatus.value === 'done'),
+    retry: false,
   })
 }

@@ -31,7 +31,7 @@ export function useUploadSession() {
     },
     onSuccess() {
       // 3. Navigate only after state is committed
-      router.push('/iac/2')
+      router.push('/iac/sla-review')
     },
   })
 }

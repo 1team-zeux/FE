@@ -39,7 +39,7 @@ const submit = (action: 'approve' | 'reject') => {
 
 function goTerraform() {
   router.push({
-    path: '/iac/4',
+    path: '/iac/deploy',
     query: {
       from: 'finops',
       runId: props.run.run_id,

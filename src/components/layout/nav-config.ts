@@ -14,7 +14,7 @@ export interface BottomNavItem {
 
 export const topTabs: NavItem[] = [
   {
-    label: 'IaC 온보딩', match: '/iac', to: '/iac/1',
+    label: 'IaC 온보딩', match: '/iac', to: '/iac/document-upload',
     icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>`,
   },
   {
@@ -25,7 +25,7 @@ export const topTabs: NavItem[] = [
 
 export const mainNav: NavItem[] = [
   {
-    label: 'IaC 온보딩', match: '/iac', to: '/iac/1', hasChevron: true,
+    label: 'IaC 온보딩', match: '/iac', to: '/iac/document-upload', hasChevron: true,
     icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v7a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>`,
   },
   {

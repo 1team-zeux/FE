@@ -12,15 +12,15 @@ const auth = useAuthStore()
 const isIacRoute = computed(() => route.path.startsWith('/iac'))
 
 const IAC_STEPS = [
-  { label: '문서 업로드',    to: '/iac/1' },
-  { label: 'SLA 검토',       to: '/iac/2' },
-  { label: '토폴로지 선택',  to: '/iac/3' },
-  { label: 'Terraform 배포', to: '/iac/4' },
+  { label: '문서 업로드',    to: '/iac/document-upload' },
+  { label: 'SLA 검토',       to: '/iac/sla-review' },
+  { label: '토폴로지 선택',  to: '/iac/topology-select' },
+  { label: 'Terraform 배포', to: '/iac/deploy' },
 ]
 
 const currentIacStep = computed(() => {
-  const match = route.path.match(/\/iac\/(\d)/)
-  return match ? parseInt(match[1]) : 0
+  const idx = IAC_STEPS.findIndex(s => route.path.startsWith(s.to))
+  return idx >= 0 ? idx + 1 : 0
 })
 </script>
 

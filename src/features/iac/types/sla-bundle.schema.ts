@@ -31,10 +31,10 @@ export const PhaseScopeSchema = z.enum(['mvp', 'phase2_candidate'])
 export type PhaseScope = z.infer<typeof PhaseScopeSchema>
 
 export const EvidenceSchema = z.object({
-  documentId: z.string().optional(),
-  page: z.number().optional(),
-  snippet: z.string().optional(),
-  ruleId: z.string().optional(),
+  documentId: z.string().nullish(),
+  page: z.number().nullish(),
+  snippet: z.string().nullish(),
+  ruleId: z.string().nullish(),
 })
 export type Evidence = z.infer<typeof EvidenceSchema>
 
@@ -43,10 +43,10 @@ export const ServiceSchema = z.object({
   serviceId: z.string(),
   serviceName: z.string(),
   serviceType: ServiceTypeSchema,
-  workloadType: z.string().optional(),
-  serviceTier: z.string().optional(),
-  userTarget: z.string().optional(),
-  description: z.string().optional(),
+  workloadType: z.string().nullish(),
+  serviceTier: z.string().nullish(),
+  userTarget: z.string().nullish(),
+  description: z.string().nullish(),
 })
 export type Service = z.infer<typeof ServiceSchema>
 
@@ -64,7 +64,7 @@ export const SLAItemSchema = z.object({
   slaLevel: SLALevelSchema.optional(),
   label: z.string(),
   targetValue: z.union([z.string(), z.number(), z.null()]),
-  unit: z.string().optional(),
+  unit: z.string().nullish(),
   measurementFilter: z.string().nullish(),
   measurementWindow: z.string().nullish(),
   exclusionConditions: z.string().nullish(),
@@ -88,8 +88,8 @@ export const BundleFieldSchema = z.object({
   confidence: ConfidenceLevelSchema,
   sectionId: z.string(),
   required: z.boolean(),
-  unit: z.string().optional(),
-  description: z.string().optional(),
+  unit: z.string().nullish(),
+  description: z.string().nullish(),
   activationStatus: ActivationStatusSchema.optional(),
   source: SourceTypeSchema.optional(),
   reviewStatus: ReviewStatusSchema.optional(),

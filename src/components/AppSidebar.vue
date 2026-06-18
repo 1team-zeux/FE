@@ -16,7 +16,7 @@ const workspaceItems: NavItem[] = [
   { label: 'Overview Home',   to: '/',       icon: 'home'     },
   { label: 'SLA Bundles',     to: '/sla',    icon: 'document' },
   { label: 'MELA Timelines',  to: '/mela',   icon: 'bolt'     },
-  { label: 'Topology Design', to: '/iac/1',  icon: 'layers'   },
+  { label: 'Topology Design', to: '/iac/document-upload',  icon: 'layers'   },
 ]
 
 const shortcuts: Shortcut[] = [
