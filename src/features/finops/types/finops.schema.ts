@@ -235,7 +235,7 @@ export const OptimizationProposalSchema = z.object({
   evidence_summary: z.string().optional(),
   cpu_utilization_trend: z.array(z.number()).optional(),
   metric_series_timestamps: z.array(z.string()).optional(),
-  metric_series_source: z.enum(['prometheus', 'synthetic']).optional(),
+  metric_series_source: z.union([z.enum(['prometheus', 'synthetic']), z.string()]).optional(),
   metric_label: z.string().optional(),
   metric_threshold: z.number().optional(),
   promql: z.string().optional(),
@@ -245,8 +245,12 @@ export const OptimizationProposalSchema = z.object({
   log_samples: z.array(LogSampleSchema).optional(),
   confidence_score: z.number().nullable().optional(),
   utilization_source: z.string().optional(),
-  evidence: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])).optional(),
-  utilization: z.record(z.string(), z.union([z.number(), z.boolean(), z.string()])).optional(),
+  evidence: z
+    .record(z.string(), z.union([z.number(), z.boolean(), z.string(), z.null()]))
+    .optional(),
+  utilization: z
+    .record(z.string(), z.union([z.number(), z.boolean(), z.string(), z.null()]))
+    .optional(),
   event_spike_note: z.string().optional(),
   resource_id: z.string().optional(),
   recommended_action: z.string().optional(),
