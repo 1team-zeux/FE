@@ -71,12 +71,14 @@ router.beforeEach((to, from) => {
     }
   }
 
-  // CUSTOMER 역할은 admin 경로 차단 → guide로
+  // CUSTOMER 역할: admin 경로 + portfolio 페이지 차단 → guide로
   if (token) {
     try {
       const user = JSON.parse(localStorage.getItem('zeux_user') ?? 'null')
-      if (user?.role === 'CUSTOMER' && to.path.startsWith('/admin')) {
-        return { name: 'customer-guide' }
+      if (user?.role === 'CUSTOMER') {
+        if (to.path.startsWith('/admin')) return { name: 'customer-guide' }
+        // 전체 고객사 포트폴리오 뷰는 운영자 전용
+        if (to.name === 'portfolio') return { name: 'customer-guide' }
       }
     } catch { /* ignore */ }
   }

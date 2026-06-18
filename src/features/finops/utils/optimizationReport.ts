@@ -9,6 +9,9 @@ import type {
   TradeoffRow,
 } from '../types/finops.schema'
 import { resolveExecutiveReport } from './executiveReport'
+import { findingToProposalMetrics } from './evidenceMetrics'
+import { findingToTopologyMetrics } from './topologyMetrics'
+import { humanizeFindingReason, proposalHeadlineFromBacklog, proposalHeadlineFromFinding, resourceTypeLabel } from './proposalNarrative'
 
 export const CATEGORY_LABELS: Record<OptimizationCategory, string> = {
   rightsizing: 'RightSizing',
@@ -44,23 +47,39 @@ function usdToKrw(usd: number): number {
 
 function findingToProposal(item: FinOpsFinding, index: number): OptimizationProposal {
   const category = patternToCategory(item.pattern_id, item.recommended_action)
-  const savingsUsd = item.monthly_waste_usd ?? 0
+  // blocked/defer: potential savings 표시, eligible: actual savings
+  const savingsUsd = item.monthly_waste_usd ?? item.monthly_potential_waste_usd ?? 0
   const blocked = item.guard_status === 'blocked' || item.guard_status === 'defer'
   const action = item.recommended_action ?? 'optimize'
+  const metrics = findingToProposalMetrics(item)
+  const topo = findingToTopologyMetrics(item)
 
   return {
     id: `finding-${item.resource_id}-${index}`,
     category,
     service_name: item.resource_id,
-    title: blocked
-      ? `${item.resource_id}: ${item.guard_reason ?? 'SLA guard 검토 필요'}`
-      : `${item.resource_id}: ${action}`,
+    title: proposalHeadlineFromFinding(item),
     monthly_savings_krw: usdToKrw(savingsUsd),
     monthly_savings_usd: savingsUsd || undefined,
     priority_band: blocked ? 'P2' : undefined,
     sla_impact: blocked ? 'review' : 'low',
     sla_impact_detail: item.guard_reason ?? undefined,
-    evidence_summary: item.guard_reason ?? item.data_source,
+    evidence_summary: humanizeFindingReason(item) ?? metrics.evidence_summary ?? item.guard_reason ?? item.data_source,
+    cpu_utilization_trend: metrics.cpu_utilization_trend,
+    metric_series_timestamps: metrics.metric_series_timestamps,
+    metric_series_source: metrics.metric_series_source,
+    metric_label: metrics.metric_label,
+    metric_threshold: metrics.metric_threshold,
+    promql: metrics.promql,
+    grafana_url: metrics.grafana_url,
+    loki_url: metrics.loki_url,
+    logql: metrics.logql,
+    log_samples: metrics.log_samples,
+    confidence_score: metrics.confidence_score,
+    utilization_source: metrics.utilization_source,
+    evidence: metrics.evidence,
+    utilization: metrics.utilization,
+    topology_context: topo.topology_context,
     resource_id: item.resource_id,
     recommended_action: item.recommended_action,
     terraform_handoff: !blocked && ['downsize', 'stop', 'schedule'].includes(action),
@@ -71,12 +90,7 @@ function backlogToProposal(item: BacklogItem, index: number): OptimizationPropos
   const category = patternToCategory(item.pattern_id, item.recommended_action)
   const savingsUsd = item.monthly_waste_usd ?? 0
   const action = item.recommended_action ?? 'optimize'
-  const title =
-    category === 'rightsizing'
-      ? `${item.resource_id}: 인스턴스 다운사이즈 (${action})`
-      : category === 'unused'
-        ? `${item.resource_id}: 미사용 자원 ${action}`
-        : `${item.resource_id}: ${action}`
+  const title = proposalHeadlineFromBacklog(item)
 
   return {
     id: `gen-${item.resource_id}-${index}`,
@@ -89,10 +103,40 @@ function backlogToProposal(item: BacklogItem, index: number): OptimizationPropos
     sla_impact: 'review',
     sla_impact_detail: 'Error Budget 여유 확인 필요',
     evidence_summary: item.reason ?? undefined,
+    confidence_score: item.confidence_score,
     resource_id: item.resource_id,
     recommended_action: item.recommended_action,
     terraform_handoff: ['downsize', 'stop', 'schedule'].includes(action),
     iac_change_label: action === 'downsize' ? '인스턴스 타입 변경' : undefined,
+  }
+}
+
+function enrichProposalFromFinding(
+  proposal: OptimizationProposal,
+  findings: FinOpsFinding[],
+): OptimizationProposal {
+  const match = findings.find((f) => f.resource_id === proposal.resource_id)
+  if (!match) return proposal
+  const metrics = findingToProposalMetrics(match)
+  const topo = findingToTopologyMetrics(match)
+  return {
+    ...proposal,
+    evidence_summary: metrics.evidence_summary ?? proposal.evidence_summary,
+    cpu_utilization_trend: metrics.cpu_utilization_trend ?? proposal.cpu_utilization_trend,
+    metric_series_timestamps: metrics.metric_series_timestamps,
+    metric_series_source: metrics.metric_series_source,
+    metric_label: metrics.metric_label,
+    metric_threshold: metrics.metric_threshold,
+    promql: metrics.promql,
+    grafana_url: metrics.grafana_url,
+    loki_url: metrics.loki_url,
+    logql: metrics.logql,
+    log_samples: metrics.log_samples,
+    confidence_score: metrics.confidence_score ?? proposal.confidence_score,
+    utilization_source: metrics.utilization_source,
+    evidence: metrics.evidence,
+    utilization: metrics.utilization,
+    topology_context: topo.topology_context ?? proposal.topology_context,
   }
 }
 
@@ -124,9 +168,12 @@ export function resolveOptimizationReport(run: FinOpsRun): OptimizationReport {
   }
 
   let proposals = (exec.prioritized_backlog ?? []).map(backlogToProposal)
+  const findings = run.findings_snapshot?.findings ?? []
+  if (proposals.length) {
+    proposals = proposals.map((p) => enrichProposalFromFinding(p, findings))
+  }
   if (!proposals.length) {
     const blocked = exec.blocked_defer ?? []
-    const findings = run.findings_snapshot?.findings ?? []
     const source = blocked.length ? blocked : findings
     proposals = source.map(findingToProposal)
   }

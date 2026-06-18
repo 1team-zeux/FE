@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/vue-query'
 import type { MaybeRef } from 'vue'
 import { computed, unref } from 'vue'
 import { api } from '@/services/api'
-import { FinOpsRunsResponseSchema } from '../types/finops.schema'
+import { parseFinOpsRunsResponse } from '../utils/parseFinOpsRun'
 
 export interface FinOpsRunsFilters {
   tenantId?: string
@@ -23,7 +23,7 @@ export const useFinOpsRunsQuery = (filters?: MaybeRef<FinOpsRunsFilters | undefi
           limit: f.value?.limit ?? 50,
         },
       })
-      return FinOpsRunsResponseSchema.parse(data).runs
+      return parseFinOpsRunsResponse(data)
     },
     refetchInterval: 60_000,
   })

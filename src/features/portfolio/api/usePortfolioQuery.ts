@@ -35,7 +35,7 @@ export const usePortfolioQuery = () => {
           drillable: (card.service_count ?? 0) > 0,
           note:
             card.sla_status === 'Critical'
-              ? 'SLA Violation detected'
+              ? 'SLA Warning — 복구 진행 중'
               : card.sla_status === 'Warning'
                 ? 'SLA Warning'
                 : 'All services meet SLA',

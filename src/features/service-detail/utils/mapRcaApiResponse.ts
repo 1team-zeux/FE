@@ -76,6 +76,38 @@ function extractHints(result: RcaApiResult): RcaHint[] {
   ];
 }
 
+function buildSummary(result: RcaApiResult | undefined, sorted: RcaHint[], svcId: string): string {
+  if (!result) return '';
+
+  const topCause = sorted[0];
+  const causeLabel = topCause ? (CAUSE_LABELS[topCause.cause_type ?? ''] ?? topCause.cause_type ?? '알 수 없는 원인') : '알 수 없는 원인';
+  const confidence = topCause ? hintProbability(topCause) : 0;
+
+  const lines: string[] = [];
+
+  // 1. 상황 요약
+  if (result.root_cause_summary) {
+    lines.push(result.root_cause_summary);
+  } else {
+    lines.push(`${svcId} 서비스에서 이상 징후가 감지되었습니다. AI 분석 결과 주요 원인은 **${causeLabel}** (신뢰도 ${confidence}%)으로 판단됩니다.`);
+  }
+
+  // 2. 핵심 근거
+  const evidenceLines = topCause ? hintEvidenceLines(topCause) : [];
+  if (evidenceLines.length && evidenceLines[0] !== '근거 데이터 없음') {
+    lines.push(`\n근거: ${evidenceLines.slice(0, 2).join(' / ')}`);
+  }
+
+  // 3. 권고 조치
+  if (result.recommendation) {
+    lines.push(`\n권고 조치: ${result.recommendation}`);
+  } else if (topCause?.rationale && topCause.rationale !== result.root_cause_summary) {
+    lines.push(`\n권고 조치: ${topCause.rationale}`);
+  }
+
+  return lines.join('');
+}
+
 export function mapRcaApiToIncident(payload: RcaApiPayload, svcId: string): Incident {
   const result = payload.results?.[0];
   const hints = result ? extractHints(result) : [];
@@ -99,5 +131,6 @@ export function mapRcaApiToIncident(payload: RcaApiPayload, svcId: string): Inci
     timeline: [
       { ts: '—', event: 'RCA zeux persist 결과 로드', type: 'rca' as const },
     ],
+    summary: buildSummary(result, sorted, svcId),
   };
 }

@@ -1,11 +1,14 @@
 # API Routing Reference
 
-## FinOps MSW ↔ 실백엔드 전환 (로컬 FE)
+## 로컬 FE 실백엔드 연결
 
-| 모드 | 명령 |
+| 항목 | 값 |
 |------|------|
-| **MSW mock** (기본) | `npm run dev` |
-| **실백엔드** (`:8090`) | `VITE_MSW=false npm run dev` 또는 `FE/.env.development.local`에 `VITE_MSW=false` |
+| auth-server | `http://localhost:8081` |
+| sla-agent-service | `http://localhost:8090` |
+| monitoring-api | `http://localhost:8091` |
+
+`.env.development.local.example`를 복사해 `.env.development.local`로 두고 `npm run dev`를 실행하면 됩니다.
 
 ---
 
@@ -13,26 +16,29 @@
 
 | 에러 경로 | 원인 서비스 | 포트 | 해결 |
 |---|---|---|---|
-| `/api/v1/*` | sla-agent-service | 8090 | `docker compose up -d` |
-| `/auth/*` | auth-server | 8081 | `docker compose up -d` |
-| `/monitoring/*` | monitoring-api | 8091 | `docker compose -f monitoring-service/docker-compose.yml up -d` |
-| `/terraform/*` 등 | api-gateway | 8080 | `docker compose up -d` |
-| `/api/finops/*` | sla-agent-service | 8090 | `docker compose up -d` + MariaDB |
-| `/api/rca/*` | sla-agent-service | 8090 | zeux-db 기동 |
+| `/api/v1/*` | sla-agent-service | 8090 | `docker compose -f server/docker-compose.local.yml up -d --build` |
+| `/auth/*` | auth-server | 8081 | `docker compose -f server/docker-compose.local.yml up -d --build` |
+| `/monitoring/*` | monitoring-api | 8091 | `docker compose -f server/docker-compose.local.yml up -d --build` |
+| `/terraform/*`, `/api/terraform/*` | sla-agent-service legacy compatibility | 8090 | `docker compose -f server/docker-compose.local.yml up -d --build` |
+| `/topologies/*`, `/api/topologies/*` | sla-agent-service legacy compatibility | 8090 | `docker compose -f server/docker-compose.local.yml up -d --build` |
+| `/upload-sessions`, `/sla-bundles*` | sla-agent-service | 8090 | `docker compose -f server/docker-compose.local.yml up -d --build` |
+| `/api/finops/*` | sla-agent-service | 8090 | `docker compose -f server/docker-compose.local.yml up -d --build` + DB |
+| `/api/rca/*` | sla-agent-service | 8090 | `docker compose -f server/docker-compose.local.yml up -d --build` + zeux-db |
 
 ---
 
 ## 서비스 기동 순서
 
 ```bash
-# 1. 모니터링 스택 — zeux-net 네트워크 + monitoring-api 포함
-docker compose -f monitoring-service/docker-compose.yml up -d
+# app + db만 기동하고 기존 monitoring-service 스택 재사용
+docker compose -f server/docker-compose.local.yml up -d --build
 
-# 2. DB
-docker compose -f docker-compose.db.yaml up -d
+# observability까지 이 파일로 같이 올릴 때만
+docker compose -f server/docker-compose.local.yml --profile observability up -d --build
 
-# 3. 앱 스택 (eureka → auth → gateway → sla-agent)
-docker compose up -d
+# FE dev server
+cd FE
+npm run dev
 ```
 
 ---
@@ -45,10 +51,12 @@ docker compose up -d
 | `/api/v1` | 8090 | sla-agent-service (FastAPI) |
 | `/tenants` | 8090 | sla-agent-service (FastAPI) |
 | `/monitoring` | 8091 | monitoring-api (FastAPI, prefix strip) |
-| `/terraform` | 8080 | api-gateway → iac-service |
-| `/sla-bundles` | 8080 | api-gateway → sla-agent (IaC) |
-| `/topologies` | 8080 | api-gateway → sla-agent (IaC) |
-| `/upload-sessions` | 8080 | api-gateway → sla-agent (IaC) |
+| `/terraform` | 8090 | sla-agent-service local compatibility |
+| `/api/terraform` | 8090 | sla-agent-service local compatibility |
+| `/sla-bundles` | 8090 | sla-agent-service |
+| `/topologies` | 8090 | sla-agent-service local compatibility |
+| `/api/topologies` | 8090 | sla-agent-service local compatibility |
+| `/upload-sessions` | 8090 | sla-agent-service |
 | `/api/finops` | 8090 | sla-agent-service (FinOps Agent) |
 | `/api/rca` | 8090 | sla-agent-service (RCA read API) |
 
@@ -67,6 +75,10 @@ POST /api/v1/onboard
 GET  /api/v1/customers
 GET  /api/v1/customers/{code}/setup
 GET  /tenants
+POST /upload-sessions
+GET  /sla-bundles/draft/{session_id}
+PATCH /sla-bundles/draft/{bundle_id}/fields
+POST /sla-bundles
 GET  /api/rca/services/{service_id}/results
 GET  /api/rca/incidents/{incident_id}/results
 ```
@@ -80,6 +92,12 @@ GET  /api/finops/run/stream          (SSE)
 POST /api/finops/run
 POST /api/finops/runs/{run_id}/approve
 POST /api/finops/runs/{run_id}/reject
+```
+
+### sla-agent-service — RCA (`:8090`)
+```
+GET  /api/rca/services/{service_id}/results
+GET  /api/rca/incidents/{incident_id}/results
 ```
 
 ### auth-server (`:8081`)
@@ -98,13 +116,14 @@ GET /monitoring/api/v1/services/{name}/logs?tenant_id=
 GET /monitoring/api/v1/events
 ```
 
-### api-gateway (`:8080`) — IaC 관련만
+### sla-agent-service (`:8090`) — Terraform / Topology local compatibility
 ```
-GET  /terraform/**
-POST /terraform/**
-GET  /sla-bundles/**
-POST /topologies/**
-POST /upload-sessions/**
+GET  /topologies/{bundle_id}
+POST /topologies/{topology_id}/approve
+POST /terraform/generate
+POST /terraform/plan
+GET  /api/terraform/apply/stream
+GET  /terraform/verify/{plan_id}
 ```
 
 ---
@@ -113,23 +132,21 @@ POST /upload-sessions/**
 
 | Container | Host Port | 역할 |
 |---|---|---|
-| eureka-server | 8761 | Spring 서비스 레지스트리 |
 | auth-server | 8081 | JWT 인증 |
-| api-gateway | 8080 | Spring Cloud Gateway |
-| sla-agent-service | 8090 | 온보딩/대시보드 FastAPI |
+| sla-agent-service | 8090 | 온보딩/대시보드/FE legacy compatibility |
 | monitoring-api | 8091 | Prometheus/Tempo/Loki 쿼리 FastAPI |
 | prometheus | 9090 | 메트릭 저장 |
 | grafana | 3001 | 대시보드 UI |
 | loki | 3100 | 로그 저장 |
 | tempo | 3200 | 트레이스 저장 |
 | mariadb | 3306 | auth/aiops DB |
-| zeux-db (MySQL) | 3307 | sla-agent DB |
+| zeux-db (MySQL) | 3306 | sla-agent DB |
 
 ---
 
-## Production (Docker) — FE nginx 라우팅
+## Docker FE nginx 라우팅
 
-FE 컨테이너 nginx가 직접 백엔드로 프록시 (api-gateway 미경유):
+FE 컨테이너 nginx가 직접 백엔드로 프록시:
 
 ```
 /auth/        → auth-server:8081/auth/
@@ -138,8 +155,10 @@ FE 컨테이너 nginx가 직접 백엔드로 프록시 (api-gateway 미경유):
 /api/finops/  → sla-agent-service:8090/api/finops/   (SSE: run/stream)
 /api/rca/     → sla-agent-service:8090/api/rca/
 /monitoring/  → monitoring-api:8091/         (prefix strip)
-/terraform/   → api-gateway:8080/terraform/          (IaC — 개발 중)
-/sla-bundles/ → api-gateway:8080/sla-bundles/        (IaC — 개발 중)
-/topologies/  → api-gateway:8080/topologies/         (IaC — 개발 중)
-/upload-sessions/ → api-gateway:8080/upload-sessions/ (IaC — 개발 중)
+/terraform/   → sla-agent-service:8090/terraform/
+/api/terraform/ → sla-agent-service:8090/api/terraform/
+/sla-bundles  → sla-agent-service:8090/sla-bundles
+/topologies/  → sla-agent-service:8090/topologies/
+/api/topologies/ → sla-agent-service:8090/api/topologies/
+/upload-sessions → sla-agent-service:8090/upload-sessions
 ```

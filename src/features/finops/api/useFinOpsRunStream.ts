@@ -46,9 +46,9 @@ export function useFinOpsRunStream() {
     isStreaming.value = true
 
     const params = new URLSearchParams({
-      tenant_id: opts.tenantId ?? 'demo-tenant',
-      team_id: opts.teamId ?? 'demo-team',
-      service_id: opts.serviceId ?? 'api-gateway',
+      tenant_id: opts.tenantId ?? 'skala-commerce',
+      team_id: opts.teamId ?? 'platform-team',
+      service_id: opts.serviceId ?? 'payment-api',
       force: String(opts.force ?? false),
       persist: import.meta.env.VITE_FINOPS_STREAM_PERSIST ?? 'true',
     })

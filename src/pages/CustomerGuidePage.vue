@@ -1,10 +1,27 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useCustomerSetupQuery } from '@/features/customer/api/useCustomerSetupQuery'
+import { useInfraQuery } from '@/features/customer/api/useInfraQuery'
 import { useAuthStore } from '@/features/auth/store/useAuthStore'
 
 const auth = useAuthStore()
-const { data: setup, isLoading, error } = useCustomerSetupQuery()
+const router = useRouter()
+const { data: setup, isPending, isError } = useCustomerSetupQuery()
+
+const customerCode = computed(() => auth.user?.customerCode ?? '')
+const { data: infra } = useInfraQuery(customerCode)
+
+// 에이전트 활성화 감지 → 고객사 대시보드로 자동 이동
+watch(
+  () => infra.value?.agent_active,
+  (active) => {
+    if (active && customerCode.value) {
+      router.push(`/dashboard/bu/${customerCode.value}`)
+    }
+  },
+  { immediate: true },
+)
 
 const copied = ref<string | null>(null)
 function copyText(text: string, key: string) {
@@ -53,14 +70,14 @@ const allDone = computed(() => checked.value.step1 && checked.value.step2 && che
     </div>
 
     <!-- 로딩 -->
-    <div v-if="isLoading" class="flex items-center justify-center py-20">
+    <div v-if="isPending" class="flex items-center justify-center py-20">
       <svg class="animate-spin w-6 h-6 text-[#2980B9]" fill="none" viewBox="0 0 24 24">
         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
       </svg>
     </div>
 
-    <div v-else-if="error" class="bg-red-50 border border-red-100 rounded-xl p-4 text-sm text-red-600">
+    <div v-else-if="isError" class="bg-red-50 border border-red-100 rounded-xl p-4 text-sm text-red-600">
       설치 정보를 불러오지 못했습니다. 관리자에게 문의하세요.
     </div>
 
@@ -107,6 +124,68 @@ const allDone = computed(() => checked.value.step1 && checked.value.step2 && che
               <li>• Docker 컨테이너 메트릭 (cAdvisor)</li>
             </ul>
             <p class="text-blue-500 mt-1">설치 후 <code class="bg-blue-100 px-1 rounded">/tmp/aiops-monitoring/</code> 에 파일 생성됨</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 에이전트 상태 (Step 1 완료 후 자동 감지) -->
+      <div class="bg-white border border-border rounded-xl overflow-hidden">
+        <div class="flex items-center gap-3 px-4 py-3 border-b border-border bg-gray-50/50">
+          <span class="text-sm font-semibold text-text-primary">모니터링 에이전트 상태</span>
+          <span
+            v-if="infra?.agent_active"
+            class="ml-auto px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700"
+          >활성</span>
+          <span
+            v-else
+            class="ml-auto flex items-center gap-1.5 text-[10px] font-medium text-yellow-700"
+          >
+            <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            설치 감지 중...
+          </span>
+        </div>
+        <div class="p-4">
+          <!-- 대기 상태 -->
+          <p v-if="!infra?.agent_active" class="text-xs text-text-secondary">
+            Step 1의 명령어를 고객사 서버에서 실행하면 자동으로 감지됩니다.
+          </p>
+          <!-- 활성 상태: 발견된 호스트 + 컨테이너 -->
+          <div v-else class="space-y-3">
+            <div
+              v-for="host in infra.hosts"
+              :key="host.host_id"
+              class="space-y-2"
+            >
+              <div class="flex items-center gap-2 text-xs text-text-secondary">
+                <svg class="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                <span class="font-semibold text-text-primary">{{ host.hostname }}</span>
+                <span class="text-text-muted">{{ host.os }} / {{ host.arch }}</span>
+              </div>
+              <div v-if="host.containers.length" class="overflow-x-auto">
+                <table class="w-full text-[11px]">
+                  <thead>
+                    <tr class="text-left text-text-muted border-b border-border">
+                      <th class="pb-1 pr-3 font-medium">컨테이너</th>
+                      <th class="pb-1 pr-3 font-medium">이미지</th>
+                      <th class="pb-1 font-medium">포트</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="c in host.containers" :key="c.name" class="border-b border-gray-50 last:border-0">
+                      <td class="py-1 pr-3 font-mono text-text-primary">{{ c.name }}</td>
+                      <td class="py-1 pr-3 text-text-secondary truncate max-w-[160px]">{{ c.image }}</td>
+                      <td class="py-1 text-text-muted">{{ c.ports || '—' }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p v-else class="text-xs text-text-muted">실행 중인 컨테이너 없음</p>
+            </div>
           </div>
         </div>
       </div>

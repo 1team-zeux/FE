@@ -3,7 +3,6 @@ name: FE CI
 on:
   push:
     branches: [main, master]
-  workflow_dispatch:
 
 env:
   HARBOR_REGISTRY: amdp-registry.skala-ai.com

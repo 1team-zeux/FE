@@ -1,30 +1,54 @@
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { useChatbot } from '@/composables/useChatbot'
+import { useAlarmsQuery } from '@/composables/useAlarmsQuery'
 import NimbusAvatar, { type NimbusVariant } from '@/components/NimbusAvatar.vue'
+import { queryOpsAssistant } from '@/features/assistant/api/opsAssistantApi'
 
 defineProps<{
   mode?: 'floating' | 'panel'
 }>()
 
+const router = useRouter()
 const { isOpen, badgeCount, toggle, clearTriggers } = useChatbot()
 
 type Tab = 'chat' | 'notification'
 const activeTab = ref<Tab>('chat')
 
-const notifications = ref([
-  { id: 1, title: 'CPU 사용률 임계값 초과', body: 'prod-web-01 서버의 CPU가 95%에 도달했습니다.', time: '2분 전', read: false },
-  { id: 2, title: 'RDS 자동 장애 조치 완료', body: 'ap-northeast-2 리전의 Standby로 전환이 완료되었습니다.', time: '15분 전', read: false },
-  { id: 3, title: 'IaC 배포 완료', body: 'terraform apply가 성공적으로 완료되었습니다.', time: '1시간 전', read: true },
-  { id: 4, title: 'SLA 위반 감지', body: '결제 서비스의 응답 시간이 SLA 기준을 초과했습니다.', time: '3시간 전', read: true },
-])
+// 데모 테넌트 SKT — 실시간 알람 조회
+const { data: liveAlarms } = useAlarmsQuery('SKT')
+
+// 읽음 상태 로컬 추적 (API에 read 엔드포인트 없으므로)
+const readIds = ref<Set<string>>(new Set())
+
+const notifications = computed(() =>
+  (liveAlarms.value ?? []).map(a => ({
+    id: a.id,
+    title: a.title,
+    body: a.body,
+    time: a.time_ago,
+    severity: a.severity,
+    read: readIds.value.has(a.id),
+    nav_service: a.nav_service,
+    nav_tab: a.nav_tab,
+  }))
+)
 
 const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
-
 const fabBadgeCount = computed(() => badgeCount.value + unreadCount.value)
 
 function markAllRead() {
-  notifications.value.forEach(n => { n.read = true })
+  notifications.value.forEach(n => readIds.value.add(n.id))
+}
+
+function onNotifClick(notif: { id: string; nav_service: string; nav_tab: string }) {
+  readIds.value.add(notif.id)
+  router.push({
+    path: `/dashboard/service/${encodeURIComponent(notif.nav_service)}`,
+    query: { tenantId: 'SKT', tab: notif.nav_tab },
+  })
+  toggle() // 모달 닫기
 }
 
 interface Message {
@@ -33,15 +57,31 @@ interface Message {
 }
 
 const messages = ref<Message[]>([
-  { role: 'assistant', content: '안녕하세요! IaC 온보딩을 도와드리겠습니다. 궁금한 점을 물어보세요.' },
+  {
+    role: 'assistant',
+    content:
+      '안녕하세요! ZeuX 운영 지식 어시스턴트 Nimbus입니다.\nRCA·FinOps·guard_status 등에 대해 물어보세요.',
+  },
 ])
 const inputText = ref('')
 const scrollEl = ref<HTMLElement | null>(null)
 const textareaEl = ref<HTMLTextAreaElement | null>(null)
 const isWaiting = ref(false)
 const pendingText = ref('')
+const showClap = ref(false)
+let clapTimer: ReturnType<typeof setTimeout> | null = null
+
+function triggerClap() {
+  showClap.value = true
+  if (clapTimer) clearTimeout(clapTimer)
+  clapTimer = setTimeout(() => {
+    showClap.value = false
+    clapTimer = null
+  }, 2800)
+}
 
 const nimbusVariant = computed<NimbusVariant>(() => {
+  if (showClap.value) return 'clap'
   if (isWaiting.value) return 'question'
   if (unreadCount.value > 0) return 'notify'
   if (badgeCount.value > 0) return 'question'
@@ -56,20 +96,35 @@ async function scrollToBottom() {
 async function sendMessage(e?: KeyboardEvent) {
   if (e?.isComposing) return
   const text = inputText.value.trim()
-  if (!text) return
+  if (!text || isWaiting.value) return
   messages.value.push({ role: 'user', content: text })
   inputText.value = ''
   if (textareaEl.value) textareaEl.value.style.height = 'auto'
   isWaiting.value = true
+  pendingText.value = ''
   await scrollToBottom()
-  setTimeout(async () => {
-    pendingText.value = '확인했습니다. 해당 필드를 검토해 드리겠습니다.'
-    await scrollToBottom()
-    await nextTick()
-    messages.value.push({ role: 'assistant', content: pendingText.value })
-    pendingText.value = ''
+  try {
+    const result = await queryOpsAssistant(text)
+    const answer =
+      result.answer?.trim() ||
+      '답변을 생성하지 못했습니다. sla-agent-service와 Chroma 인덱스를 확인해 주세요.'
+    messages.value.push({ role: 'assistant', content: answer })
+    triggerClap()
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '알 수 없는 오류'
+    messages.value.push({
+      role: 'assistant',
+      content:
+        `지금은 운영 지식 API에 연결할 수 없습니다.\n\n` +
+        `${msg}\n\n` +
+        `• sla-agent-service (:8090) 실행 여부\n` +
+        `• docs/platform/rag ingest 및 ZEUX_CHROMA_PERSIST_DIR 확인`,
+    })
+  } finally {
     isWaiting.value = false
-  }, 600)
+    pendingText.value = ''
+    await scrollToBottom()
+  }
 }
 
 // ── 드래그 이동 ──────────────────────────────
@@ -281,17 +336,35 @@ function stopResize() {
             <div
               v-for="notif in notifications"
               :key="notif.id"
-              class="rounded-lg border p-3 transition-colors cursor-pointer"
-              :class="notif.read ? 'border-border bg-white' : 'border-brand/30 bg-brand/5'"
-              @click="notif.read = true"
+              class="rounded-lg border p-3 transition-all cursor-pointer hover:shadow-sm"
+              :class="notif.read
+                ? 'border-border bg-white'
+                : notif.severity === 'critical'
+                  ? 'border-status-critical/40 bg-red-50'
+                  : 'border-status-warning/40 bg-amber-50'"
+              @click="onNotifClick(notif)"
             >
               <div class="flex items-start gap-2">
-                <span v-if="!notif.read" class="mt-1 w-1.5 h-1.5 rounded-full bg-brand shrink-0" />
-                <span v-else class="mt-1 w-1.5 h-1.5 rounded-full bg-transparent shrink-0" />
+                <span
+                  class="mt-1 w-1.5 h-1.5 rounded-full shrink-0"
+                  :class="notif.read
+                    ? 'bg-transparent'
+                    : notif.severity === 'critical' ? 'bg-status-critical animate-pulse' : 'bg-status-warning animate-pulse'"
+                />
                 <div class="flex-1 min-w-0">
-                  <p class="text-xs font-medium text-text-primary leading-tight">{{ notif.title }}</p>
-                  <p class="text-[11px] text-text-secondary leading-relaxed mt-0.5">{{ notif.body }}</p>
-                  <p class="text-[10px] text-text-muted mt-1">{{ notif.time }}</p>
+                  <div class="flex items-center gap-1.5 mb-0.5">
+                    <p class="text-xs font-bold text-text-primary leading-tight">{{ notif.title }}</p>
+                    <span
+                      v-if="!notif.read"
+                      class="text-[9px] font-bold px-1 py-0.5 rounded"
+                      :class="notif.severity === 'critical' ? 'bg-status-critical/10 text-status-critical' : 'bg-status-warning/10 text-status-warning'"
+                    >{{ notif.severity === 'critical' ? 'CRIT' : 'WARN' }}</span>
+                  </div>
+                  <p class="text-[11px] text-text-secondary leading-relaxed">{{ notif.body }}</p>
+                  <div class="flex items-center justify-between mt-1">
+                    <p class="text-[10px] text-text-muted">{{ notif.time }}</p>
+                    <span class="text-[10px] text-brand font-bold">상세 보기 →</span>
+                  </div>
                 </div>
               </div>
             </div>

@@ -4,12 +4,28 @@ export interface NavItem {
   match: string
   icon: string
   hasChevron?: boolean
+  adminOnly?: boolean
 }
 
 export interface BottomNavItem {
   label: string
   to: string
   icon: string
+}
+
+/** Pick the most specific nav prefix for the current path (avoids /dashboard matching /dashboard/finops). */
+export function resolveNavMatch(path: string, candidates: string[]): string | null {
+  const normalized = path.replace(/\/$/, '') || '/'
+  const matching = candidates.filter((prefix) => {
+    if (normalized === prefix) return true
+    return normalized.startsWith(`${prefix}/`)
+  })
+  if (!matching.length) return null
+  return matching.reduce((best, current) => (current.length > best.length ? current : best))
+}
+
+export function isNavMatchActive(path: string, match: string, candidates: string[]): boolean {
+  return resolveNavMatch(path, candidates) === match
 }
 
 export const topTabs: NavItem[] = [
@@ -35,6 +51,10 @@ export const mainNav: NavItem[] = [
   {
     label: '비용 절감', match: '/dashboard/finops', to: '/dashboard/finops', hasChevron: false,
     icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>`,
+  },
+  {
+    label: '고객사 관리', match: '/admin/customers', to: '/admin/customers', hasChevron: false, adminOnly: true,
+    icon: `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>`,
   },
 ]
 

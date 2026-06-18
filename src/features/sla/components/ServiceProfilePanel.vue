@@ -2,162 +2,106 @@
 import { computed, ref } from 'vue'
 import type { ContractData } from '../api/useContractQuery'
 import type { Service } from '../types/sla.schema'
+import type { ServiceMap } from '../api/useServiceMapQuery'
 import SchemaModal from '@/components/shared/SchemaModal.vue'
+import TopologyModal from '@/components/shared/TopologyModal.vue'
 
 const props = defineProps<{
   contract: ContractData | undefined
   isLoading: boolean
   services?: Service[]
+  map?: ServiceMap
 }>()
 
 // ── Modal ─────────────────────────────────────────────────────────────
 const activeModal = ref<string | null>(null)
+const topologyOpen = ref(false)
+const contractOpen = ref(false)
 
 const MODAL_CONTENT: Record<string, { title: string; content: string }> = {
   contract: {
-    title: 'SLA Contract — 데이터 구조',
-    content: `## 관련 테이블
+    title: 'SKT T-Universe SLA 운영 현황 보고서',
+    content: `## 목표 SLA
 
-### \`customers\`
-고객사(테넌트) 최상위 엔티티. \`customer_code\`로 멀티테넌트 격리.
+| 항목 | 목표값 |
+|------|-------|
+| Availability | ≥ 99.95% |
+| API Latency (p95) | ≤ 300ms |
+| MTTR | ≤ 15분 |
+| Error Budget (월) | 21.6분 |
 
-- \`id\` BIGINT PK
-- \`customer_name\` VARCHAR(255)
-- \`customer_code\` VARCHAR(100) UNIQUE — JWT 클레임에 포함
-- \`contact_email\` VARCHAR(255)
+## Executive Summary
 
-### \`business_units\`
-고객사 내 비즈니스 경계 단위. 구독 티어와 계약 기간 관리.
+| 항목 | 내용 |
+|------|------|
+| 기간 | 2026.06.01 ~ 2026.06.30 |
+| 고객사 | SK Telecom — T universe 사업부 |
+| 서비스 수 | 4개 (Tier 1: 3개, Tier 2: 1개) |
+| SLA 준수율 | 99.2% (목표: 99.9%) |
+| SLA 위반 건수 | 1건 |
+| 주요 장애 | AI Chatbot API Latency Incident |
 
-- \`customer_id\` FK → customers
-- \`bu_name\`, \`bu_code\`, \`application_name\`
-- \`subscription_tier\` — Standard / Professional / Enterprise
-- \`contract_start_date\`, \`contract_end_date\` DATE
+## 서비스별 SLA 현황
 
----
-
-## 위반 서비스 계산 방법
-\`sla_policies\` → \`error_budgets\` → \`budget_remaining_percent\` 가 0 이하이면 위반 처리.
-
-## Service Credit 산정
-위반 건당 계약서 상 credit 조항에 따라 산정. 현재는 **위반 서비스 수 × $120** 추산값.`,
+| 서비스 | SLA 목표 | 실제 SLA | Error Budget 잔여 | 상태 |
+|--------|----------|----------|-----------------|------|
+| Customer Portal Web | 99.9% | 99.97% | 76% | ✓ 준수 |
+| Subscription API | 99.95% | 99.94% | 32% | ⚠ 경계 |
+| AI Chatbot Service | 99.9% | 99.12% | 12% | ✗ 위반 |
+| Billing Settlement | 99.99% | 100.00% | 100% | ✓ 준수 |`,
   },
 
   errorBudget: {
-    title: 'Error Budget — 데이터 구조',
-    content: `## 관련 테이블
+    title: 'Error Budget 소진 이력',
+    content: `## 소진 이벤트 (2026년 6월)
 
-### \`sla_policies\`
-서비스별 SLO 목표치 정의.
+| 발생 시각 | 서비스 | 이벤트 | 소진량 | 잔여 |
+|---------|--------|-------|------|------|
+| 06-17 13:12 | AI Chatbot Service | LLM Backend 타임아웃 P1 | -24.3분 | 12% |
+| 06-15 02:48 | Subscription API | DB 커넥션 풀 고갈 | -3.1분 | 36% |
+| 06-12 11:33 | Customer Portal | CDN 원본 응답 지연 | -1.2분 | 68% |
+| 06-08 09:15 | Billing Settlement | 배치 완료 기한 초과 | -0.8분 | 76% |
 
-- \`service_catalog_id\` FK → service_catalogs
-- \`metric_type\` — availability / latency_p95 / error_rate
-- \`target_value\` DECIMAL — e.g. 99.9 (%), 300 (ms)
-- \`measurement_window\` — 5m / 1h / 30d
+## 서비스별 예산 현황
 
-### \`error_budgets\`
-SLA Burn-Down Chart. 실시간 잔여 예산 추적.
-
-- \`service_catalog_id\` FK
-- \`sla_policy_id\` FK
-- \`budget_remaining_percent\` DECIMAL — **이 값이 우측 바 차트**
-- \`consumed_minutes\` INT
-- \`total_budget_minutes\` INT
-
-### \`burn_rate_status\`
-Early Warning System. 단기/장기 Burn Rate 계산.
-
-- \`short_window_rate\` DECIMAL — 1시간 소각률
-- \`long_window_rate\` DECIMAL — 6시간 소각률
-- \`alert_stage\` INT — 0=정상, 1=경고, 2=위험
-- \`is_fast_burn\` BOOLEAN
-
-### \`sli_records\`
-5분 단위 실제 지표 버킷.
-
-- \`measured_value\` DECIMAL — 실측 가용성 / 레이턴시
-- \`is_slo_met\` BOOLEAN`,
+| 서비스 | 총 예산 (월) | 소진량 | 잔여 | 상태 |
+|--------|------------|------|------|------|
+| Customer Portal Web | 43.8분 | 10.5분 | 76% | 안정 |
+| Subscription API | 21.9분 | 14.9분 | 32% | 경계 |
+| AI Chatbot Service | 43.8분 | 38.5분 | 12% | 위험 |
+| Billing Settlement | 4.4분 | 0분 | 100% | 안정 |`,
   },
 
   topology: {
-    title: 'Topology Decision — 데이터 구조',
-    content: `## 관련 테이블
+    title: 'SKT T-Universe 인프라 아키텍처 제안서',
+    content: `## 서비스 특성 분석
 
-### \`business_unit_requirements\`
-AI Topology Agent의 인프라 요구사항 입력값.
+| 서비스 | 워크로드 | 피크 RPS | 확장성 요구 |
+|--------|---------|---------|-----------|
+| Customer Portal Web | web | 2,400 | 중간 (버스트 대비) |
+| Subscription API | api | 850 | 높음 (결제 피크) |
+| AI Chatbot Service | ai | 320 | 매우 높음 (LLM GPU) |
+| Billing Settlement | batch | — | 스케줄 기반 |
 
-- \`business_unit_id\` FK
-- \`csp\` — AWS / GCP / Azure
-- \`primary_region\` VARCHAR
-- \`multi_az_required\` BOOLEAN
-- \`db_required\`, \`backup_required\` BOOLEAN
-- \`data_type\` — Relational / NoSQL / Cache
+## ZeuX 추천 토폴로지 — Multi-AZ HA Architecture
 
-### \`cost_constraints\`
-비용 제약 및 스케일링 정책.
+| 구성 요소 | 선택 옵션 | 근거 |
+|---------|---------|------|
+| CSP / Region | AWS ap-northeast-2 | SKT 데이터 주권, 기존 계약 |
+| Compute | EKS Auto Scaling (HPA) | 컨테이너 기반, 트래픽 자동 대응 |
+| Database | Aurora MySQL Multi-AZ | 99.99% 가용성, 자동 Failover |
+| Cache | ElastiCache Redis | 세션·캐시, Sub-ms 응답 |
+| LLM Gateway | GPU 노드 그룹 (g4dn.2xlarge) | AI Chatbot 전용 격리 |
+| CDN | CloudFront | Portal 정적 자산 전 세계 배포 |
 
-- \`monthly_budget\` DECIMAL
-- \`cost_priority\` — Performance First / Balanced / Cost First
-- \`auto_scaling_required\` BOOLEAN
-- \`max_compute_instance_count\`, \`max_storage_size_gb\` INT
+## SLA 만족 근거
 
-### \`topologies\`
-AI가 생성한 인프라 토폴로지 결정.
-
-- \`business_unit_id\` FK
-- \`status\` — draft / approved / deployed / rolled_back
-
-### \`topology_decisions\`
-토폴로지 내 개별 아키텍처 결정.
-
-- \`component_type\` — compute / database / networking
-- \`selected_option\` — ECS / Aurora / Multi-AZ 등
-- \`rationale\` TEXT — AI 추론 근거
-
-### \`terraform_artifacts\`
-IaC 컴파일 결과.
-
-- \`hcl_content\` LONGTEXT
-- \`tfsec_result\` JSON — 보안 스캔 결과
-- \`deployment_status\` — pending / applying / applied`,
+- **Multi-AZ 구성**: AZ 장애 시 RDS 자동 Failover (60초) → MTTR ≤ 15분 달성
+- **HPA 자동 확장**: Subscription API 피크 시 Pod 즉시 증설 → Latency SLA 보호
+- **Circuit Breaker**: LLM 타임아웃 시 즉시 차단 → Chatbot 가용성 신속 복구
+- **Error Budget 보호**: Slow Burn 감지 시 6시간 내 자동 조치 → 월 21.6분 이내 소진`,
   },
 
-  dependency: {
-    title: 'Dependency Risk — 데이터 구조',
-    content: `## 관련 테이블
-
-### \`service_catalogs\`
-Core Hub. BU 내 개별 마이크로서비스/모놀리스.
-
-- \`criticality_score\` INT(1-10) — 높을수록 장애 영향 큼
-- \`service_type\` — java / python / node
-- \`environment\` — production / staging
-
-### \`service_dependencies\`
-서비스 간 의존 관계 그래프.
-
-- \`source_service_id\` FK → service_catalogs
-- \`target_service_id\` FK → service_catalogs
-- \`dependency_type\` — sync / async / database
-
-> Blast Radius = source 서비스가 장애 시 영향받는 target 서비스 수
-
-### \`traffic_profiles\`
-피크 트래픽 예측값. 토폴로지 자동 설계 입력.
-
-- \`peak_rps\` INT — 초당 최대 요청 수
-- \`avg_rps\` INT
-- \`traffic_pattern\` — steady / burst / batch
-
----
-
-## 장애 전파 추적 경로
-
-\`alarm_events\` → \`incidents\` → \`rca_results\` → \`rca_affected_resources\`
-
-- \`rca_affected_resources.resource_id\` → 실제 피해 인프라 자원
-- \`action_histories\` → 자동 복구 실행 로그`,
-  },
 }
 
 function openModal(key: string) { activeModal.value = key }
@@ -171,13 +115,6 @@ function formatDate(d: string) {
 // ── Computed from services ────────────────────────────────────────────
 
 const criticalCount = computed(() => props.services?.filter(s => s.status === 'critical').length ?? 0)
-const warningCount  = computed(() => props.services?.filter(s => s.status === 'warning').length ?? 0)
-const totalCount    = computed(() => props.services?.length ?? 0)
-
-const rootService = computed(() => {
-  const crit = props.services?.find(s => s.status === 'critical')
-  return crit?.name ?? '—'
-})
 
 const avgAvailBudget = computed(() => {
   const list = props.services
@@ -188,8 +125,8 @@ const avgAvailBudget = computed(() => {
 const latencyBudget = computed(() => {
   const list = props.services
   if (!list?.length) return 100
-  const fastCount = list.filter(s => s.burn === 'Fast').length
-  const slowCount = list.filter(s => s.burn === 'Slow').length
+  const fastCount = list.filter(s => parseFloat(s.burn) > 3).length
+  const slowCount = list.filter(s => { const b = parseFloat(s.burn); return b > 1 && b <= 3 }).length
   return Math.max(0, Math.round(100 - fastCount * 25 - slowCount * 10))
 })
 
@@ -247,45 +184,7 @@ function budgetBarCls(val: number) {
 
     <template v-else-if="contract">
 
-      <!-- ① SLA CONTRACT ─────────────────────────────────────────────── -->
-      <div class="bg-white border border-border rounded-xl p-5 cursor-pointer hover:shadow-md hover:border-[#2980B9]/40 transition-all group" @click="openModal('contract')">
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-[11px] font-bold text-text-primary uppercase tracking-widest">SLA Contract</span>
-          <div class="flex items-center gap-2">
-            <span class="px-1.5 py-0.5 rounded text-[11px] font-bold border" :class="contractStatus.cls">{{ contractStatus.label }}</span>
-          </div>
-        </div>
-        <div class="space-y-2">
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-text-secondary">계약기간</span>
-            <span class="text-xs font-semibold text-text-primary">
-              {{ formatDate(contract.business_unit.contract_start_date) }}
-              {{ contract.business_unit.contract_end_date ? ' ~ ' + formatDate(contract.business_unit.contract_end_date) : '' }}
-            </span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-text-secondary">Tier</span>
-            <span class="text-xs font-semibold text-[#2980B9]">{{ contract.business_unit.subscription_tier || '—' }}</span>
-          </div>
-          <div class="border-t border-gray-50 pt-1.5 mt-1.5 flex items-center justify-between">
-            <span class="text-xs text-text-secondary">위반 서비스</span>
-            <span class="text-xs font-bold" :class="violations > 0 ? 'text-red-600' : 'text-green-600'">
-              {{ violations > 0 ? violations + '건' : '없음' }}
-            </span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-text-secondary">예상 Service Credit</span>
-            <span class="text-xs font-bold" :class="serviceCredit > 0 ? 'text-orange-600' : 'text-green-600'">
-              ${{ serviceCredit }}
-            </span>
-          </div>
-        </div>
-        <div class="mt-3 pt-2 border-t border-gray-50 text-right">
-          <span class="text-[10px] text-[#2980B9] opacity-0 group-hover:opacity-100 transition-opacity font-semibold">자세히 보기 →</span>
-        </div>
-      </div>
-
-      <!-- ② ERROR BUDGET STATUS ─────────────────────────────────────── -->
+      <!-- ① ERROR BUDGET STATUS ─────────────────────────────────────── -->
       <div class="bg-white border border-border rounded-xl p-5 cursor-pointer hover:shadow-md hover:border-[#2980B9]/40 transition-all group" @click="openModal('errorBudget')">
         <div class="flex items-center justify-between mb-3">
           <span class="text-[11px] font-bold text-text-primary uppercase tracking-widest">Error Budget</span>
@@ -330,8 +229,46 @@ function budgetBarCls(val: number) {
         </div>
       </div>
 
+      <!-- ② SLA CONTRACT ─────────────────────────────────────────────── -->
+      <div class="bg-white border border-border rounded-xl p-5 cursor-pointer hover:shadow-md hover:border-[#2980B9]/40 transition-all group" @click="contractOpen = true">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-[11px] font-bold text-text-primary uppercase tracking-widest">SLA Contract</span>
+          <div class="flex items-center gap-2">
+            <span class="px-1.5 py-0.5 rounded text-[11px] font-bold border" :class="contractStatus.cls">{{ contractStatus.label }}</span>
+          </div>
+        </div>
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-text-secondary">계약기간</span>
+            <span class="text-xs font-semibold text-text-primary">
+              {{ formatDate(contract.business_unit.contract_start_date) }}
+              {{ contract.business_unit.contract_end_date ? ' ~ ' + formatDate(contract.business_unit.contract_end_date) : '' }}
+            </span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-text-secondary">Tier</span>
+            <span class="text-xs font-semibold text-[#2980B9]">{{ contract.business_unit.subscription_tier || '—' }}</span>
+          </div>
+          <div class="border-t border-gray-50 pt-1.5 mt-1.5 flex items-center justify-between">
+            <span class="text-xs text-text-secondary">위반 서비스</span>
+            <span class="text-xs font-bold" :class="violations > 0 ? 'text-red-600' : 'text-green-600'">
+              {{ violations > 0 ? violations + '건' : '없음' }}
+            </span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-text-secondary">예상 Service Credit</span>
+            <span class="text-xs font-bold" :class="serviceCredit > 0 ? 'text-orange-600' : 'text-green-600'">
+              ${{ serviceCredit }}
+            </span>
+          </div>
+        </div>
+        <div class="mt-3 pt-2 border-t border-gray-50 text-right">
+          <span class="text-[10px] text-[#2980B9] opacity-0 group-hover:opacity-100 transition-opacity font-semibold">자세히 보기 →</span>
+        </div>
+      </div>
+
       <!-- ③ TOPOLOGY DECISION ──────────────────────────────────────── -->
-      <div v-if="topoDecision" class="bg-white border border-border rounded-xl p-5 cursor-pointer hover:shadow-md hover:border-[#2980B9]/40 transition-all group" @click="openModal('topology')">
+      <div v-if="topoDecision" class="bg-white border border-border rounded-xl p-5 cursor-pointer hover:shadow-md hover:border-[#2980B9]/40 transition-all group" @click="topologyOpen = true">
         <div class="flex items-center gap-2 mb-3">
           <span class="text-[11px] font-bold text-text-primary uppercase tracking-widest">Topology Decision</span>
         </div>
@@ -362,37 +299,6 @@ function budgetBarCls(val: number) {
         </div>
       </div>
 
-      <!-- ④ DEPENDENCY RISK ──────────────────────────────────────── -->
-      <div v-if="services?.length" class="bg-white border border-border rounded-xl p-5 cursor-pointer hover:shadow-md hover:border-[#2980B9]/40 transition-all group" @click="openModal('dependency')">
-        <div class="flex items-center justify-between mb-3">
-          <span class="text-[11px] font-bold text-text-primary uppercase tracking-widest">Dependency Risk</span>
-          <span v-if="criticalCount > 0" class="flex items-center gap-1 text-[11px] font-bold text-red-600">
-            <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />위험 전파 가능
-          </span>
-        </div>
-        <div class="space-y-2">
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-text-secondary">Critical 서비스</span>
-            <span class="text-xs font-bold" :class="criticalCount > 0 ? 'text-red-600' : 'text-green-600'">{{ criticalCount }}개</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-text-secondary">Warning 서비스</span>
-            <span class="text-xs font-bold" :class="warningCount > 0 ? 'text-orange-500' : 'text-green-600'">{{ warningCount }}개</span>
-          </div>
-          <div class="flex items-center justify-between">
-            <span class="text-xs text-text-secondary">Root Service</span>
-            <span class="text-xs font-semibold text-text-primary">{{ rootService }}</span>
-          </div>
-          <div class="border-t border-gray-50 pt-1.5 flex items-center justify-between">
-            <span class="text-xs text-text-secondary">Blast Radius</span>
-            <span class="text-xs font-bold text-orange-600">{{ totalCount }} Services</span>
-          </div>
-        </div>
-        <div class="mt-3 pt-2 border-t border-gray-50 text-right">
-          <span class="text-[10px] text-[#2980B9] opacity-0 group-hover:opacity-100 transition-opacity font-semibold">자세히 보기 →</span>
-        </div>
-      </div>
-
     </template>
 
     <!-- 데이터 없음 -->
@@ -404,12 +310,28 @@ function budgetBarCls(val: number) {
 
   </aside>
 
-  <!-- 스키마 설명 모달 -->
+  <!-- 일반 모달 -->
   <SchemaModal
     v-if="activeModal"
     :open="!!activeModal"
     :title="MODAL_CONTENT[activeModal]?.title ?? ''"
     :content="MODAL_CONTENT[activeModal]?.content ?? ''"
     @close="closeModal"
+  />
+
+  <!-- SLA CONTRACT 모달 -->
+  <TopologyModal
+    :open="contractOpen"
+    :title="MODAL_CONTENT.contract.title"
+    :content="MODAL_CONTENT.contract.content"
+    @close="contractOpen = false"
+  />
+
+  <!-- 토폴로지 전용 모달 -->
+  <TopologyModal
+    :open="topologyOpen"
+    :title="MODAL_CONTENT.topology.title"
+    :content="MODAL_CONTENT.topology.content"
+    @close="topologyOpen = false"
   />
 </template>

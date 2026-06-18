@@ -3,28 +3,58 @@ defineProps<{ title: string; content: string; open: boolean }>()
 defineEmits<{ (e: 'close'): void }>()
 
 function renderMd(md: string): string {
-  return md
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+  // 테이블 블록을 placeholder로 추출
+  const tables: string[] = []
+  const lines = md.split('\n')
+  const out: string[] = []
+  let buf: string[] = []
+
+  function flushTable() {
+    if (buf.length >= 2) {
+      const rows = buf.map(l => l.split('|').slice(1, -1).map(c => esc(c.trim())))
+      const header = rows[0]
+      const data = rows.slice(2)
+      const idx = tables.length
+      tables.push(
+        `<div class="overflow-x-auto my-3"><table class="w-full text-sm border-collapse">` +
+        `<thead class="bg-gray-50 border-b-2 border-gray-200"><tr>${header.map(h => `<th class="text-left font-semibold px-3 py-2 text-gray-900 text-xs">${h}</th>`).join('')}</tr></thead>` +
+        `<tbody>${data.map((r, i) => `<tr class="${i % 2 ? 'bg-gray-50' : 'bg-white'} border-b border-gray-100">${r.map(c => `<td class="px-3 py-2 text-gray-800 text-xs">${c}</td>`).join('')}</tr>`).join('')}</tbody>` +
+        `</table></div>`
+      )
+      out.push(`__TABLE_${idx}__`)
+    } else {
+      out.push(...buf)
+    }
+    buf = []
+  }
+
+  for (const line of lines) {
+    if (line.trim().startsWith('|')) { buf.push(line) }
+    else { flushTable(); out.push(line) }
+  }
+  flushTable()
+
+  let result = out.join('\n')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    // headings
     .replace(/^### (.+)$/gm, '<h3 class="text-sm font-bold text-gray-800 mt-4 mb-1">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 class="text-base font-bold text-gray-900 mt-5 mb-2 border-b border-gray-100 pb-1">$1</h2>')
-    // bold
+    .replace(/^## (.+)$/gm, '<h2 class="text-base font-bold text-gray-900 mt-5 mb-2 border-b border-gray-200 pb-1">$1</h2>')
     .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
-    // inline code
     .replace(/`([^`]+)`/g, '<code class="bg-gray-100 text-[#2980B9] px-1 py-0.5 rounded text-xs font-mono">$1</code>')
-    // bullet list items — render consecutive bullets as a group
-    .replace(/^- (.+)$/gm, '<li class="text-sm text-gray-600 ml-4 list-disc">$1</li>')
-    // blockquote
+    .replace(/^- (.+)$/gm, '<li class="text-sm text-gray-800 ml-4 list-disc leading-relaxed">$1</li>')
     .replace(/^&gt; (.+)$/gm, '<blockquote class="border-l-2 border-[#2980B9] pl-3 text-sm text-gray-500 italic my-1">$1</blockquote>')
-    // horizontal rule
     .replace(/^---$/gm, '<hr class="border-gray-100 my-3">')
-    // blank lines → paragraph break
-    .replace(/\n{2,}/g, '</p><p class="text-sm text-gray-600 mb-2">')
-    // remaining single newlines
+    .replace(/\n{2,}/g, '</p><p class="text-sm text-gray-800 mb-2">')
     .replace(/\n/g, '<br>')
-    // wrap in paragraph
-    .replace(/^/, '<p class="text-sm text-gray-600 mb-2">')
+    .replace(/^/, '<p class="text-sm text-gray-800 mb-2">')
     .replace(/$/, '</p>')
+
+  // placeholder 주변 <p> 제거
+  result = result.replace(/<p[^>]*>(__TABLE_\d+__)<\/p>/g, '$1')
+
+  tables.forEach((t, i) => { result = result.replace(`__TABLE_${i}__`, t) })
+  return result
 }
 </script>
 
@@ -32,7 +62,7 @@ function renderMd(md: string): string {
   <Teleport to="body">
     <Transition name="fade">
       <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40" @click.self="$emit('close')">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
 
           <!-- 헤더 -->
           <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">

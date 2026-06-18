@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import type { FinOpsFinding } from '../types/finops.schema'
+import { formatEvidenceEntries, sourceBadgeClass, sourceBadgeLabel } from '../utils/evidenceMetrics'
+import { humanizeFindingReason } from '../utils/proposalNarrative'
 
 defineProps<{
   findings: FinOpsFinding[]
 }>()
+
+function reasonText(f: FinOpsFinding): string {
+  return humanizeFindingReason(f) ?? '—'
+}
 
 const guardClass = (status?: string) => ({
   eligible: 'bg-status-ok/10 text-status-ok border-status-ok/20',
@@ -25,7 +31,8 @@ const guardClass = (status?: string) => ({
           <th class="px-4 py-3 font-bold">패턴</th>
           <th class="px-4 py-3 font-bold">권유</th>
           <th class="px-4 py-3 font-bold">절감/월</th>
-          <th class="px-4 py-3 font-bold">사유</th>
+          <th class="px-4 py-3 font-bold">판정 근거</th>
+          <th class="px-4 py-3 font-bold">Guard 사유</th>
         </tr>
       </thead>
       <tbody>
@@ -39,7 +46,26 @@ const guardClass = (status?: string) => ({
           <td class="px-4 py-3 text-gray-500">{{ f.pattern_id ?? '—' }}</td>
           <td class="px-4 py-3 font-bold">{{ f.recommended_action ?? '—' }}</td>
           <td class="px-4 py-3 font-bold text-brand">${{ f.monthly_waste_usd?.toFixed(2) ?? '—' }}</td>
-          <td class="px-4 py-3 text-[11px] text-gray-500 max-w-[220px] truncate" :title="f.guard_reason">
+          <td class="px-4 py-3 text-[11px] text-gray-600 max-w-[240px]">
+            <p class="line-clamp-3 leading-snug" :title="reasonText(f)">{{ reasonText(f) }}</p>
+            <div v-if="formatEvidenceEntries(f.evidence).length" class="flex flex-wrap gap-1 mt-1">
+              <span
+                v-for="ev in formatEvidenceEntries(f.evidence).slice(0, 2)"
+                :key="ev.key"
+                class="text-[9px] px-1 py-0.5 rounded bg-bg-muted text-gray-500"
+              >
+                {{ ev.label }} {{ ev.value }}
+              </span>
+            </div>
+            <span
+              v-if="f.utilization_source"
+              class="inline-block mt-1 px-1.5 py-0.5 rounded border text-[8px] font-bold"
+              :class="sourceBadgeClass(f.utilization_source)"
+            >
+              {{ sourceBadgeLabel(f.utilization_source) }}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-[11px] text-gray-500 max-w-[180px] truncate" :title="f.guard_reason">
             {{ f.guard_reason ?? '—' }}
           </td>
         </tr>

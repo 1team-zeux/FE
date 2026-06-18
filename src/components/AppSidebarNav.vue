@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { mainNav, bottomNav } from './layout/nav-config'
+import { mainNav, bottomNav, isNavMatchActive } from './layout/nav-config'
 import { useAuthStore } from '@/features/auth/store/useAuthStore'
 
 
@@ -22,19 +22,25 @@ const currentIacStep = computed(() => {
   const idx = IAC_STEPS.findIndex(s => route.path.startsWith(s.to))
   return idx >= 0 ? idx + 1 : 0
 })
+
+const mainNavMatches = computed(() => mainNav.map((item) => item.match))
+
+function isMainNavActive(match: string): boolean {
+  return isNavMatchActive(route.path, match, mainNavMatches.value)
+}
 </script>
 
 <template>
   <aside class="w-56 bg-white rounded-xl shadow-sm border border-border flex flex-col py-3 shrink-0 overflow-hidden">
     <!-- 메인 내비 -->
     <ul class="px-2 space-y-0.5 flex-1">
-      <li v-for="item in mainNav" :key="item.label">
+      <li v-for="item in mainNav" :key="item.label" v-show="!item.adminOnly || auth.isAdmin">
         <RouterLink :to="item.to" custom v-slot="{ navigate }">
           <button
             @click="navigate"
             :class="[
               'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors',
-              route.path.startsWith(item.match)
+              isMainNavActive(item.match)
                 ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand)] font-semibold'
                 : 'text-text-secondary hover:bg-gray-50 hover:text-text-primary font-medium',
             ]"
@@ -120,31 +126,6 @@ const currentIacStep = computed(() => {
       </ul>
     </template>
 
-    <!-- Admin 전용 구분선 + 메뉴 -->
-    <template v-if="auth.isAdmin">
-      <div class="mx-3 my-2 border-t border-border" />
-      <ul class="px-2 space-y-0.5">
-        <li>
-          <RouterLink to="/admin/customers" custom v-slot="{ navigate }">
-            <button
-              @click="navigate"
-              :class="[
-                'w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors',
-                route.path.startsWith('/admin/customers')
-                  ? 'bg-[var(--color-brand-subtle)] text-[var(--color-brand)] font-semibold'
-                  : 'text-text-secondary hover:bg-gray-50 hover:text-text-primary font-medium',
-              ]"
-            >
-              <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
-                  d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
-              </svg>
-              <span class="flex-1 text-left">고객사 관리</span>
-            </button>
-          </RouterLink>
-        </li>
-      </ul>
-    </template>
 
   </aside>
 </template>
