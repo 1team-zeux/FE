@@ -2,18 +2,16 @@
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAlarmFeedQuery } from '@/features/incident';
-import { DEMO_FEED_GROUPS } from '@/features/incident/fixtures';
 import AlarmGroupRow from '@/features/incident/components/AlarmGroupRow.vue';
 import type { AlarmGroup } from '@/features/incident';
 
 const router = useRouter();
 const { data: feedData, isLoading } = useAlarmFeedQuery();
 
-// API가 평면 알람 배열을 반환하면 correlationGroupId 기준으로 그룹화한다
-// API 데이터 없거나 비어있으면 데모 그룹 사용
+// API 평면 배열 → correlationGroupId 기준 그룹화. 데이터 없으면 빈 배열 (고객사 데모 트리거 전까지 비어있음)
 const groups = computed<AlarmGroup[]>(() => {
   if (!feedData.value || feedData.value.length === 0) {
-    return DEMO_FEED_GROUPS;
+    return [];
   }
   // 평면 배열 → group으로 묶기
   const byGroup = new Map<string, AlarmGroup>();

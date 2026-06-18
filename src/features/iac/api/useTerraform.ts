@@ -214,3 +214,63 @@ export function useTerraformVerify(planId: Ref<string | null>) {
     retry: false,
   })
 }
+
+// ── Handoff Live Healthcheck (실제 AWS 자원 라이브 핑) ──────────────
+
+export interface AlbCheck {
+  ok: boolean
+  url?: string | null
+  status_code?: number | null
+  latency_ms?: number | null
+  error?: string | null
+}
+
+export interface BastionCheck {
+  ok: boolean
+  public_ip?: string | null
+  port: number
+  latency_ms?: number | null
+  error?: string | null
+}
+
+export interface EcsTaskCount {
+  service: string
+  running: number
+  desired: number
+  status: string
+}
+
+export interface EcsCheck {
+  ok: boolean
+  cluster?: string | null
+  running: number
+  desired: number
+  tasks: EcsTaskCount[]
+  error?: string | null
+}
+
+export interface HandoffHealthcheck {
+  tenant_id: string
+  topology_id: string
+  checked_at: number
+  alb: AlbCheck
+  bastion_ssh: BastionCheck
+  ecs: EcsCheck
+}
+
+// 5초 polling. planId 로 조회 (backend 가 tenant_id+session_id 해석).
+export function useHandoffHealthcheckByPlan(
+  planId: Ref<string | null>,
+  enabled: Ref<boolean>,
+) {
+  return useQuery({
+    queryKey: ['iac-handoff-healthcheck', planId],
+    queryFn: async () => {
+      const res = await api.get(`/api/iac/handoff/by-plan/${planId.value}/healthcheck`)
+      return res.data as HandoffHealthcheck
+    },
+    enabled: () => enabled.value && !!planId.value,
+    refetchInterval: 5000,
+    retry: false,
+  })
+}

@@ -7,6 +7,7 @@ const CAUSE_DESCRIPTIONS: Record<string, string> = {
   db_connection_saturation:        'DB 연결 풀 포화 — HikariPool maxPoolSize 도달, 신규 트랜잭션이 connection을 획득하지 못해 timeout 발생',
   db_connection_pool_exhaustion:   'DB 연결 풀 고갈 — POST /subscriptions 처리에 필요한 HikariPool 활성 connection 96% 도달, wait queue 누적으로 5xx burst 발생',
   traffic_spike:                   '일시적 트래픽 스파이크 — 평소 대비 RPS 증가로 응답 시간 분포 우측 꼬리가 길어짐',
+  traffic_surge_capacity_shortage: '트래픽 Surge — 처리 용량 부족. 프로모션 푸시로 요청량이 평소 대비 수 배 증가, ECS Task 수가 부족해 queue 가 쌓이고 응답시간 / 5xx 폭증',
   spot_interruption:                'EC2 Spot 인스턴스 중단 — AWS Spot 종료 신호로 ASG 인스턴스 수 일시 감소, 남은 인스턴스에 부하 집중',
   rds_cpu_saturation:               'RDS CPU 포화 — 슬로우 쿼리 누적으로 CPU 사용률 임계 도달',
   batch_cpu_normal_pattern:         '정상 배치 정렬 단계 CPU spike — 야간 정산 정렬 단계 특유의 CPU 상승 패턴으로 SLA 영향 없음',
@@ -26,6 +27,12 @@ const CAUSE_ACTIONS: Record<string, string[]> = {
     'ECS Service Scale-out (3 → 5) 으로 connection demand 분산',
     'HikariPool maximumPoolSize 50 → 100 상향 (IaC 변경 필요)',
     'RDS instance class 한 단계 상향 (메모리 확보)',
+  ],
+  traffic_surge_capacity_shortage: [
+    'ECS Service Desired Count 4 → 12 즉시 증설 (런타임 Auto Scaling, ~90초)',
+    'Auto Scaling 정책 변경 (min 4→6 / CPU target 70→50% / max 12→20, IaC)',
+    'SLA Availability 99.9% 기준으로 target 수치 재계산',
+    '프로모션 사전 캘린더 등록 시 자동 pre-warm 적용',
   ],
   traffic_spike: [
     '자동 스케일링 정책 확인 (현재 정상 회복 중)',

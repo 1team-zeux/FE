@@ -36,7 +36,7 @@ const edgePath = (from: string, to: string) => {
   <div class="bg-bg-card border border-border rounded-lg overflow-hidden">
     <div class="bg-gray-50 border-b border-border px-4 py-3 flex justify-between items-center">
       <span class="text-xs font-bold text-text-primary">Service Dependency Map</span>
-      <div class="flex items-center gap-3 text-[10px] text-gray-400">
+      <div class="flex items-center gap-3 text-xs text-gray-500">
         <span class="flex items-center gap-1"><span class="inline-block w-2 h-2 rounded-full bg-status-critical"></span>위험</span>
         <span class="flex items-center gap-1"><span class="inline-block w-2 h-2 rounded-full bg-status-warning"></span>경고</span>
         <span class="flex items-center gap-1"><span class="inline-block w-2 h-2 rounded-full bg-status-ok"></span>정상</span>

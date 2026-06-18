@@ -8,6 +8,7 @@ import type {
   Step2Parallel,
   Step4BParallel,
 } from '../api/useTriageNodeProgress';
+import TraceWaterfall from './TraceWaterfall.vue';
 
 const props = defineProps<{
   blueprint: TriageStageBlueprint;
@@ -237,16 +238,46 @@ const phaseLabel = computed(() => {
             <span class="inline-block w-2 h-2 bg-brand rounded-full animate-pulse" />
             {{ currentSubStep(step2.slaStatus) }}
           </div>
-          <div v-else-if="step2.slaStatus.done" class="space-y-2">
-            <div v-for="(item, i) in slaItems" :key="i" class="border border-border rounded p-2 bg-white">
-              <div class="flex items-center justify-between text-sm mb-1">
-                <span class="text-text-primary font-bold">{{ item.category }}</span>
-                <span class="font-bold text-xs" :class="item.budgetRemainingPct < 30 ? 'text-rose-700' : 'text-emerald-700'">{{ item.budgetRemainingPct.toFixed(1) }}%</span>
+          <div v-else-if="step2.slaStatus.done" class="space-y-3">
+            <div v-for="(item, i) in slaItems" :key="i" class="border border-border rounded-md p-3 bg-white">
+              <!-- 카테고리 + 이미 위반 배지 -->
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-base font-bold text-text-primary">{{ item.category }}</span>
+                <span v-if="item.alreadyViolated" class="text-xs font-bold px-2 py-0.5 rounded bg-status-critical text-white">이미 위반</span>
               </div>
-              <div class="text-xs text-gray-600 mb-1">목표: {{ item.targetLabel }}</div>
+
+              <!-- 지표 (계약 목표) + 월 Budget -->
+              <div class="text-xs text-text-secondary mb-2">
+                목표 <span class="font-mono font-bold text-text-primary">{{ item.targetLabel }}</span>
+                <span v-if="item.monthlyBudgetMinutes != null"> · 월 Budget <span class="font-bold text-text-primary">{{ item.monthlyBudgetMinutes.toFixed(2) }}분</span></span>
+              </div>
+
+              <!-- Error Budget Progress bar (소진 비율 시각화) — monthlyBudgetMinutes 있을 때만 -->
+              <div v-if="item.monthlyBudgetMinutes != null" class="mb-2">
+                <div class="flex items-center justify-between text-xs mb-1">
+                  <span class="text-text-secondary">Error Budget 소진</span>
+                  <span class="font-mono font-bold" :class="item.budgetRemainingPct < 30 ? 'text-status-critical' : item.budgetRemainingPct < 70 ? 'text-status-warning' : 'text-status-ok'">
+                    {{ (100 - item.budgetRemainingPct).toFixed(1) }}%
+                  </span>
+                </div>
+                <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    class="h-full"
+                    :class="item.budgetRemainingPct < 30 ? 'bg-status-critical' : item.budgetRemainingPct < 70 ? 'bg-status-warning' : 'bg-status-ok'"
+                    :style="{ width: `${100 - item.budgetRemainingPct}%` }"
+                  />
+                </div>
+                <div class="flex items-center justify-between text-xs mt-1 text-text-secondary">
+                  <span>잔여 <span class="font-mono font-bold text-text-primary">{{ (item.monthlyBudgetMinutes * item.budgetRemainingPct / 100).toFixed(2) }}분</span> ({{ item.budgetRemainingPct.toFixed(1) }}%)</span>
+                </div>
+              </div>
+
+              <!-- burn rate + 위반 ETA -->
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-xs font-bold px-2 py-0.5 rounded" :class="burnBadge(item.burnRateState)">{{ item.burnRateState }}{{ item.burnRateValue != null ? ` ${item.burnRateValue.toFixed(1)}×` : '' }}</span>
-                <span class="text-xs text-gray-700">{{ item.violationEta }}</span>
+                <span class="text-xs font-bold px-2 py-0.5 rounded" :class="burnBadge(item.burnRateState)">
+                  {{ item.burnRateState }}{{ item.burnRateValue != null ? ` ${item.burnRateValue.toFixed(1)}×` : '' }}
+                </span>
+                <span class="text-xs text-text-secondary">{{ item.violationEta }}</span>
               </div>
             </div>
           </div>
@@ -401,119 +432,142 @@ const phaseLabel = computed(() => {
 
       <!-- 4-B deep_analysis -->
       <div v-else-if="blueprint.step4Type === 'deep_analysis' && blueprint.deepAnalysis" class="space-y-3">
-        <!-- 운영자 알림 -->
-        <div class="rounded-lg p-4 transition-all" :class="cardClass(step4BNotify)">
-          <div class="flex items-center justify-between mb-3">
-            <span class="text-sm font-bold text-text-primary">4-B-0 · 운영자 알림 (수집 전 즉시 발송)</span>
-            <span class="text-xs font-bold px-2 py-0.5 rounded" :class="subStateBadge(step4BNotify).cls">{{ subStateBadge(step4BNotify).label }}</span>
-          </div>
-          <div v-if="stepStarted(step4BNotify) && !step4BNotify.done" class="flex items-center gap-2 text-sm text-text-secondary">
-            <span class="inline-block w-2 h-2 bg-brand rounded-full animate-pulse" />
-            {{ currentSubStep(step4BNotify) }}
-          </div>
-          <div v-if="step4BNotify.done" class="space-y-2">
-            <div class="flex items-center gap-2 flex-wrap text-sm">
-              <span class="px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-300 font-mono font-bold">{{ blueprint.deepAnalysis.notification.channel }}</span>
-              <span v-if="blueprint.deepAnalysis.notification.mentionLabel" class="px-2 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-300 font-mono font-bold">{{ blueprint.deepAnalysis.notification.mentionLabel }}</span>
-              <span class="text-xs text-gray-600 font-mono">sent: {{ blueprint.deepAnalysis.notification.sentAt }}</span>
+        <!-- 운영자 알림 — 토글 형태 (조용한 1줄 + 펼치면 메시지) -->
+        <details class="border border-border rounded-md bg-white">
+          <summary class="cursor-pointer select-none flex items-center gap-2 px-3 py-2 text-sm">
+            <span class="text-text-secondary">▶</span>
+            <span class="font-bold text-text-primary">운영자 알림 발송</span>
+            <span v-if="step4BNotify.done" class="text-text-secondary">·</span>
+            <span v-if="step4BNotify.done" class="font-mono text-xs text-text-secondary">{{ blueprint.deepAnalysis.notification.channel }}</span>
+            <span v-if="step4BNotify.done && blueprint.deepAnalysis.notification.mentionLabel" class="font-mono text-xs text-text-secondary">{{ blueprint.deepAnalysis.notification.mentionLabel }}</span>
+            <span class="ml-auto text-xs font-bold" :class="step4BNotify.done ? 'text-status-ok' : stepStarted(step4BNotify) ? 'text-brand' : 'text-text-secondary'">
+              {{ step4BNotify.done ? '✓ 전파됨' : stepStarted(step4BNotify) ? '● 발송 중' : '대기' }}
+            </span>
+          </summary>
+          <div class="px-3 pb-3 space-y-2">
+            <div v-if="stepStarted(step4BNotify) && !step4BNotify.done" class="flex items-center gap-2 text-sm text-text-secondary">
+              <span class="inline-block w-2 h-2 bg-brand rounded-full animate-pulse" />
+              {{ currentSubStep(step4BNotify) }}
             </div>
-            <pre class="text-xs bg-bg-card border border-border rounded p-3 overflow-x-auto font-mono whitespace-pre-wrap text-text-secondary">{{ blueprint.deepAnalysis.notification.messagePreview }}</pre>
+            <div v-if="step4BNotify.done" class="text-xs text-text-secondary font-mono">sent: {{ blueprint.deepAnalysis.notification.sentAt }}</div>
+            <pre v-if="step4BNotify.done" class="text-sm bg-bg-card border border-border rounded p-3 overflow-x-auto font-mono whitespace-pre-wrap text-text-secondary">{{ blueprint.deepAnalysis.notification.messagePreview }}</pre>
           </div>
-        </div>
+        </details>
 
-        <!-- 심층 수집 (병렬 3) -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
-          <!-- 로그 -->
-          <div class="rounded-lg p-4 transition-all min-h-[240px]" :class="cardClass(step4BCollection.logCollection)">
+        <!-- 심층 수집 — 로그 단독 큰 영역 + 트레이스/벡터 2-col -->
+        <div class="space-y-3">
+          <!-- 로그 (4-B-1) — full width, 강조 -->
+          <div class="rounded-lg p-5 transition-all" :class="cardClass(step4BCollection.logCollection)">
             <div class="flex items-center justify-between mb-3">
-              <span class="text-sm font-bold text-text-primary">4-B-1 · 로그 (Loki)</span>
+              <div class="flex items-center gap-2">
+                <span class="text-base font-bold text-text-primary">4-B-1 · 로그 수집 (Loki)</span>
+                <span class="text-xs text-gray-500">서비스별 ERROR/WARN 로그를 RCA 가설 검증에 활용</span>
+              </div>
               <span class="text-xs font-bold px-2 py-0.5 rounded" :class="subStateBadge(step4BCollection.logCollection).cls">{{ subStateBadge(step4BCollection.logCollection).label }}</span>
             </div>
             <div v-if="stepStarted(step4BCollection.logCollection) && !step4BCollection.logCollection.done" class="flex items-center gap-2 text-sm text-text-secondary">
               <span class="inline-block w-2 h-2 bg-brand rounded-full animate-pulse" />
               {{ currentSubStep(step4BCollection.logCollection) }}
             </div>
-            <div v-else-if="step4BCollection.logCollection.done" class="space-y-2">
-              <pre class="text-xs bg-bg-card border border-border rounded p-2 overflow-x-auto font-mono whitespace-pre-wrap text-text-secondary">{{ blueprint.deepAnalysis.logCollection.queryPreview }}</pre>
-              <div class="text-xs text-gray-600">{{ blueprint.deepAnalysis.logCollection.windowLabel }}</div>
-              <div class="flex items-center gap-2 text-xs flex-wrap">
-                <span class="px-2 py-0.5 rounded bg-gray-100 text-gray-800 font-bold">총 {{ blueprint.deepAnalysis.logCollection.totalCount }}건</span>
-                <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-bold">ERROR {{ blueprint.deepAnalysis.logCollection.errorCount }}</span>
-                <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">WARN {{ blueprint.deepAnalysis.logCollection.warnCount }}</span>
-              </div>
-              <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                <div v-for="(lg, i) in blueprint.deepAnalysis.logCollection.samples" :key="i" class="text-xs border-b border-border pb-1.5 last:border-0">
-                  <div class="flex items-center gap-1.5 mb-0.5">
-                    <span class="font-bold" :class="lg.level === 'ERROR' ? 'text-rose-700' : lg.level === 'WARN' ? 'text-amber-700' : 'text-gray-700'">{{ lg.level }}</span>
-                    <span v-if="lg.occurrence" class="text-gray-500">×{{ lg.occurrence }}</span>
+            <div v-else-if="step4BCollection.logCollection.done" class="space-y-3">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-2 items-start">
+                <pre class="text-xs bg-bg-card border border-border rounded p-2 overflow-x-auto font-mono whitespace-pre-wrap text-text-secondary md:col-span-2">{{ blueprint.deepAnalysis.logCollection.queryPreview }}</pre>
+                <div class="flex flex-col gap-1 text-xs">
+                  <span class="text-gray-600">{{ blueprint.deepAnalysis.logCollection.windowLabel }}</span>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="px-2 py-0.5 rounded bg-gray-100 text-gray-800 font-bold">총 {{ blueprint.deepAnalysis.logCollection.totalCount }}건</span>
+                    <span class="px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-bold">ERROR {{ blueprint.deepAnalysis.logCollection.errorCount }}</span>
+                    <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold">WARN {{ blueprint.deepAnalysis.logCollection.warnCount }}</span>
                   </div>
-                  <div class="text-text-secondary" :title="lg.message">{{ lg.message }}</div>
+                </div>
+              </div>
+              <div class="bg-white border border-border rounded-md p-3 font-mono text-sm space-y-1.5 max-h-96 overflow-y-auto">
+                <div v-for="(lg, i) in blueprint.deepAnalysis.logCollection.samples" :key="i" class="flex items-start gap-2.5 leading-relaxed border-b border-border last:border-0 pb-1.5 last:pb-0">
+                  <span class="text-text-secondary shrink-0 w-16">{{ lg.ts }}</span>
+                  <span
+                    class="shrink-0 px-1.5 py-0 rounded font-bold w-14 text-center text-xs"
+                    :class="lg.level === 'ERROR' ? 'bg-status-critical/10 text-status-critical' : lg.level === 'WARN' ? 'bg-status-warning/10 text-status-warning' : 'bg-gray-100 text-text-secondary'"
+                  >{{ lg.level }}</span>
+                  <span class="text-brand shrink-0 w-40 truncate" :title="lg.service">{{ lg.service }}</span>
+                  <span v-if="lg.occurrence" class="text-text-secondary shrink-0">×{{ lg.occurrence }}</span>
+                  <span class="text-text-primary flex-1 min-w-0 break-words">{{ lg.message }}</span>
                 </div>
               </div>
             </div>
             <div v-else class="text-sm text-gray-400 italic">대기 중…</div>
           </div>
 
-          <!-- 트레이스 -->
-          <div class="rounded-lg p-4 transition-all min-h-[240px]" :class="cardClass(step4BCollection.traceCollection)">
+          <!-- 트레이스 (4-B-2) — full row, waterfall 시각화 -->
+          <div class="rounded-lg p-5 transition-all" :class="cardClass(step4BCollection.traceCollection)">
             <div class="flex items-center justify-between mb-3">
-              <span class="text-sm font-bold text-text-primary">4-B-2 · 트레이스 (Tempo)</span>
-              <span class="text-xs font-bold px-2 py-0.5 rounded" :class="subStateBadge(step4BCollection.traceCollection).cls">{{ subStateBadge(step4BCollection.traceCollection).label }}</span>
+              <div class="flex items-center gap-2">
+                <span class="text-base font-bold text-text-primary">4-B-2 · 트레이스 (Tempo)</span>
+                <span class="text-sm text-text-secondary">서비스 호출 체인 + span 시간 분포로 병목 위치 확정</span>
+              </div>
+              <span class="text-sm font-bold px-2 py-0.5 rounded" :class="subStateBadge(step4BCollection.traceCollection).cls">{{ subStateBadge(step4BCollection.traceCollection).label }}</span>
             </div>
             <div v-if="stepStarted(step4BCollection.traceCollection) && !step4BCollection.traceCollection.done" class="flex items-center gap-2 text-sm text-text-secondary">
               <span class="inline-block w-2 h-2 bg-brand rounded-full animate-pulse" />
               {{ currentSubStep(step4BCollection.traceCollection) }}
             </div>
-            <div v-else-if="step4BCollection.traceCollection.done" class="space-y-2">
-              <pre class="text-xs bg-bg-card border border-border rounded p-2 overflow-x-auto font-mono whitespace-pre-wrap text-text-secondary">{{ blueprint.deepAnalysis.traceCollection.queryPreview }}</pre>
-              <div class="text-xs text-gray-600">느린 트레이스 {{ blueprint.deepAnalysis.traceCollection.totalCount }}건</div>
-              <div class="space-y-2">
+            <div v-else-if="step4BCollection.traceCollection.done" class="space-y-3">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-2 items-start">
+                <pre class="text-sm bg-bg-card border border-border rounded p-2 overflow-x-auto font-mono whitespace-pre-wrap text-text-secondary md:col-span-2">{{ blueprint.deepAnalysis.traceCollection.queryPreview }}</pre>
+                <div class="text-sm text-text-secondary">느린 트레이스 <span class="font-bold text-text-primary">{{ blueprint.deepAnalysis.traceCollection.totalCount }}건</span> · 대표 1건 waterfall</div>
+              </div>
+              <TraceWaterfall v-if="blueprint.deepAnalysis.traceCollection.waterfall" :data="blueprint.deepAnalysis.traceCollection.waterfall" />
+              <!-- 자연어 요약 (waterfall 없을 때 fallback) -->
+              <div v-else class="space-y-2">
                 <div v-for="(t, i) in blueprint.deepAnalysis.traceCollection.slowSpans" :key="i" class="border border-border rounded p-2 bg-white">
-                  <div class="flex items-center justify-between text-xs mb-0.5">
+                  <div class="flex items-center justify-between text-sm mb-0.5">
                     <span class="font-mono text-text-primary font-bold">{{ t.span }}</span>
-                    <span class="text-rose-700 font-bold">{{ t.durationMs.toLocaleString() }}ms</span>
+                    <span class="text-status-critical font-bold">{{ t.durationMs.toLocaleString() }}ms</span>
                   </div>
-                  <div class="text-xs text-gray-600">baseline {{ t.baselineMs }}ms</div>
-                  <div class="text-xs text-text-secondary mt-1">{{ t.description }}</div>
+                  <div class="text-xs text-text-secondary">baseline {{ t.baselineMs }}ms</div>
+                  <div class="text-sm text-text-secondary mt-1">{{ t.description }}</div>
                 </div>
               </div>
             </div>
-            <div v-else class="text-sm text-gray-400 italic">대기 중…</div>
+            <div v-else class="text-sm text-text-secondary italic">대기 중…</div>
           </div>
 
-          <!-- 벡터 검색 -->
-          <div class="rounded-lg p-4 transition-all min-h-[240px]" :class="cardClass(step4BCollection.vectorSearch)">
+          <!-- 벡터 검색 (4-B-3) — full row -->
+          <div class="rounded-lg p-5 transition-all" :class="cardClass(step4BCollection.vectorSearch)">
             <div class="flex items-center justify-between mb-3">
-              <span class="text-sm font-bold text-text-primary">4-B-3 · Vector DB 유사 사태</span>
-              <span class="text-xs font-bold px-2 py-0.5 rounded" :class="subStateBadge(step4BCollection.vectorSearch).cls">{{ subStateBadge(step4BCollection.vectorSearch).label }}</span>
+              <div class="flex items-center gap-2">
+                <span class="text-base font-bold text-text-primary">4-B-3 · Vector DB 유사 사태</span>
+                <span class="text-sm text-text-secondary">유사 incident 의 원인 / 해결책 매칭</span>
+              </div>
+              <span class="text-sm font-bold px-2 py-0.5 rounded" :class="subStateBadge(step4BCollection.vectorSearch).cls">{{ subStateBadge(step4BCollection.vectorSearch).label }}</span>
             </div>
             <div v-if="stepStarted(step4BCollection.vectorSearch) && !step4BCollection.vectorSearch.done" class="flex items-center gap-2 text-sm text-text-secondary">
               <span class="inline-block w-2 h-2 bg-brand rounded-full animate-pulse" />
               {{ currentSubStep(step4BCollection.vectorSearch) }}
             </div>
-            <div v-else-if="step4BCollection.vectorSearch.done" class="space-y-2">
-              <div class="bg-white border-2 border-border rounded p-2">
-                <div class="text-xs text-gray-500 mb-0.5">최상위 가설</div>
-                <div class="text-sm font-bold text-text-primary mb-1">{{ blueprint.deepAnalysis.vectorSearch.topCauseLabel }}</div>
-                <div class="flex items-center gap-2 text-xs">
+            <div v-else-if="step4BCollection.vectorSearch.done" class="space-y-3">
+              <div class="bg-white border-2 border-border rounded p-3">
+                <div class="text-xs text-text-secondary mb-1">최상위 가설</div>
+                <div class="text-base font-bold text-text-primary mb-1">{{ blueprint.deepAnalysis.vectorSearch.topCauseLabel }}</div>
+                <div class="flex items-center gap-2 text-sm">
                   <span class="px-2 py-0.5 rounded font-bold" :class="tone.badge">신뢰도 {{ (blueprint.deepAnalysis.vectorSearch.confidence * 100).toFixed(0) }}%</span>
+                  <span class="text-text-secondary">{{ blueprint.deepAnalysis.vectorSearch.basis }}</span>
                 </div>
               </div>
-              <details class="text-xs">
-                <summary class="cursor-pointer text-gray-600 hover:text-text-primary font-bold">situation_text 보기</summary>
-                <pre class="bg-bg-card border border-border rounded p-2 mt-1 overflow-x-auto font-mono whitespace-pre-wrap text-text-secondary">{{ blueprint.deepAnalysis.vectorSearch.situationText }}</pre>
+              <details class="text-sm">
+                <summary class="cursor-pointer text-text-secondary hover:text-text-primary font-bold">situation_text 보기</summary>
+                <pre class="bg-bg-card border border-border rounded p-2 mt-1 overflow-x-auto font-mono whitespace-pre-wrap text-text-secondary text-sm">{{ blueprint.deepAnalysis.vectorSearch.situationText }}</pre>
               </details>
-              <div class="space-y-2">
-                <div v-for="(sim, i) in blueprint.deepAnalysis.vectorSearch.similarIncidents" :key="i" class="border border-border rounded p-2 bg-white">
-                  <div class="flex items-center justify-between text-xs mb-0.5">
-                    <span class="text-gray-600">{{ sim.occurredAt }} · {{ sim.timeContext }}</span>
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div v-for="(sim, i) in blueprint.deepAnalysis.vectorSearch.similarIncidents" :key="i" class="border border-border rounded p-3 bg-white">
+                  <div class="flex items-center justify-between text-sm mb-1">
+                    <span class="text-text-secondary">{{ sim.occurredAt }} · {{ sim.timeContext }}</span>
                     <span class="text-xs font-bold px-1.5 py-0.5 rounded" :class="tone.badge">{{ (sim.similarity * 100).toFixed(0) }}%</span>
                   </div>
-                  <div class="text-xs text-text-primary">{{ sim.summary }}</div>
+                  <div class="text-sm text-text-primary">{{ sim.summary }}</div>
                 </div>
               </div>
             </div>
-            <div v-else class="text-sm text-gray-400 italic">대기 중…</div>
+            <div v-else class="text-sm text-text-secondary italic">대기 중…</div>
           </div>
         </div>
       </div>
@@ -548,72 +602,72 @@ const phaseLabel = computed(() => {
           {{ currentSubStep(step5) }}
         </div>
 
-        <div v-if="step5.done" class="px-5 py-5 bg-bg-card space-y-5">
+        <div v-if="step5.done" class="px-5 py-5 bg-bg-card space-y-6">
           <!-- 1. 원인 가설 -->
           <div>
-            <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">1. 원인 가설</div>
-            <div class="border-2 border-border rounded-md p-3 bg-white">
-              <div class="flex items-center justify-between mb-1">
-                <span class="text-base font-bold text-text-primary">{{ blueprint.step5.topHypothesisLabel }}</span>
-                <span class="text-sm font-bold px-2 py-0.5 rounded-full" :class="tone.badge">신뢰도 {{ (blueprint.step5.hypothesisConfidence * 100).toFixed(0) }}%</span>
+            <div class="text-sm font-bold text-text-secondary uppercase tracking-wider mb-2">1. 원인 가설</div>
+            <div class="border-2 border-border rounded-md p-4 bg-white">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-lg font-bold text-text-primary">{{ blueprint.step5.topHypothesisLabel }}</span>
+                <span class="text-sm font-bold px-2.5 py-1 rounded-full" :class="tone.badge">신뢰도 {{ (blueprint.step5.hypothesisConfidence * 100).toFixed(0) }}%</span>
               </div>
-              <div class="text-sm text-text-secondary">{{ blueprint.step5.hypothesisBasis }}</div>
+              <div class="text-base text-text-primary">{{ blueprint.step5.hypothesisBasis }}</div>
             </div>
           </div>
 
           <!-- 2. 로그 증거 -->
           <div>
-            <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">2. 로그 증거</div>
-            <ul class="space-y-1.5">
-              <li v-for="(le, i) in blueprint.step5.logEvidence" :key="i" class="text-sm text-text-primary flex items-start gap-2">
-                <span class="text-rose-600 mt-0.5">•</span>
-                <span class="font-mono text-xs">{{ le }}</span>
+            <div class="text-sm font-bold text-text-secondary uppercase tracking-wider mb-2">2. 로그 증거</div>
+            <ul class="space-y-2">
+              <li v-for="(le, i) in blueprint.step5.logEvidence" :key="i" class="text-base text-text-primary flex items-start gap-2">
+                <span class="text-status-critical mt-0.5">•</span>
+                <span class="font-mono text-sm">{{ le }}</span>
               </li>
             </ul>
           </div>
 
           <!-- 3. 트레이스 병목 -->
           <div>
-            <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">3. 트레이스 병목</div>
-            <div class="border-2 border-border rounded-md p-3 bg-white flex items-center justify-between">
+            <div class="text-sm font-bold text-text-secondary uppercase tracking-wider mb-2">3. 트레이스 병목</div>
+            <div class="border-2 border-border rounded-md p-4 bg-white flex items-center justify-between">
               <div>
-                <div class="font-mono text-sm text-text-primary font-bold">{{ blueprint.step5.traceBottleneck.span }}</div>
-                <div class="text-xs text-gray-600">baseline {{ blueprint.step5.traceBottleneck.baselineMs }}ms</div>
+                <div class="font-mono text-base text-text-primary font-bold">{{ blueprint.step5.traceBottleneck.span }}</div>
+                <div class="text-sm text-text-secondary">baseline {{ blueprint.step5.traceBottleneck.baselineMs }}ms</div>
               </div>
-              <div class="text-2xl font-bold text-rose-700">{{ blueprint.step5.traceBottleneck.avgDurationMs.toLocaleString() }}ms</div>
+              <div class="text-3xl font-bold text-status-critical">{{ blueprint.step5.traceBottleneck.avgDurationMs.toLocaleString() }}ms</div>
             </div>
           </div>
 
           <!-- 4. 권장 조치 -->
           <div>
-            <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">4. 권장 조치</div>
-            <div class="space-y-3">
+            <div class="text-sm font-bold text-text-secondary uppercase tracking-wider mb-2">4. 권장 조치</div>
+            <div class="space-y-4">
               <div v-if="immediateActions.length > 0">
-                <div class="text-xs font-bold text-emerald-800 mb-1.5 uppercase tracking-wider">즉시 조치 (immediate)</div>
+                <div class="text-sm font-bold text-status-ok mb-2 uppercase tracking-wider">즉시 조치 (immediate)</div>
                 <div class="space-y-2">
-                  <div v-for="(a, i) in immediateActions" :key="i" class="border-2 border-border rounded-md p-3 bg-white">
-                    <div class="flex items-center justify-between mb-1">
-                      <div class="text-sm font-bold text-text-primary">{{ i + 1 }}. {{ a.title }}</div>
-                      <div class="flex items-center gap-1.5">
-                        <span class="text-xs font-bold px-2 py-0.5 rounded" :class="riskBadge(a.risk)">위험 {{ a.risk }}</span>
-                        <span v-if="a.estimatedRecoveryMinutes" class="text-xs font-mono text-gray-600">~{{ a.estimatedRecoveryMinutes }}분</span>
+                  <div v-for="(a, i) in immediateActions" :key="i" class="border-2 border-border rounded-md p-4 bg-white">
+                    <div class="flex items-center justify-between mb-2">
+                      <div class="text-base font-bold text-text-primary">{{ i + 1 }}. {{ a.title }}</div>
+                      <div class="flex items-center gap-2">
+                        <span class="text-sm font-bold px-2 py-0.5 rounded" :class="riskBadge(a.risk)">위험 {{ a.risk }}</span>
+                        <span v-if="a.estimatedRecoveryMinutes" class="text-sm font-mono text-text-secondary">~{{ a.estimatedRecoveryMinutes }}분</span>
                       </div>
                     </div>
-                    <div class="text-sm text-text-secondary">{{ a.description }}</div>
-                    <div v-if="a.rationale" class="text-xs text-gray-600 italic mt-1">근거: {{ a.rationale }}</div>
+                    <div class="text-base text-text-primary">{{ a.description }}</div>
+                    <div v-if="a.rationale" class="text-sm text-text-secondary italic mt-1">근거: {{ a.rationale }}</div>
                   </div>
                 </div>
               </div>
               <div v-if="iacActions.length > 0">
-                <div class="text-xs font-bold text-amber-800 mb-1.5 uppercase tracking-wider">IaC 변경 (iac_change)</div>
+                <div class="text-sm font-bold text-status-warning mb-2 uppercase tracking-wider">IaC 변경 (iac_change)</div>
                 <div class="space-y-2">
-                  <div v-for="(a, i) in iacActions" :key="i" class="border-2 border-border rounded-md p-3 bg-white">
-                    <div class="flex items-center justify-between mb-1">
-                      <div class="text-sm font-bold text-text-primary">{{ i + 1 }}. {{ a.title }}</div>
-                      <span class="text-xs font-bold px-2 py-0.5 rounded" :class="riskBadge(a.risk)">위험 {{ a.risk }}</span>
+                  <div v-for="(a, i) in iacActions" :key="i" class="border-2 border-border rounded-md p-4 bg-white">
+                    <div class="flex items-center justify-between mb-2">
+                      <div class="text-base font-bold text-text-primary">{{ i + 1 }}. {{ a.title }}</div>
+                      <span class="text-sm font-bold px-2 py-0.5 rounded" :class="riskBadge(a.risk)">위험 {{ a.risk }}</span>
                     </div>
-                    <div class="text-sm text-text-secondary">{{ a.description }}</div>
-                    <div v-if="a.rationale" class="text-xs text-gray-600 italic mt-1">근거: {{ a.rationale }}</div>
+                    <div class="text-base text-text-primary">{{ a.description }}</div>
+                    <div v-if="a.rationale" class="text-sm text-text-secondary italic mt-1">근거: {{ a.rationale }}</div>
                   </div>
                 </div>
               </div>
@@ -622,16 +676,16 @@ const phaseLabel = computed(() => {
 
           <!-- 5. 핸드오프 -->
           <div>
-            <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">5. 핸드오프 결정</div>
-            <div class="border-2 rounded-md p-3" :class="tone.border + ' ' + tone.bg">
-              <div class="flex items-center gap-2 mb-1">
-                <span class="text-sm font-bold" :class="tone.text">
+            <div class="text-sm font-bold text-text-secondary uppercase tracking-wider mb-2">5. 핸드오프 결정</div>
+            <div class="border-2 rounded-md p-4" :class="tone.border + ' ' + tone.bg">
+              <div class="flex items-center gap-2 mb-2">
+                <span class="text-base font-bold" :class="tone.text">
                   {{ blueprint.step5.handoff.toRca ? '✓ RCA 자동 진입' : '⏸ RCA 미진입' }}
                 </span>
-                <span v-if="blueprint.step5.handoff.mode" class="text-xs font-mono text-gray-600">({{ blueprint.step5.handoff.mode }} 모드)</span>
+                <span v-if="blueprint.step5.handoff.mode" class="text-sm font-mono text-text-secondary">({{ blueprint.step5.handoff.mode }} 모드)</span>
               </div>
-              <div class="text-sm text-text-primary">{{ blueprint.step5.handoff.reason }}</div>
-              <div v-if="blueprint.step5.handoff.slackChannel" class="text-xs text-gray-600 mt-1">
+              <div class="text-base text-text-primary">{{ blueprint.step5.handoff.reason }}</div>
+              <div v-if="blueprint.step5.handoff.slackChannel" class="text-sm text-text-secondary mt-1">
                 Slack 전파: <span class="font-mono font-bold">{{ blueprint.step5.handoff.slackChannel }}</span>
               </div>
             </div>
@@ -648,7 +702,7 @@ const phaseLabel = computed(() => {
     </div>
     <div v-if="phase === 'done' && slackPropagated" class="flex items-center gap-2 text-sm bg-purple-50 border-2 border-purple-300 text-purple-900 rounded-md px-3 py-2">
       <span class="font-bold">Slack</span>
-      <span>#ops-critical 채널에 @channel 전파됨</span>
+      <span>#zeux 채널에 @channel 전파됨</span>
     </div>
   </div>
 </template>

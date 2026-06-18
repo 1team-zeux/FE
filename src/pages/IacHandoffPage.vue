@@ -6,6 +6,7 @@ import { storeToRefs } from 'pinia'
 import { api } from '@/services/api'
 import { useIacStore } from '@/features/iac'
 import type { VerifyResult } from '@/features/iac'
+import { useHandoffHealthcheckByPlan } from '@/features/iac/api/useTerraform'
 
 // 배포 완료 후 고객사 핸드오프 페이지
 // /iac/deploy 종료 후 운영자가 고객사에 전달할 접속 정보 / DB / SSH 키 표시 + 라이브 핑
@@ -38,6 +39,17 @@ const handoff = computed(() => verifyData.value?.handoff ?? null)
 const pings = computed(() => verifyData.value?.pings ?? [])
 const overall = computed(() => verifyData.value?.overall ?? 'pending')
 
+// 실제 AWS 자원 라이브 헬스체크 (ALB HTTP / Bastion TCP 22 / ECS describe_services) — 5초 polling
+const liveEnabled = computed(() => !!planId.value)
+const healthcheckQuery = useHandoffHealthcheckByPlan(planId, liveEnabled)
+const live = computed(() => healthcheckQuery.data.value ?? null)
+const liveAlbDot = computed(() => live.value?.alb.ok ? 'bg-green-500' : live.value?.alb ? 'bg-red-500' : 'bg-gray-300')
+const liveBastionDot = computed(() => live.value?.bastion_ssh.ok ? 'bg-green-500' : live.value?.bastion_ssh ? 'bg-red-500' : 'bg-gray-300')
+const liveEcsDot = computed(() => live.value?.ecs.ok ? 'bg-green-500' : live.value?.ecs ? 'bg-red-500' : 'bg-gray-300')
+
+// 운영자 보유 zeux-key.pem 재탕 — terraform 이 더이상 .pem 생성 안 함
+const SSH_KEY_PATH = '~/skala-최종팀플/zeux-key.pem'
+
 // 복사 피드백
 const copied = ref<string | null>(null)
 function copyText(text: string, key: string) {
@@ -47,26 +59,9 @@ function copyText(text: string, key: string) {
   setTimeout(() => { copied.value = null }, 2000)
 }
 
-// 비밀번호 / SSH 키 표시 토글
+// 비밀번호 표시 토글
 const showPassword = ref(false)
 const showDbPassword = ref(false)
-const showSshKey = ref(false)
-
-// .pem 다운로드
-function downloadPem() {
-  const pem = handoff.value?.bastionSshPrivateKey
-  if (!pem) return
-  const customerId = handoff.value?.customerId || 'bastion'
-  const blob = new Blob([pem], { type: 'application/x-pem-file' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `bastion-${customerId}.pem`
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
-  URL.revokeObjectURL(url)
-}
 
 // 전체 정보 PDF 다운로드 (마크다운 정리, 색 X)
 async function downloadPdf() {
@@ -142,6 +137,92 @@ const issuedAt = computed(() => {
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
           </svg>
         </button>
+      </div>
+    </div>
+
+    <!-- 실제 AWS 자원 라이브 헬스체크 (5초 polling) -->
+    <div class="bg-white border rounded-2xl p-5 shadow-sm">
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <span class="flex items-center gap-1.5 text-sm font-semibold text-text-primary bg-bg-muted px-3 py-1 rounded-full border">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+            라이브
+          </span>
+          <h2 class="text-base font-semibold text-text-primary">실제 AWS 자원 상태</h2>
+        </div>
+        <span class="text-xs text-text-secondary">
+          {{ live ? '5초마다 갱신' : '연결 대기 중...' }}
+        </span>
+      </div>
+      <div class="grid grid-cols-3 gap-3">
+        <!-- ALB HTTP -->
+        <div class="border rounded-xl p-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span :class="liveAlbDot" class="w-2.5 h-2.5 rounded-full"></span>
+            <span class="text-sm font-semibold text-text-primary">ALB HTTP</span>
+          </div>
+          <div class="font-mono text-xs text-text-secondary truncate" :title="live?.alb.url || ''">
+            {{ live?.alb.url || 'pending' }}
+          </div>
+          <div class="text-xs text-text-secondary mt-1">
+            <template v-if="live?.alb.ok">
+              {{ live.alb.status_code }} · {{ live.alb.latency_ms }}ms
+            </template>
+            <template v-else-if="live?.alb.error">
+              <span class="text-red-600 truncate inline-block max-w-full" :title="live.alb.error">{{ live.alb.error }}</span>
+            </template>
+            <template v-else>—</template>
+          </div>
+        </div>
+        <!-- Bastion SSH -->
+        <div class="border rounded-xl p-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span :class="liveBastionDot" class="w-2.5 h-2.5 rounded-full"></span>
+            <span class="text-sm font-semibold text-text-primary">Bastion SSH</span>
+          </div>
+          <div class="font-mono text-xs text-text-secondary truncate">
+            {{ live?.bastion_ssh.public_ip || 'pending' }}:22
+          </div>
+          <div class="text-xs text-text-secondary mt-1">
+            <template v-if="live?.bastion_ssh.ok">TCP {{ live.bastion_ssh.latency_ms }}ms</template>
+            <template v-else-if="live?.bastion_ssh.error">
+              <span class="text-red-600 truncate inline-block max-w-full" :title="live.bastion_ssh.error">{{ live.bastion_ssh.error }}</span>
+            </template>
+            <template v-else>—</template>
+          </div>
+        </div>
+        <!-- ECS tasks -->
+        <div class="border rounded-xl p-3">
+          <div class="flex items-center gap-2 mb-1.5">
+            <span :class="liveEcsDot" class="w-2.5 h-2.5 rounded-full"></span>
+            <span class="text-sm font-semibold text-text-primary">ECS Tasks</span>
+          </div>
+          <div class="font-mono text-xs text-text-secondary truncate" :title="live?.ecs.cluster || ''">
+            {{ live?.ecs.cluster || 'pending' }}
+          </div>
+          <div class="text-xs text-text-secondary mt-1">
+            <template v-if="live?.ecs.ok || (live && live.ecs.desired > 0)">
+              running {{ live.ecs.running }} / desired {{ live.ecs.desired }}
+            </template>
+            <template v-else-if="live?.ecs.error">
+              <span class="text-red-600 truncate inline-block max-w-full" :title="live.ecs.error">{{ live.ecs.error }}</span>
+            </template>
+            <template v-else>—</template>
+          </div>
+        </div>
+      </div>
+      <!-- ECS service breakdown (있으면) -->
+      <div v-if="live?.ecs.tasks?.length" class="mt-3 grid grid-cols-2 gap-1.5 text-xs">
+        <div
+          v-for="t in live.ecs.tasks"
+          :key="t.service"
+          class="flex items-center justify-between border rounded px-2 py-1 bg-bg-muted"
+        >
+          <span class="font-mono truncate">{{ t.service }}</span>
+          <span :class="t.running >= t.desired && t.desired > 0 ? 'text-green-700' : 'text-amber-600'" class="font-semibold">
+            {{ t.running }}/{{ t.desired }}
+          </span>
+        </div>
       </div>
     </div>
 
@@ -291,38 +372,28 @@ const issuedAt = computed(() => {
           </button>
         </div>
 
-        <!-- SSH 명령어 -->
+        <!-- SSH 명령어 — 운영자 보유 zeux-key.pem 재탕 -->
         <div class="bg-gray-900 text-green-400 rounded-lg p-3 font-mono text-xs">
           <div class="flex items-center justify-between mb-1">
-            <span class="text-gray-400 text-[10px]">SSH 명령어</span>
+            <span class="text-gray-400 text-[10px]">SSH 명령어 (운영자 보유 zeux-key.pem 재사용)</span>
             <button
-              @click="copyText(`ssh -i bastion-${handoff?.customerId || 'demo'}.pem ec2-user@${handoff?.bastionPublicIp || ''}`, 'sshCmd')"
+              @click="copyText(`ssh -i ${SSH_KEY_PATH} ec2-user@${handoff?.bastionPublicIp || ''}`, 'sshCmd')"
               class="text-[10px] text-gray-400 hover:text-green-300"
             >
               {{ copied === 'sshCmd' ? '복사됨!' : '복사' }}
             </button>
           </div>
-          <div>$ ssh -i bastion-{{ handoff?.customerId || 'demo' }}.pem ec2-user@{{ handoff?.bastionPublicIp || '...' }}</div>
+          <div>$ ssh -i {{ SSH_KEY_PATH }} ec2-user@{{ handoff?.bastionPublicIp || '...' }}</div>
         </div>
 
-        <!-- SSH 개인키 -->
-        <div class="bg-white rounded-lg p-3">
-          <div class="flex items-center justify-between mb-2">
-            <div class="text-xs text-text-secondary">SSH 개인키 (PEM)</div>
-            <div class="flex items-center gap-2">
-              <button @click="showSshKey = !showSshKey" class="text-xs text-purple-600 hover:underline">
-                {{ showSshKey ? '숨기기' : '보기' }}
-              </button>
-              <button
-                @click="downloadPem"
-                class="text-xs px-2 py-1 bg-purple-600 text-white rounded hover:bg-purple-700"
-              >
-                .pem 다운로드
-              </button>
-            </div>
-          </div>
-          <pre v-if="showSshKey" class="font-mono text-[10px] bg-gray-50 p-2 rounded overflow-x-auto max-h-40">{{ handoff?.bastionSshPrivateKey || '키 정보 없음' }}</pre>
-          <div v-else class="font-mono text-xs text-text-secondary">-----BEGIN RSA PRIVATE KEY----- ••• -----END RSA PRIVATE KEY-----</div>
+        <!-- 안내: zeux-key.pem 재탕 정책 -->
+        <div class="bg-white border border-purple-200 rounded-lg p-3 text-xs text-text-secondary leading-relaxed">
+          <div class="font-semibold text-purple-900 mb-1">SSH 키 정책</div>
+          Terraform 은 더 이상 새 SSH 키페어를 생성하지 않습니다. 운영자가 보유한
+          <code class="font-mono bg-bg-muted px-1 rounded">zeux-key.pem</code> 의 공개키를
+          <code class="font-mono bg-bg-muted px-1 rounded">.env</code> 의
+          <code class="font-mono bg-bg-muted px-1 rounded">BASTION_PUBLIC_KEY</code> 로 주입하여
+          새 Bastion 에 자동 등록됩니다. 위 명령어는 운영자 워크스테이션에서 그대로 실행하면 됩니다.
         </div>
       </div>
     </div>
@@ -427,8 +498,8 @@ const issuedAt = computed(() => {
       </h2>
       <ul style="margin: 0 0 12px 0; padding-left: 20px; font-size: 11pt; color: #000000;">
         <li style="margin-bottom: 4px;">Bastion 퍼블릭 IP: <code>{{ handoff?.bastionPublicIp ?? '-' }}</code></li>
-        <li style="margin-bottom: 4px;">SSH 명령어: <code>ssh -i bastion-{{ handoff?.customerId ?? 'demo' }}.pem ec2-user@{{ handoff?.bastionPublicIp ?? '...' }}</code></li>
-        <li style="margin-bottom: 4px;">SSH 개인키 파일: 별도 <code>.pem</code> 다운로드 사용 (PDF에 포함되지 않음)</li>
+        <li style="margin-bottom: 4px;">SSH 명령어: <code>ssh -i {{ SSH_KEY_PATH }} ec2-user@{{ handoff?.bastionPublicIp ?? '...' }}</code></li>
+        <li style="margin-bottom: 4px;">SSH 키: 운영자 보유 <code>zeux-key.pem</code> 재사용 (공개키만 Bastion 에 등록됨)</li>
       </ul>
 
       <h2 style="font-size: 14pt; margin: 18px 0 8px 0; padding-bottom: 4px; border-bottom: 0.5pt solid #000000; color: #000000;">

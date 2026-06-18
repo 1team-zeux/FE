@@ -3,8 +3,16 @@ import { useRouter } from 'vue-router';
 import type { AlarmGroup } from '../types/incident.schema';
 import AlarmDetailItem from './AlarmDetailItem.vue';
 
+// AlarmGroup + cap 정책 메타 (선택)
+type AlarmGroupWithCap = AlarmGroup & {
+  totalReceived?: number;
+  groupedCount?: number;
+  overflowCount?: number;
+  capApplied?: boolean;
+};
+
 const props = defineProps<{
-  group: AlarmGroup;
+  group: AlarmGroupWithCap;
   /** 기본 펼침 여부 (TriagePage에서 펼친 상태로 사용) */
   defaultOpen?: boolean;
 }>();
@@ -75,7 +83,7 @@ const statusDisplay = (status: string) => ({
         {{ group.severity.toUpperCase() }}
       </span>
 
-      <!-- 알람 개수 -->
+      <!-- 알람 개수 (목록은 단순 표시 — cap 메타는 펼친 본문에서만) -->
       <span class="text-xs text-gray-500 shrink-0">
         알람 <span class="font-bold text-text-primary">{{ group.alarmCount ?? group.alarms.length }}</span>개
       </span>
@@ -99,9 +107,21 @@ const statusDisplay = (status: string) => ({
     <!-- 펼친 상태에서 보이는 알람 상세 목록 -->
     <div class="bg-bg-muted pl-12 pr-4 pb-3">
       <div class="text-xs text-gray-500 px-4 pt-3 pb-1 font-semibold uppercase tracking-wider">
-        이 그룹에 묶인 알람 — {{ group.alarms.length }}건
+        이 그룹에 묶인 알람 — 노출 {{ group.alarms.length }}건<span v-if="group.capApplied"> / 그룹 묶음 {{ group.groupedCount }}건 / overflow {{ group.overflowCount }}건</span>
       </div>
       <AlarmDetailItem v-for="alarm in group.alarms" :key="alarm.id" :alarm="alarm" />
+
+      <!-- cap 정책 안내 박스 -->
+      <div v-if="group.capApplied" class="mx-4 my-3 border-2 border-amber-300 bg-amber-50 rounded p-3">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="px-2 py-0.5 text-xs font-bold rounded bg-amber-600 text-white">100건 CAP</span>
+          <span class="text-sm font-bold text-amber-800">알람 폭증 안전장치</span>
+        </div>
+        <div class="text-xs text-gray-700">
+          외 {{ Math.max(0, (group.groupedCount ?? 0) - group.alarms.length) }}건 그룹 합류 + {{ group.overflowCount }}건 cap overflow (카운트만 누적, 본문 폐기) — 분석 비용 일정 유지.
+        </div>
+      </div>
+
       <div class="mt-3 px-4">
         <button
           class="text-xs font-bold text-brand hover:underline"

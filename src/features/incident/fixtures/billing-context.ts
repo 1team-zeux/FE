@@ -391,16 +391,16 @@ export const SUBSCRIPTION_NODE_RESULTS: NodeResult[] = [
     nodeKey: 'handoff',
     nodeName: 'HandoffDecisionNode',
     status: 'done',
-    summaryHeadline: 'RCA 자동 진입 · hypothesis_first · Slack #ops-critical 전파',
+    summaryHeadline: 'RCA 자동 진입 · hypothesis_first · Slack #zeux 전파',
     highlights: [
       { label: 'to RCA',    value: 'yes',                  state: 'critical' },
       { label: 'mode',      value: 'hypothesis_first',     state: 'warning' },
-      { label: 'Slack',     value: '#ops-critical',        state: 'critical' },
+      { label: 'Slack',     value: '#zeux',        state: 'critical' },
     ],
     detailRows: [
       'Critical 우선순위 → RCA 자동 진입',
       'Vector hint 가설(db_connection_pool_exhaustion)을 먼저 검증',
-      'Slack #ops-critical 채널에 @channel 전파 완료',
+      'Slack #zeux 채널에 @channel 전파 완료',
     ],
   },
 ];
@@ -417,6 +417,78 @@ export const SUBSCRIPTION_STREAM_LINES: string[] = [
   '✓ VectorSearchNode — 유사 사태 3건 발견 (전부 db_connection_pool_exhaustion, 평균 유사도 0.87)',
   '✓ SLAImpactNode — 위반 예상까지 22초. 우선순위: Critical',
   '✓ AssessmentNode — Assessment 저장 완료 (provisional, id=assess-demo-subscription-001)',
-  '✓ HandoffDecisionNode — RCA 자동 진입 + Slack #ops-critical 채널 @channel 전파',
+  '✓ HandoffDecisionNode — RCA 자동 진입 + Slack #zeux 채널 @channel 전파',
   '$ Triage Agent 완료 (2.1s)',
+];
+
+// ─────────────────────────────────────────────────────────────
+// SURGE (Critical) — 트래픽 6.2× / ECS 처리 용량 부족
+// ─────────────────────────────────────────────────────────────
+
+export const SURGE_METRIC_SERIES: MetricTimeseries[] = [
+  {
+    name: 'request_rate',
+    label: '요청량 (RPS)',
+    unit: 'req/s',
+    current: 3000,
+    baseline: 500,
+    deviationRatio: 6.2,
+    series: buildSeries(500, 3000, 22, 0.12),
+    breachFrom: 22,
+    alarmIdx: 25,
+  },
+  {
+    name: 'cpu_util',
+    label: 'CPU 사용률',
+    unit: '%',
+    current: 95,
+    baseline: 40,
+    deviationRatio: 2.4,
+    series: buildSeries(40, 95, 23, 0.1),
+    breachFrom: 23,
+    alarmIdx: 25,
+  },
+  {
+    name: 'latency_p95_ms',
+    label: 'p95 응답시간',
+    unit: 'ms',
+    current: 1200,
+    baseline: 80,
+    deviationRatio: 15.0,
+    series: buildSeries(80, 1200, 23, 0.15),
+    breachFrom: 23,
+    alarmIdx: 26,
+  },
+  {
+    name: 'error_rate',
+    label: '5xx 오류율',
+    unit: 'ratio',
+    current: 0.08,
+    baseline: 0.001,
+    deviationRatio: 80.0,
+    series: buildSeries(0.001, 0.08, 24, 0.4),
+    breachFrom: 24,
+    alarmIdx: 26,
+  },
+];
+
+export const SURGE_LOG_SAMPLES: LogSample[] = [
+  { ts: '14:32:03', level: 'ERROR', service: 'subscription-api-1', message: 'request queue full, rejecting incoming request (HTTP 503)', occurrence: 38 },
+  { ts: '14:32:04', level: 'ERROR', service: 'subscription-api-2', message: 'request queue full, rejecting incoming request (HTTP 503)', occurrence: 42 },
+  { ts: '14:32:05', level: 'ERROR', service: 'subscription-api-3', message: '5xx response — capacity exceeded (queue depth 218 / max 50)', occurrence: 18 },
+  { ts: '14:32:06', level: 'WARN',  service: 'alb-controller',     message: 'target response time exceeded p95 threshold (1100ms / target 500ms)', occurrence: 9 },
+  { ts: '14:32:08', level: 'WARN',  service: 'sla-agent',          message: 'ErrorBudget fast burn 14.4× — alerting (sla-subscription-availability)', occurrence: 1 },
+  { ts: '14:32:11', level: 'ERROR', service: 'subscription-api-1', message: 'task handler timeout — queue wait > 30s', occurrence: 12 },
+  { ts: '14:32:14', level: 'WARN',  service: 'ecs-agent',          message: 'task-3 memory pressure detected (84% / threshold 75%)', occurrence: 3 },
+];
+
+export const SURGE_INFRA_TIMELINE: InfraSnapshot[] = [
+  { ts: '14:00', rdsConnections: 18, rdsMax: 200, asgRunning: 4, asgDesired: 4 },
+  { ts: '14:15', rdsConnections: 21, rdsMax: 200, asgRunning: 4, asgDesired: 4 },
+  { ts: '14:25', rdsConnections: 24, rdsMax: 200, asgRunning: 4, asgDesired: 4 },
+  { ts: '14:30', rdsConnections: 28, rdsMax: 200, asgRunning: 4, asgDesired: 4 },
+  { ts: '14:31', rdsConnections: 31, rdsMax: 200, asgRunning: 4, asgDesired: 4 },
+  { ts: '14:32', rdsConnections: 34, rdsMax: 200, asgRunning: 4, asgDesired: 4 },
+  { ts: '14:33', rdsConnections: 36, rdsMax: 200, asgRunning: 4, asgDesired: 12 },
+  { ts: '14:34', rdsConnections: 38, rdsMax: 200, asgRunning: 12, asgDesired: 12 },
 ];

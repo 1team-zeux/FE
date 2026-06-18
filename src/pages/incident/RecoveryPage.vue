@@ -2,8 +2,9 @@
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useRecoveryActionsQuery, useApproveActionMutation } from '@/features/incident';
-import { selectDemoRecoveryActions, selectDemoRecoveryReport } from '@/features/incident/fixtures';
+import { selectDemoRecoveryActions, selectDemoRecoveryReport, selectDemoRecoveryResult } from '@/features/incident/fixtures';
 import type { RecoveryAction } from '@/features/incident';
+import RecoveryResultPanel from '@/features/incident/components/RecoveryResultPanel.vue';
 
 const route  = useRoute();
 const router = useRouter();
@@ -54,6 +55,14 @@ const submitDecision = async (a: RecoveryAction, decision: 'approve' | 'reject')
 // 즉시 복구 / IaC 변경 분리
 const immediateActions = computed(() => actions.value.filter(a => a.actionType === 'immediate'));
 const iacActions       = computed(() => actions.value.filter(a => a.actionType === 'iac_change'));
+
+// 페이지 5 결과 데이터 (시나리오 한정 — surge 만 노출)
+const recoveryResult = computed(() => selectDemoRecoveryResult(incidentId));
+
+// 즉시 조치 중 하나라도 done 상태면 결과 패널 노출
+const resultPanelVisible = computed(() =>
+  recoveryResult.value != null && immediateActions.value.some(a => statusOf(a) === 'done')
+);
 
 // 위험도 → 배지
 const riskBadge = (level: string) => ({
@@ -181,6 +190,11 @@ const statusBadge = (a: RecoveryAction) => {
             </div>
           </div>
         </div>
+      </section>
+
+      <!-- 페이지 5 — 즉시 조치 승인 후 결과 패널 (surge 시나리오 한정) -->
+      <section v-if="recoveryResult && resultPanelVisible" class="mb-6">
+        <RecoveryResultPanel :data="recoveryResult" :visible="resultPanelVisible" />
       </section>
 
       <!-- (c) 해결 방안 보고서 -->

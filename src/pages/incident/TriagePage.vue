@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useTriageAssessmentQuery } from '@/features/incident';
+import { useTriageAssessmentQuery, useAlarmFeedQuery } from '@/features/incident';
 import { useTriageFlow } from '@/features/incident/api/useTriageNodeProgress';
 import {
   DEMO_BILLING_ASSESSMENT,
   DEMO_SUBSCRIPTION_ASSESSMENT,
+  DEMO_SURGE_ASSESSMENT,
   DEMO_FEED_GROUPS,
   BILLING_METRIC_SERIES,
   BILLING_LOG_SAMPLES,
@@ -13,6 +14,9 @@ import {
   SUBSCRIPTION_METRIC_SERIES,
   SUBSCRIPTION_LOG_SAMPLES,
   SUBSCRIPTION_INFRA_TIMELINE,
+  SURGE_METRIC_SERIES,
+  SURGE_LOG_SAMPLES,
+  SURGE_INFRA_TIMELINE,
   selectTriageBlueprint,
 } from '@/features/incident/fixtures';
 
@@ -30,12 +34,23 @@ const incidentId = (route.params.incidentId as string) ?? '';
 const { data: apiAssessment } = useTriageAssessmentQuery(incidentId);
 
 // incidentId 접두어로 시나리오 분기
-const scenarioKey = computed<'subscription' | 'billing'>(() =>
-  incidentId.startsWith('inc-demo-subscription') ? 'subscription' : 'billing'
-);
+const scenarioKey = computed<'surge' | 'subscription' | 'billing'>(() => {
+  if (incidentId.startsWith('inc-demo-surge'))        return 'surge';
+  if (incidentId.startsWith('inc-demo-subscription')) return 'subscription';
+  return 'billing';
+});
 
 // 시나리오 번들 — assessment / 메트릭 / 로그 / 인프라 / 블루프린트
 const bundle = computed(() => {
+  if (scenarioKey.value === 'surge') {
+    return {
+      assessment: DEMO_SURGE_ASSESSMENT,
+      metrics: SURGE_METRIC_SERIES,
+      logs: SURGE_LOG_SAMPLES,
+      timeline: SURGE_INFRA_TIMELINE,
+      blueprint: selectTriageBlueprint('inc-demo-surge-001'),
+    };
+  }
   if (scenarioKey.value === 'subscription') {
     return {
       assessment: DEMO_SUBSCRIPTION_ASSESSMENT,
@@ -63,6 +78,13 @@ const group = computed(() =>
     ?? DEMO_FEED_GROUPS[0]
 );
 const serviceName = computed(() => group.value.serviceName);
+
+// 실시간 알람피드에서 매칭 그룹 ts 가져오기 (webhook 도착 시각)
+const { data: liveAlarms } = useAlarmFeedQuery();
+const liveTriggerTs = computed<string | undefined>(() => {
+  const live = liveAlarms.value?.find(a => a.correlationGroupId === incidentId);
+  return live?.ts;
+});
 
 // Triage 흐름 — Step 1 그룹화 → Step 2 정적 → Step 3 → Step 4 분기 (+ Step 5)
 const flow = useTriageFlow();
@@ -138,6 +160,11 @@ const goToRecovery = () =>
             <span class="font-bold text-text-primary font-mono">{{ totalElapsedLabel }}</span>
           </span>
         </div>
+        <!-- 알람 수 — 수신 숫자 1줄만 -->
+        <div class="mt-3 inline-flex items-baseline gap-2 px-4 py-2 rounded-lg border border-border bg-bg-card">
+          <span class="text-2xl font-bold text-text-primary tabular-nums">{{ bundle.blueprint.step1.totalReceived }}</span>
+          <span class="text-xs text-text-secondary">알람 수신</span>
+        </div>
       </div>
       <button class="px-4 py-2 border border-border rounded-lg text-sm font-bold hover:bg-gray-50 transition-colors" @click="router.back()">← 알람 피드</button>
     </div>
@@ -149,6 +176,7 @@ const goToRecovery = () =>
       <div class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-2 pl-1">Section A · Step 1 · 알람 수신 & 그룹화</div>
       <IncidentSectionAStream
         :trigger="bundle.blueprint.step1.trigger"
+        :override-trigger-ts="liveTriggerTs"
         :severity-strategy="bundle.blueprint.step1.severityStrategy"
         :window-duration-label="bundle.blueprint.step1.windowDurationLabel"
         :arriving-alarms="flow.grouping.visibleArriving"
@@ -158,6 +186,11 @@ const goToRecovery = () =>
         :step1-display-ms="bundle.blueprint.step1DisplayMs"
         :is-active="sectionAActive"
         :service-map="bundle.blueprint.step1.serviceMap"
+        :representative-alert-names="bundle.blueprint.step1.representativeAlertNames"
+        :total-received="bundle.blueprint.step1.totalReceived"
+        :grouped-count="bundle.blueprint.step1.groupedCount"
+        :overflow-count="bundle.blueprint.step1.overflowCount"
+        :cap-applied="bundle.blueprint.step1.capApplied"
       />
     </section>
 

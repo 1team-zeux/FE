@@ -94,7 +94,9 @@ const connecting = ref<{ fromId: string } | null>(null)
 const connectCursor = ref({ x: 0, y: 0 })
 
 function svgPt(e: PointerEvent | DragEvent) {
-  const svg = svgEl.value!
+  // 라우트 전환 unmount race — svg ref null 일 때 안전 no-op 좌표 반환
+  const svg = svgEl.value
+  if (!svg) return { x: 0, y: 0 }
   const r = svg.getBoundingClientRect()
   const vb = svg.viewBox.baseVal
   return {

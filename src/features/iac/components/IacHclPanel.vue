@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed, onBeforeUnmount } from 'vue'
+import { ref, watch, computed, onBeforeUnmount, nextTick } from 'vue'
 
 const props = defineProps<{
   hclPreview: string | null
@@ -17,8 +17,12 @@ defineEmits<{
 // 운영자에게 "AI가 코드를 실시간으로 짜는 듯한" 시각적 피드백 제공.
 const typedContent = ref<string>('')
 const isTyping = ref<boolean>(false)
-const CHARS_PER_TICK = 90    // 한 번에 추가할 문자 수
-const TICK_INTERVAL_MS = 16  // 약 60fps
+// 운영자가 "AI 가 짜는 흐름" 을 실제로 읽을 수 있는 페이싱 — 풀세트 HCL ~15K chars 기준 약 6-7초.
+const CHARS_PER_TICK = 40
+const TICK_INTERVAL_MS = 18
+
+// 스트리밍 중 자동으로 아래로 따라 내려가게 — 코드 영역 <pre> ref
+const preRef = ref<HTMLPreElement | null>(null)
 
 let typingTimer: ReturnType<typeof globalThis.setInterval> | null = null
 
@@ -78,15 +82,58 @@ const progress = computed(() => {
 // 로딩 상태: hclPreview가 아직 없거나 타이핑 중
 const showInitialLoading = computed(() => !props.hclPreview && props.isGenerating)
 const showTypingHeader = computed(() => isTyping.value)
+
+// 타이핑 중 항상 코드 영역 최하단으로 따라가기 — DOM 업데이트 후 스크롤
+watch(typedContent, async () => {
+  await nextTick()
+  const el = preRef.value
+  if (el) el.scrollTop = el.scrollHeight
+})
+
+// 라이브 헤더용 — 현재 작성 중인 파일명 (HCL preview 의 # ── path ── 헤더에서 파싱)
+const currentFile = computed(() => {
+  const text = displayContent.value
+  if (!text) return 'main.tf'
+  const matches = text.match(/# ─+\s*\n# ([^\n]+)\n# ─+/g)
+  if (!matches || matches.length === 0) return 'main.tf'
+  const last = matches[matches.length - 1]
+  const name = last.match(/# ([^\n]+)\n# ─/)?.[1]
+  return (name || 'main.tf').trim()
+})
+
+// Generating 중 단계 메시지 회전 — 백엔드 진행도와 동기 X, 순수 시각용
+const generatingSteps = [
+  'VPC + 서브넷 구성 중...',
+  'ALB + 보안그룹 정의 중...',
+  'ECS 클러스터 + 4 서비스 task 정의 중...',
+  'RDS + Bastion + S3 마무리 중...',
+]
+const stepIdx = ref(0)
+let stepTimer: ReturnType<typeof globalThis.setInterval> | null = null
+watch(showInitialLoading, (loading) => {
+  if (loading) {
+    stepIdx.value = 0
+    if (stepTimer) globalThis.clearInterval(stepTimer)
+    stepTimer = globalThis.setInterval(() => {
+      stepIdx.value = (stepIdx.value + 1) % generatingSteps.length
+    }, 4000)
+  } else if (stepTimer) {
+    globalThis.clearInterval(stepTimer)
+    stepTimer = null
+  }
+})
+onBeforeUnmount(() => { if (stepTimer) globalThis.clearInterval(stepTimer) })
 </script>
 
 <template>
   <div class="h-full flex flex-col pl-8 pr-4 pt-3 pb-4">
 
-    <!-- 초기 로딩 (생성 요청 → 응답 대기) -->
+    <!-- 초기 로딩 (생성 요청 → 응답 대기) — 4단계 메시지 회전 -->
     <div v-if="showInitialLoading" class="flex-1 flex flex-col items-center justify-center gap-4">
       <div class="w-12 h-12 border-4 border-brand border-t-transparent rounded-full animate-spin" />
-      <p class="text-text-secondary">Terraform HCL 코드 생성 중...</p>
+      <Transition name="fade" mode="out-in">
+        <p :key="stepIdx" class="text-text-secondary">{{ generatingSteps[stepIdx] }}</p>
+      </Transition>
       <p class="text-xs text-text-muted">최대 45초까지 대기합니다 (approved_topology 저장 대기)</p>
     </div>
 
@@ -111,7 +158,7 @@ const showTypingHeader = computed(() => isTyping.value)
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
             </svg>
-            <span class="text-xs font-mono font-medium text-zinc-300">main.tf</span>
+            <span class="text-xs font-mono font-medium text-zinc-300">{{ currentFile }}</span>
             <!-- 타이핑 중 라이브 인디케이터 -->
             <span v-if="showTypingHeader" class="flex items-center gap-1.5 ml-2 text-[10px] font-mono text-green-400">
               <span class="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
@@ -128,8 +175,9 @@ const showTypingHeader = computed(() => isTyping.value)
           <div class="h-full bg-brand transition-all duration-75 ease-linear" :style="{ width: progress + '%' }"></div>
         </div>
 
-        <!-- 코드 영역 -->
+        <!-- 코드 영역 — 타이핑 따라 자동 스크롤 -->
         <pre
+          ref="preRef"
           class="flex-1 overflow-y-auto bg-zinc-900 text-zinc-100 font-mono text-[13px] px-5 py-4 leading-relaxed whitespace-pre-wrap"
         ><span>{{ displayContent }}</span><span v-if="showTypingHeader" class="inline-block w-2 h-4 bg-green-400 ml-0.5 align-middle animate-pulse"></span></pre>
 
