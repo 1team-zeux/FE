@@ -3,7 +3,7 @@ import type { AiSuggestion } from '../types/sla-bundle.schema'
 
 defineProps<{
   suggestions: AiSuggestion[]
-  unit?: string
+  unit?: string | null
 }>()
 
 defineEmits<{

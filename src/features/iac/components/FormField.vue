@@ -21,8 +21,8 @@ const props = defineProps<{
   value: string | number | null
   confidence: ConfidenceLevel
   required: boolean
-  unit?: string
-  description?: string
+  unit?: string | null
+  description?: string | null
   activationStatus?: ActivationStatus
   source?: SourceType
   suggestions?: AiSuggestion[]

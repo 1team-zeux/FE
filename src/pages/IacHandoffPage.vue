@@ -81,7 +81,7 @@ async function downloadPdf() {
       html2canvas: { scale: 2, backgroundColor: '#ffffff' },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['avoid-all', 'css'] },
-    }).from(el).save()
+    } as any).from(el).save()
   } finally {
     el.style.display = 'none'
   }
